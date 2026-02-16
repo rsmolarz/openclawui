@@ -17,6 +17,7 @@ const openclawConfigUpdateSchema = z.object({
   gatewayMode: z.string().optional(),
   gatewayToken: z.string().nullable().optional(),
   defaultLlm: z.string().optional(),
+  fallbackLlm: z.string().optional(),
   llmApiKey: z.string().nullable().optional(),
   whatsappEnabled: z.boolean().optional(),
   whatsappPhone: z.string().nullable().optional(),
