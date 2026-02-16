@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { eq } from "drizzle-orm";
-import { settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig } from "@shared/schema";
+import { settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, integrations } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 const defaultNodeDetails: Record<string, { hostname: string; ip: string; os: string; location: string }> = {
@@ -31,8 +31,117 @@ async function migrateNodeData() {
   }
 }
 
+async function seedIntegrations() {
+  const existingIntegrations = await db.select().from(integrations);
+  if (existingIntegrations.length > 0) return;
+
+  await db.insert(integrations).values([
+    {
+      name: "WhatsApp",
+      type: "whatsapp",
+      category: "messaging",
+      enabled: false,
+      status: "not_configured",
+      description: "Connect WhatsApp Business API to send and receive messages through OpenClaw agents.",
+      icon: "MessageCircle",
+      config: { phone: "", apiKey: "", webhookUrl: "" },
+    },
+    {
+      name: "Telegram",
+      type: "telegram",
+      category: "messaging",
+      enabled: false,
+      status: "not_configured",
+      description: "Integrate Telegram Bot API for agent messaging and notifications.",
+      icon: "Send",
+      config: { botToken: "", chatId: "", webhookUrl: "" },
+    },
+    {
+      name: "Discord",
+      type: "discord",
+      category: "messaging",
+      enabled: false,
+      status: "not_configured",
+      description: "Connect Discord bots to interact with users through channels and DMs.",
+      icon: "Hash",
+      config: { botToken: "", guildId: "", channelId: "" },
+    },
+    {
+      name: "Slack",
+      type: "slack",
+      category: "messaging",
+      enabled: false,
+      status: "not_configured",
+      description: "Integrate Slack workspace for team notifications and agent interactions.",
+      icon: "MessagesSquare",
+      config: { botToken: "", signingSecret: "", channelId: "" },
+    },
+    {
+      name: "Tailscale",
+      type: "tailscale",
+      category: "networking",
+      enabled: true,
+      status: "connected",
+      description: "Secure mesh VPN for connecting nodes across networks with zero-config networking.",
+      icon: "Network",
+      config: { authKey: "", tailnetName: "", hostname: "" },
+    },
+    {
+      name: "Webhook",
+      type: "webhook",
+      category: "automation",
+      enabled: false,
+      status: "not_configured",
+      description: "Send event notifications to external services via HTTP webhooks.",
+      icon: "Webhook",
+      config: { url: "", secret: "", events: [] },
+    },
+    {
+      name: "MQTT",
+      type: "mqtt",
+      category: "iot",
+      enabled: false,
+      status: "not_configured",
+      description: "Lightweight messaging protocol for IoT device communication with nodes.",
+      icon: "Radio",
+      config: { brokerUrl: "", username: "", password: "", topic: "" },
+    },
+    {
+      name: "Email / SMTP",
+      type: "email",
+      category: "notifications",
+      enabled: false,
+      status: "not_configured",
+      description: "Send email notifications and alerts through SMTP or transactional email providers.",
+      icon: "Mail",
+      config: { smtpHost: "", smtpPort: 587, username: "", password: "", fromAddress: "" },
+    },
+    {
+      name: "OpenRouter",
+      type: "openrouter",
+      category: "ai",
+      enabled: true,
+      status: "connected",
+      description: "Unified API gateway for accessing 200+ LLM models from all major providers.",
+      icon: "Brain",
+      config: { apiKey: "", defaultModel: "deepseek-chat", fallbackModel: "auto" },
+    },
+    {
+      name: "n8n",
+      type: "n8n",
+      category: "automation",
+      enabled: false,
+      status: "not_configured",
+      description: "Workflow automation platform for creating complex agent pipelines and triggers.",
+      icon: "Workflow",
+      config: { instanceUrl: "", apiKey: "", webhookPath: "" },
+    },
+  ]);
+}
+
 export async function seed() {
   await migrateNodeData();
+  await seedIntegrations();
 
   const existingSettings = await db.select().from(settings);
   if (existingSettings.length > 0) return;

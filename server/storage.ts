@@ -6,7 +6,8 @@ import {
   type DockerService, type InsertDockerService,
   type OpenclawConfig, type InsertOpenclawConfig,
   type LlmApiKey, type InsertLlmApiKey,
-  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys,
+  type Integration, type InsertIntegration,
+  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -45,6 +46,12 @@ export interface IStorage {
   createLlmApiKey(data: InsertLlmApiKey): Promise<LlmApiKey>;
   updateLlmApiKey(id: string, data: Partial<InsertLlmApiKey>): Promise<LlmApiKey | undefined>;
   deleteLlmApiKey(id: string): Promise<void>;
+
+  getIntegrations(): Promise<Integration[]>;
+  getIntegration(id: string): Promise<Integration | undefined>;
+  createIntegration(data: InsertIntegration): Promise<Integration>;
+  updateIntegration(id: string, data: Partial<InsertIntegration>): Promise<Integration | undefined>;
+  deleteIntegration(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -228,6 +235,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLlmApiKey(id: string): Promise<void> {
     await db.delete(llmApiKeys).where(eq(llmApiKeys.id, id));
+  }
+
+  async getIntegrations(): Promise<Integration[]> {
+    return db.select().from(integrations);
+  }
+
+  async getIntegration(id: string): Promise<Integration | undefined> {
+    const [integration] = await db.select().from(integrations).where(eq(integrations.id, id));
+    return integration;
+  }
+
+  async createIntegration(data: InsertIntegration): Promise<Integration> {
+    const [created] = await db.insert(integrations).values(data).returning();
+    return created;
+  }
+
+  async updateIntegration(id: string, data: Partial<InsertIntegration>): Promise<Integration | undefined> {
+    const [updated] = await db
+      .update(integrations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(integrations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteIntegration(id: string): Promise<void> {
+    await db.delete(integrations).where(eq(integrations.id, id));
   }
 }
 

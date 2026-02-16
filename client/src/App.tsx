@@ -16,6 +16,7 @@ import SettingsApiKeys from "@/pages/settings-api-keys";
 import SettingsAppearance from "@/pages/settings-appearance";
 import SettingsVps from "@/pages/settings-vps";
 import SettingsOpenclaw from "@/pages/settings-openclaw";
+import SettingsIntegrations from "@/pages/settings-integrations";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/settings/appearance" component={SettingsAppearance} />
       <Route path="/settings/vps" component={SettingsVps} />
       <Route path="/settings/openclaw" component={SettingsOpenclaw} />
+      <Route path="/settings/integrations" component={SettingsIntegrations} />
       <Route component={NotFound} />
     </Switch>
   );

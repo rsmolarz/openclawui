@@ -1,7 +1,7 @@
 # OpenClaw Dashboard - Settings Management
 
 ## Overview
-A professional settings management dashboard for the OpenClaw arcade platform. Manage general settings, notifications, claw machines, API keys, appearance preferences, VPS connection, Docker services monitoring, and OpenClaw configuration.
+A professional settings management dashboard for the OpenClaw AI agent gateway platform. Manage general settings, notifications, nodes/computers (via pairing codes), API keys, appearance preferences, VPS connection, Docker services monitoring, OpenClaw configuration (gateway, LLM with primary/fallback models from 70+ OpenRouter options, WhatsApp, Tailscale, node approvals), LLM API key management, and external integrations with full CRUD operations and PostgreSQL persistence.
 
 ## Architecture
 - **Frontend**: React + TypeScript with Vite, Shadcn UI components, wouter routing, TanStack Query
@@ -17,14 +17,15 @@ client/src/
 │   ├── theme-provider.tsx
 │   └── theme-toggle.tsx
 ├── pages/
-│   ├── overview.tsx               # Dashboard overview with stats
-│   ├── settings-general.tsx       # General settings
-│   ├── settings-notifications.tsx # Notification preferences
-│   ├── settings-machines.tsx      # Machine CRUD
-│   ├── settings-api-keys.tsx      # API key management
-│   ├── settings-appearance.tsx    # Theme/appearance settings
-│   ├── settings-vps.tsx           # VPS connection management
-│   └── settings-openclaw.tsx      # OpenClaw config, Docker, nodes
+│   ├── overview.tsx                  # Dashboard overview with stats
+│   ├── settings-general.tsx          # General settings
+│   ├── settings-notifications.tsx    # Notification preferences
+│   ├── settings-machines.tsx         # Node/computer management (pairing codes)
+│   ├── settings-api-keys.tsx         # API key management
+│   ├── settings-appearance.tsx       # Theme/appearance settings
+│   ├── settings-vps.tsx              # VPS connection management
+│   ├── settings-openclaw.tsx         # OpenClaw config, Docker, nodes
+│   └── settings-integrations.tsx     # External integrations management
 ├── hooks/
 ├── lib/
 └── App.tsx
@@ -42,19 +43,21 @@ shared/
 
 ## Data Models
 - **settings**: Key-value settings with categories (general, notifications, appearance)
-- **machines**: Claw machines with name, location, status, config
+- **machines**: OpenClaw nodes/computers with hostname, IP address, OS, pairing code, display name, status (pending/paired/connected/disconnected)
 - **apiKeys**: API keys with permissions and active status
 - **vpsConnections**: VPS server connection details (IP, port, SSH user, key path, connection status)
 - **dockerServices**: Docker container services (name, status, port, image, CPU/memory usage)
 - **openclawConfig**: Gateway settings, LLM provider (primary + fallback), WhatsApp, Tailscale, node approvals
 - **llmApiKeys**: LLM provider API keys (provider, label, apiKey, baseUrl, active status)
+- **integrations**: External service integrations (name, type, category, enabled, status, config JSON, icon)
 
 ## API Endpoints
 - `GET /api/settings` - List all settings
 - `PATCH /api/settings/bulk` - Bulk update settings
-- `GET /api/machines` - List machines
-- `POST /api/machines` - Create machine
-- `DELETE /api/machines/:id` - Delete machine
+- `GET /api/machines` - List nodes
+- `POST /api/machines` - Create node
+- `PATCH /api/machines/:id` - Update node
+- `DELETE /api/machines/:id` - Delete node
 - `GET /api/api-keys` - List API keys
 - `POST /api/api-keys` - Create API key
 - `PATCH /api/api-keys/:id` - Update API key
@@ -72,11 +75,23 @@ shared/
 - `POST /api/llm-api-keys` - Create LLM API key
 - `PATCH /api/llm-api-keys/:id` - Update LLM API key
 - `DELETE /api/llm-api-keys/:id` - Delete LLM API key
+- `GET /api/integrations` - List integrations
+- `POST /api/integrations` - Create integration
+- `PATCH /api/integrations/:id` - Update integration
+- `DELETE /api/integrations/:id` - Delete integration
 
 ## Sidebar Navigation
 - **Main**: Overview
-- **Settings**: General, Notifications, Machines, API Keys, Appearance
-- **Infrastructure**: VPS Connection, OpenClaw Config
+- **Settings**: General, Notifications, Nodes, API Keys, Appearance
+- **Infrastructure**: VPS Connection, OpenClaw Config, Integrations
+
+## Integration Categories
+- **messaging**: WhatsApp, Telegram, Discord, Slack
+- **ai**: OpenRouter (LLM gateway)
+- **networking**: Tailscale (mesh VPN)
+- **automation**: Webhook, n8n
+- **notifications**: Email / SMTP
+- **iot**: MQTT
 
 ## Running
 - `npm run dev` starts both frontend and backend on port 5000

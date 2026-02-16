@@ -8,6 +8,7 @@ import {
   Palette,
   Server,
   Cog,
+  Plug,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +38,7 @@ const settingsItems = [
 const infraItems = [
   { title: "VPS Connection", url: "/settings/vps", icon: Server },
   { title: "OpenClaw Config", url: "/settings/openclaw", icon: Cog },
+  { title: "Integrations", url: "/settings/integrations", icon: Plug },
 ];
 
 export function AppSidebar() {

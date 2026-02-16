@@ -111,8 +111,25 @@ export type VpsConnection = typeof vpsConnections.$inferSelect;
 export type InsertVpsConnection = z.infer<typeof insertVpsConnectionSchema>;
 export type DockerService = typeof dockerServices.$inferSelect;
 export type InsertDockerService = z.infer<typeof insertDockerServiceSchema>;
+export const integrations = pgTable("integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  category: text("category").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  status: text("status").notNull().default("not_configured"),
+  description: text("description"),
+  icon: text("icon"),
+  config: jsonb("config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertIntegrationSchema = createInsertSchema(integrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLlmApiKeySchema = createInsertSchema(llmApiKeys).omit({ id: true, createdAt: true });
 export type OpenclawConfig = typeof openclawConfig.$inferSelect;
 export type InsertOpenclawConfig = z.infer<typeof insertOpenclawConfigSchema>;
 export type LlmApiKey = typeof llmApiKeys.$inferSelect;
 export type InsertLlmApiKey = z.infer<typeof insertLlmApiKeySchema>;
+export type Integration = typeof integrations.$inferSelect;
+export type InsertIntegration = z.infer<typeof insertIntegrationSchema>;
