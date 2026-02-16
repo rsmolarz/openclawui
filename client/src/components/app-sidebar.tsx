@@ -29,7 +29,7 @@ const navItems = [
 const settingsItems = [
   { title: "General", url: "/settings/general", icon: Settings },
   { title: "Notifications", url: "/settings/notifications", icon: Bell },
-  { title: "Machines", url: "/settings/machines", icon: Cpu },
+  { title: "Nodes", url: "/settings/machines", icon: Cpu },
   { title: "API Keys", url: "/settings/api-keys", icon: KeyRound },
   { title: "Appearance", url: "/settings/appearance", icon: Palette },
 ];
