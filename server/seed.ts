@@ -73,7 +73,10 @@ export async function seed() {
       tailscaleIp: "100.64.0.1",
       tailscaleStatus: "connected",
       nodesApproved: 3,
-      pendingNodes: ["node-alpha-7", "node-beta-12"],
+      pendingNodes: [
+        { id: "node-alpha-7", hostname: "arcade-pc-front-01", ip: "192.168.1.42", os: "Ubuntu 22.04", location: "Main Floor, Zone A" },
+        { id: "node-beta-12", hostname: "arcade-pc-back-03", ip: "192.168.1.78", os: "Debian 12", location: "Second Floor, Zone C" },
+      ],
     },
   ]);
 

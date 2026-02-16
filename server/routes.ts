@@ -225,7 +225,7 @@ export async function registerRoutes(
   app.get("/api/nodes/pending", async (_req, res) => {
     try {
       const config = await storage.getOpenclawConfig();
-      res.json({ pending: (config?.pendingNodes as string[]) ?? [] });
+      res.json({ pending: (config?.pendingNodes as any[]) ?? [] });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch pending nodes" });
     }
@@ -236,8 +236,8 @@ export async function registerRoutes(
       const { node_id } = req.body;
       const config = await storage.getOpenclawConfig();
       if (config && config.pendingNodes) {
-        const pending = config.pendingNodes as string[];
-        const idx = pending.indexOf(node_id);
+        const pending = config.pendingNodes as any[];
+        const idx = pending.findIndex((n: any) => (typeof n === "string" ? n === node_id : n.id === node_id));
         if (idx >= 0) {
           pending.splice(idx, 1);
           await storage.upsertOpenclawConfig({

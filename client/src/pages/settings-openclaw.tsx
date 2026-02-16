@@ -98,7 +98,18 @@ export default function SettingsOpenclaw() {
     );
   }
 
-  const pendingNodes = (config?.pendingNodes as string[]) ?? [];
+  interface PendingNode {
+    id: string;
+    hostname: string;
+    ip: string;
+    os: string;
+    location: string;
+  }
+
+  const rawNodes = (config?.pendingNodes as any[]) ?? [];
+  const pendingNodes: PendingNode[] = rawNodes.map((n) =>
+    typeof n === "string" ? { id: n, hostname: n, ip: "Unknown", os: "Unknown", location: "Unknown" } : n
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -355,21 +366,28 @@ export default function SettingsOpenclaw() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {pendingNodes.map((nodeId) => (
+              {pendingNodes.map((node) => (
                 <div
-                  key={nodeId}
+                  key={node.id}
                   className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
-                  data-testid={`row-pending-node-${nodeId}`}
+                  data-testid={`row-pending-node-${node.id}`}
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{nodeId}</p>
-                    <p className="text-xs text-muted-foreground">Awaiting approval</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium" data-testid={`text-node-hostname-${node.id}`}>{node.hostname}</p>
+                      <Badge variant="secondary" className="text-xs">{node.id}</Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <span className="text-xs text-muted-foreground" data-testid={`text-node-ip-${node.id}`}>{node.ip}</span>
+                      <span className="text-xs text-muted-foreground">{node.os}</span>
+                      <span className="text-xs text-muted-foreground">{node.location}</span>
+                    </div>
                   </div>
                   <Button
                     variant="outline"
-                    onClick={() => approveMutation.mutate(nodeId)}
+                    onClick={() => approveMutation.mutate(node.id)}
                     disabled={approveMutation.isPending}
-                    data-testid={`button-approve-node-${nodeId}`}
+                    data-testid={`button-approve-node-${node.id}`}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Approve
