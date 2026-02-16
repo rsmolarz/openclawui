@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Clock, Copy, RefreshCw } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Clock, Copy, RefreshCw, HelpCircle, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -126,6 +126,118 @@ function NodeCard({
             >
               <Copy className="h-3.5 w-3.5" />
             </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SetupInstructions() {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Card data-testid="card-setup-instructions">
+      <CardContent className="pt-5 pb-4">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center justify-between gap-2 w-full text-left hover-elevate rounded-md p-1 -m-1"
+          data-testid="button-toggle-instructions"
+        >
+          <div className="flex items-center gap-2">
+            <HelpCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-semibold">How to Add a Node to Your OpenClaw Network</span>
+          </div>
+          {expanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+        </button>
+
+        {expanded && (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-md border p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+                Find Your Computer's IP Address
+              </h4>
+              <p className="text-sm text-muted-foreground pl-8">
+                You need the <strong>IPv4 address</strong> of the computer you want to add. This is the local network address assigned to your machine.
+              </p>
+              <div className="pl-8 space-y-2">
+                <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold">Windows:</p>
+                  <p className="text-xs text-muted-foreground">
+                    Go to <strong>Settings &gt; Network &amp; Internet &gt; Wi-Fi</strong> (or Ethernet), click your connection name, and scroll down to find <strong>"IPv4 address"</strong>.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Or open Command Prompt and type: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ipconfig</code> — look for <strong>"IPv4 Address"</strong> under your active adapter.
+                  </p>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold">macOS:</p>
+                  <p className="text-xs text-muted-foreground">
+                    Go to <strong>System Settings &gt; Network</strong>, select your connection, and find the <strong>IP address</strong>.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Or open Terminal and type: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ifconfig | grep "inet "</code>
+                  </p>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold">Linux:</p>
+                  <p className="text-xs text-muted-foreground">
+                    Open a terminal and type: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ip addr show</code> or <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">hostname -I</code>
+                  </p>
+                </div>
+              </div>
+              <div className="pl-8 flex items-start gap-2 rounded-md border border-dashed p-3">
+                <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  The IPv4 address typically looks like <strong>192.168.x.x</strong> or <strong>10.x.x.x</strong>. Do <em>not</em> use the IPv6 address (the longer one with colons). If your computer has both Wi-Fi and Ethernet, use the address for whichever connection is active.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-md border p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+                Register the Node Here
+              </h4>
+              <p className="text-sm text-muted-foreground pl-8">
+                Click the <strong>"Register Node"</strong> button above and fill in:
+              </p>
+              <ul className="text-sm text-muted-foreground pl-12 list-disc space-y-1">
+                <li><strong>Node Name</strong> — A unique identifier (e.g., <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">office-pc-01</code>)</li>
+                <li><strong>IP Address</strong> — The IPv4 address you found in Step 1</li>
+                <li><strong>Operating System</strong> — Windows, Linux, or macOS</li>
+                <li>A <strong>Pairing Code</strong> is automatically generated for you</li>
+              </ul>
+            </div>
+
+            <div className="rounded-md border p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+                Use the Pairing Code on Your Computer
+              </h4>
+              <p className="text-sm text-muted-foreground pl-8">
+                After registering, a <strong>6-character pairing code</strong> will appear on the node card below. To complete the connection:
+              </p>
+              <ol className="text-sm text-muted-foreground pl-12 list-decimal space-y-1">
+                <li>Copy the pairing code (click the copy button next to it)</li>
+                <li>On the target computer, open the <strong>OpenClaw agent application</strong></li>
+                <li>Go to <strong>Settings &gt; Network &gt; Pair with Gateway</strong></li>
+                <li>Enter the pairing code and confirm</li>
+                <li>The node status will change from <strong>"pending"</strong> to <strong>"connected"</strong> once paired</li>
+              </ol>
+            </div>
+
+            <div className="rounded-md border border-dashed p-3 flex items-start gap-2">
+              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                <strong>Tip:</strong> If you're using Tailscale, you can also use the Tailscale IP address (usually <strong>100.x.x.x</strong>) instead of the local network IP. This allows nodes to connect even across different networks.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
@@ -367,6 +479,8 @@ export default function SettingsMachines() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <SetupInstructions />
 
       {machines && machines.length > 0 ? (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
