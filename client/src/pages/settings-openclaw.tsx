@@ -30,7 +30,8 @@ export default function SettingsOpenclaw() {
     gatewayPort: 18789,
     gatewayBind: "127.0.0.1",
     gatewayMode: "local",
-    defaultLlm: "anthropic",
+    defaultLlm: "openrouter/deepseek-chat",
+    fallbackLlm: "openrouter/auto",
     whatsappEnabled: false,
     whatsappPhone: "",
     tailscaleEnabled: false,
@@ -43,6 +44,7 @@ export default function SettingsOpenclaw() {
         gatewayBind: config.gatewayBind,
         gatewayMode: config.gatewayMode,
         defaultLlm: config.defaultLlm,
+        fallbackLlm: config.fallbackLlm,
         whatsappEnabled: config.whatsappEnabled,
         whatsappPhone: config.whatsappPhone ?? "",
         tailscaleEnabled: config.tailscaleEnabled,
@@ -127,7 +129,8 @@ export default function SettingsOpenclaw() {
               <Globe className="h-4 w-4 text-muted-foreground" />
               <p className="text-xs text-muted-foreground font-medium">Default LLM</p>
             </div>
-            <p className="text-sm font-semibold capitalize">{config?.defaultLlm ?? "none"}</p>
+            <p className="text-sm font-semibold" data-testid="text-default-llm">{config?.defaultLlm ?? "none"}</p>
+            <p className="text-xs text-muted-foreground mt-1">Fallback: {config?.fallbackLlm ?? "none"}</p>
           </CardContent>
         </Card>
         <Card data-testid="card-nodes-status">
@@ -196,19 +199,41 @@ export default function SettingsOpenclaw() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="default_llm">Default LLM Provider</Label>
-            <Select value={formValues.defaultLlm} onValueChange={(val) => setFormValues((p) => ({ ...p, defaultLlm: val }))}>
-              <SelectTrigger data-testid="select-default-llm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-                <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                <SelectItem value="local">Local Model</SelectItem>
-                <SelectItem value="ollama">Ollama</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="default_llm">Default LLM</Label>
+              <Select value={formValues.defaultLlm} onValueChange={(val) => setFormValues((p) => ({ ...p, defaultLlm: val }))}>
+                <SelectTrigger data-testid="select-default-llm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openrouter/deepseek-chat">OpenRouter / DeepSeek Chat</SelectItem>
+                  <SelectItem value="openrouter/auto">OpenRouter / Auto</SelectItem>
+                  <SelectItem value="openrouter/gpt-4o">OpenRouter / GPT-4o</SelectItem>
+                  <SelectItem value="openrouter/claude-sonnet">OpenRouter / Claude Sonnet</SelectItem>
+                  <SelectItem value="openrouter/llama-3">OpenRouter / Llama 3</SelectItem>
+                  <SelectItem value="openrouter/mixtral">OpenRouter / Mixtral</SelectItem>
+                  <SelectItem value="ollama">Ollama (Local)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fallback_llm">Fallback LLM</Label>
+              <Select value={formValues.fallbackLlm} onValueChange={(val) => setFormValues((p) => ({ ...p, fallbackLlm: val }))}>
+                <SelectTrigger data-testid="select-fallback-llm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openrouter/auto">OpenRouter / Auto</SelectItem>
+                  <SelectItem value="openrouter/deepseek-chat">OpenRouter / DeepSeek Chat</SelectItem>
+                  <SelectItem value="openrouter/gpt-4o">OpenRouter / GPT-4o</SelectItem>
+                  <SelectItem value="openrouter/claude-sonnet">OpenRouter / Claude Sonnet</SelectItem>
+                  <SelectItem value="openrouter/llama-3">OpenRouter / Llama 3</SelectItem>
+                  <SelectItem value="openrouter/mixtral">OpenRouter / Mixtral</SelectItem>
+                  <SelectItem value="ollama">Ollama (Local)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
