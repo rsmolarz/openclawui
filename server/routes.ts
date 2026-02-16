@@ -39,6 +39,16 @@ const vpsUpdateSchema = z.object({
 const MEDINVEST_BASE_URL = process.env.MEDINVEST_BASE_URL || "https://did-login.replit.app";
 const MEDINVEST_CLIENT_ID = process.env.MEDINVEST_CLIENT_ID || "";
 const MEDINVEST_CLIENT_SECRET = process.env.MEDINVEST_CLIENT_SECRET || "";
+const APP_BASE_URL = process.env.APP_BASE_URL || "";
+
+function getRedirectUri(req: Request): string {
+  if (APP_BASE_URL) {
+    return `${APP_BASE_URL}/api/auth/medinvest/callback`;
+  }
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  return `${protocol}://${host}/api/auth/medinvest/callback`;
+}
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
@@ -71,9 +81,7 @@ export async function registerRoutes(
     const state = randomBytes(32).toString("hex");
     req.session.oauthState = state;
 
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol;
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    const redirectUri = `${protocol}://${host}/api/auth/medinvest/callback`;
+    const redirectUri = getRedirectUri(req);
 
     const params = new URLSearchParams({
       response_type: "code",
@@ -104,11 +112,7 @@ export async function registerRoutes(
 
       delete req.session.oauthState;
 
-      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
-      const host = req.headers["x-forwarded-host"] || req.headers.host;
-      const redirectUri = `${protocol}://${host}/api/auth/medinvest/callback`;
-
-      console.log("Exchanging code for token with redirect_uri:", redirectUri);
+      const redirectUri = getRedirectUri(req);
 
       const tokenRes = await fetch(`${MEDINVEST_BASE_URL}/api/oauth/token`, {
         method: "POST",
