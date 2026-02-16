@@ -1,8 +1,9 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema } from "@shared/schema";
 import { z } from "zod";
+import { randomBytes } from "crypto";
 
 const bulkUpdateSchema = z.object({
   updates: z.array(z.object({
@@ -35,12 +36,136 @@ const vpsUpdateSchema = z.object({
   sshKeyPath: z.string().nullable().optional(),
 });
 
+const MEDINVEST_BASE_URL = process.env.MEDINVEST_BASE_URL || "https://did-login.replit.app";
+const MEDINVEST_CLIENT_ID = process.env.MEDINVEST_CLIENT_ID || "";
+const MEDINVEST_CLIENT_SECRET = process.env.MEDINVEST_CLIENT_SECRET || "";
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  next();
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  app.get("/api/settings", async (_req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
+    if (!req.session.userId) {
+      return res.json({ user: null });
+    }
+    try {
+      const user = await storage.getUser(req.session.userId);
+      res.json({ user: user ?? null });
+    } catch {
+      res.json({ user: null });
+    }
+  });
+
+  app.get("/api/auth/medinvest/start", (req, res) => {
+    if (!MEDINVEST_CLIENT_ID || !MEDINVEST_CLIENT_SECRET) {
+      return res.status(503).json({ error: "OAuth not configured. Missing client credentials." });
+    }
+    const state = randomBytes(32).toString("hex");
+    req.session.oauthState = state;
+
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/auth/medinvest/callback`;
+
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: MEDINVEST_CLIENT_ID,
+      redirect_uri: redirectUri,
+      scope: "did:read profile:read",
+      state,
+    });
+
+    req.session.save(() => {
+      res.redirect(`${MEDINVEST_BASE_URL}/oauth/authorize?${params.toString()}`);
+    });
+  });
+
+  app.get("/api/auth/medinvest/callback", async (req, res) => {
+    try {
+      const { code, state } = req.query;
+
+      if (!code || !state || state !== req.session.oauthState) {
+        return res.redirect("/?error=invalid_state");
+      }
+
+      delete req.session.oauthState;
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/auth/medinvest/callback`;
+
+      const tokenRes = await fetch(`${MEDINVEST_BASE_URL}/api/oauth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+          client_id: MEDINVEST_CLIENT_ID,
+          client_secret: MEDINVEST_CLIENT_SECRET,
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        console.error("Token exchange failed:", await tokenRes.text());
+        return res.redirect("/?error=token_failed");
+      }
+
+      const tokenData = await tokenRes.json() as { access_token: string };
+
+      const userInfoRes = await fetch(`${MEDINVEST_BASE_URL}/api/oauth/userinfo`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+
+      if (!userInfoRes.ok) {
+        console.error("UserInfo fetch failed:", await userInfoRes.text());
+        return res.redirect("/?error=userinfo_failed");
+      }
+
+      const userInfo = await userInfoRes.json() as {
+        sub: string;
+        did: string;
+        username: string;
+        display_name?: string;
+        email?: string;
+      };
+
+      const user = await storage.upsertUser({
+        medinvestId: userInfo.sub,
+        medinvestDid: userInfo.did,
+        username: userInfo.username,
+        displayName: userInfo.display_name || userInfo.username,
+        email: userInfo.email || null,
+      });
+
+      req.session.userId = user.id;
+      req.session.save(() => {
+        res.redirect("/");
+      });
+    } catch (error) {
+      console.error("OAuth callback error:", error);
+      res.redirect("/?error=auth_failed");
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.json({ success: true });
+    });
+  });
+
+  app.get("/api/settings", requireAuth, async (_req, res) => {
     try {
       const allSettings = await storage.getSettings();
       res.json(allSettings);
@@ -49,7 +174,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/settings/bulk", async (req, res) => {
+  app.patch("/api/settings/bulk", requireAuth, async (req, res) => {
     try {
       const parsed = bulkUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -62,7 +187,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/machines", async (_req, res) => {
+  app.get("/api/machines", requireAuth, async (_req, res) => {
     try {
       const allMachines = await storage.getMachines();
       res.json(allMachines);
@@ -71,7 +196,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/machines", async (req, res) => {
+  app.post("/api/machines", requireAuth, async (req, res) => {
     try {
       const parsed = insertMachineSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -84,7 +209,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/machines/:id", async (req, res) => {
+  app.patch("/api/machines/:id", requireAuth, async (req, res) => {
     try {
       const updateSchema = insertMachineSchema.partial();
       const parsed = updateSchema.safeParse(req.body);
@@ -101,7 +226,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/machines/:id", async (req, res) => {
+  app.delete("/api/machines/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteMachine(req.params.id);
       res.json({ success: true });
@@ -110,7 +235,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/api-keys", async (_req, res) => {
+  app.get("/api/api-keys", requireAuth, async (_req, res) => {
     try {
       const keys = await storage.getApiKeys();
       res.json(keys);
@@ -119,7 +244,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/api-keys", async (req, res) => {
+  app.post("/api/api-keys", requireAuth, async (req, res) => {
     try {
       const parsed = insertApiKeySchema.safeParse(req.body);
       if (!parsed.success) {
@@ -132,7 +257,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/api-keys/:id", async (req, res) => {
+  app.patch("/api/api-keys/:id", requireAuth, async (req, res) => {
     try {
       const updated = await storage.updateApiKey(req.params.id, req.body);
       if (!updated) {
@@ -144,7 +269,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/api-keys/:id", async (req, res) => {
+  app.delete("/api/api-keys/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteApiKey(req.params.id);
       res.json({ success: true });
@@ -153,7 +278,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vps", async (_req, res) => {
+  app.get("/api/vps", requireAuth, async (_req, res) => {
     try {
       const vps = await storage.getVpsConnection();
       res.json(vps ?? null);
@@ -162,7 +287,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/vps", async (req, res) => {
+  app.post("/api/vps", requireAuth, async (req, res) => {
     try {
       const parsed = vpsUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -175,7 +300,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/vps/check", async (_req, res) => {
+  app.post("/api/vps/check", requireAuth, async (_req, res) => {
     try {
       const vps = await storage.getVpsConnection();
       if (!vps) {
@@ -189,7 +314,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/docker/services", async (_req, res) => {
+  app.get("/api/docker/services", requireAuth, async (_req, res) => {
     try {
       const services = await storage.getDockerServices();
       res.json(services);
@@ -198,7 +323,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/openclaw/config", async (_req, res) => {
+  app.get("/api/openclaw/config", requireAuth, async (_req, res) => {
     try {
       const config = await storage.getOpenclawConfig();
       if (config && Array.isArray(config.pendingNodes)) {
@@ -215,7 +340,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/openclaw/config", async (req, res) => {
+  app.post("/api/openclaw/config", requireAuth, async (req, res) => {
     try {
       const parsed = openclawConfigUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -251,7 +376,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/nodes/pending", async (_req, res) => {
+  app.get("/api/nodes/pending", requireAuth, async (_req, res) => {
     try {
       const config = await storage.getOpenclawConfig();
       res.json({ pending: (config?.pendingNodes as any[]) ?? [] });
@@ -260,7 +385,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/nodes/approve", async (req, res) => {
+  app.post("/api/nodes/approve", requireAuth, async (req, res) => {
     try {
       const { node_id } = req.body;
       const config = await storage.getOpenclawConfig();
@@ -282,7 +407,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/llm-api-keys", async (_req, res) => {
+  app.get("/api/llm-api-keys", requireAuth, async (_req, res) => {
     try {
       const keys = await storage.getLlmApiKeys();
       res.json(keys);
@@ -291,7 +416,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/llm-api-keys", async (req, res) => {
+  app.post("/api/llm-api-keys", requireAuth, async (req, res) => {
     try {
       const parsed = insertLlmApiKeySchema.safeParse(req.body);
       if (!parsed.success) {
@@ -304,7 +429,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/llm-api-keys/:id", async (req, res) => {
+  app.patch("/api/llm-api-keys/:id", requireAuth, async (req, res) => {
     try {
       const updateSchema = insertLlmApiKeySchema.partial();
       const parsed = updateSchema.safeParse(req.body);
@@ -321,7 +446,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/llm-api-keys/:id", async (req, res) => {
+  app.delete("/api/llm-api-keys/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteLlmApiKey(req.params.id);
       res.json({ success: true });
@@ -330,7 +455,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/integrations", async (_req, res) => {
+  app.get("/api/integrations", requireAuth, async (_req, res) => {
     try {
       const all = await storage.getIntegrations();
       res.json(all);
@@ -339,7 +464,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/integrations", async (req, res) => {
+  app.post("/api/integrations", requireAuth, async (req, res) => {
     try {
       const parsed = insertIntegrationSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -352,7 +477,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/integrations/:id", async (req, res) => {
+  app.patch("/api/integrations/:id", requireAuth, async (req, res) => {
     try {
       const updateSchema = insertIntegrationSchema.partial();
       const parsed = updateSchema.safeParse(req.body);
@@ -369,7 +494,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/integrations/:id", async (req, res) => {
+  app.delete("/api/integrations/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteIntegration(req.params.id);
       res.json({ success: true });

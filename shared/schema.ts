@@ -125,6 +125,17 @@ export const integrations = pgTable("integrations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  medinvestId: text("medinvest_id").notNull().unique(),
+  medinvestDid: text("medinvest_did").notNull().unique(),
+  username: text("username").notNull(),
+  displayName: text("display_name"),
+  email: text("email"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertIntegrationSchema = createInsertSchema(integrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLlmApiKeySchema = createInsertSchema(llmApiKeys).omit({ id: true, createdAt: true });
 export type OpenclawConfig = typeof openclawConfig.$inferSelect;
@@ -133,3 +144,5 @@ export type LlmApiKey = typeof llmApiKeys.$inferSelect;
 export type InsertLlmApiKey = z.infer<typeof insertLlmApiKeySchema>;
 export type Integration = typeof integrations.$inferSelect;
 export type InsertIntegration = z.infer<typeof insertIntegrationSchema>;
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;

@@ -9,6 +9,7 @@ import {
   Server,
   Cog,
   Plug,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -22,6 +23,8 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
@@ -43,6 +46,7 @@ const infraItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user, logout, isLoggingOut } = useAuth();
 
   const renderNavItem = (item: { title: string; url: string; icon: React.ElementType }) => {
     const isActive =
@@ -105,7 +109,33 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-3">
+        {user && (
+          <div className="flex items-center gap-2" data-testid="text-user-info">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
+              {(user.displayName || user.username || "U").charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-medium truncate" data-testid="text-user-display-name">
+                {user.displayName || user.username}
+              </span>
+              <span className="text-xs text-muted-foreground truncate" data-testid="text-user-username">
+                @{user.username}
+              </span>
+            </div>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2"
+          onClick={logout}
+          disabled={isLoggingOut}
+          data-testid="button-logout"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
         <div className="text-xs text-muted-foreground">
           OpenClaw v1.0.0
         </div>

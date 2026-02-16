@@ -1,7 +1,16 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+
+declare module "express-session" {
+  interface SessionData {
+    userId: string;
+    oauthState: string;
+  }
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -21,6 +30,28 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+app.set("trust proxy", 1);
+
+const PgStore = connectPgSimple(session);
+const isProduction = process.env.NODE_ENV === "production";
+app.use(
+  session({
+    store: new PgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || "openclaw-dev-session-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+    },
+  }),
+);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

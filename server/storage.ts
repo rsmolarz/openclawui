@@ -7,7 +7,8 @@ import {
   type OpenclawConfig, type InsertOpenclawConfig,
   type LlmApiKey, type InsertLlmApiKey,
   type Integration, type InsertIntegration,
-  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations,
+  type User, type InsertUser,
+  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -52,6 +53,10 @@ export interface IStorage {
   createIntegration(data: InsertIntegration): Promise<Integration>;
   updateIntegration(id: string, data: Partial<InsertIntegration>): Promise<Integration | undefined>;
   deleteIntegration(id: string): Promise<void>;
+
+  getUserByMedinvestId(medinvestId: string): Promise<User | undefined>;
+  upsertUser(data: InsertUser): Promise<User>;
+  getUser(id: string): Promise<User | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -262,6 +267,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteIntegration(id: string): Promise<void> {
     await db.delete(integrations).where(eq(integrations.id, id));
+  }
+
+  async getUserByMedinvestId(medinvestId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.medinvestId, medinvestId));
+    return user;
+  }
+
+  async upsertUser(data: InsertUser): Promise<User> {
+    const existing = await this.getUserByMedinvestId(data.medinvestId);
+    if (existing) {
+      const [updated] = await db
+        .update(users)
+        .set({ displayName: data.displayName, email: data.email, username: data.username })
+        .where(eq(users.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(users).values(data).returning();
+    return created;
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 }
 

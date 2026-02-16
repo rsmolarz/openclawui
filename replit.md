@@ -1,11 +1,12 @@
 # OpenClaw Dashboard - Settings Management
 
 ## Overview
-A professional settings management dashboard for the OpenClaw AI agent gateway platform. Manage general settings, notifications, nodes/computers (via pairing codes), API keys, appearance preferences, VPS connection, Docker services monitoring, OpenClaw configuration (gateway, LLM with primary/fallback models from 70+ OpenRouter options, WhatsApp, Tailscale, node approvals), LLM API key management, and external integrations with full CRUD operations and PostgreSQL persistence.
+A professional settings management dashboard for the OpenClaw AI agent gateway platform with multi-user authentication via MedInvest DID OAuth. Manage general settings, notifications, nodes/computers (via pairing codes), API keys, appearance preferences, VPS connection, Docker services monitoring, OpenClaw configuration (gateway, LLM with primary/fallback models from 70+ OpenRouter options, WhatsApp, Tailscale, node approvals), LLM API key management, and external integrations with full CRUD operations and PostgreSQL persistence.
 
 ## Architecture
 - **Frontend**: React + TypeScript with Vite, Shadcn UI components, wouter routing, TanStack Query
 - **Backend**: Express.js REST API with PostgreSQL (Drizzle ORM)
+- **Authentication**: MedInvest DID OAuth 2.0 (Authorization Code flow) with express-session + connect-pg-simple
 - **Styling**: Tailwind CSS with dark/light theme support
 
 ## Project Structure
@@ -27,6 +28,8 @@ client/src/
 │   ├── settings-openclaw.tsx         # OpenClaw config, Docker, nodes
 │   └── settings-integrations.tsx     # External integrations management
 ├── hooks/
+│   ├── use-auth.ts           # Auth hook (useAuth) for session state
+│   └── use-toast.ts
 ├── lib/
 └── App.tsx
 
@@ -50,8 +53,18 @@ shared/
 - **openclawConfig**: Gateway settings, LLM provider (primary + fallback), WhatsApp, Tailscale, node approvals
 - **llmApiKeys**: LLM provider API keys (provider, label, apiKey, baseUrl, active status)
 - **integrations**: External service integrations (name, type, category, enabled, status, config JSON, icon)
+- **users**: MedInvest DID-linked user accounts (medinvestId, medinvestDid, username, displayName, email)
 
 ## API Endpoints
+
+### Authentication (public)
+- `GET /api/auth/me` - Get current authenticated user
+- `GET /api/auth/medinvest/start` - Initiate MedInvest OAuth login flow
+- `GET /api/auth/medinvest/callback` - OAuth callback (handles code exchange)
+- `POST /api/auth/logout` - Destroy session and log out
+- `GET /api/status` - Overall system status summary (public health check)
+
+### Protected Routes (require authentication)
 - `GET /api/settings` - List all settings
 - `PATCH /api/settings/bulk` - Bulk update settings
 - `GET /api/machines` - List nodes
@@ -70,7 +83,6 @@ shared/
 - `POST /api/openclaw/config` - Update OpenClaw configuration
 - `GET /api/nodes/pending` - Get pending node approvals
 - `POST /api/nodes/approve` - Approve a pending node
-- `GET /api/status` - Overall system status summary
 - `GET /api/llm-api-keys` - List LLM API keys
 - `POST /api/llm-api-keys` - Create LLM API key
 - `PATCH /api/llm-api-keys/:id` - Update LLM API key
