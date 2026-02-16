@@ -1,38 +1,111 @@
-import { type User, type InsertUser } from "@shared/schema";
+import {
+  type Setting, type InsertSetting,
+  type Machine, type InsertMachine,
+  type ApiKey, type InsertApiKey,
+  settings, machines, apiKeys,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getSettings(): Promise<Setting[]>;
+  getSettingsByCategory(category: string): Promise<Setting[]>;
+  upsertSetting(key: string, value: string): Promise<Setting>;
+  bulkUpdateSettings(updates: { key: string; value: string }[]): Promise<void>;
+
+  getMachines(): Promise<Machine[]>;
+  getMachine(id: string): Promise<Machine | undefined>;
+  createMachine(machine: InsertMachine): Promise<Machine>;
+  deleteMachine(id: string): Promise<void>;
+
+  getApiKeys(): Promise<ApiKey[]>;
+  getApiKey(id: string): Promise<ApiKey | undefined>;
+  createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  updateApiKey(id: string, data: Partial<ApiKey>): Promise<ApiKey | undefined>;
+  deleteApiKey(id: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getSettings(): Promise<Setting[]> {
+    return db.select().from(settings);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getSettingsByCategory(category: string): Promise<Setting[]> {
+    return db.select().from(settings).where(eq(settings.category, category));
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async upsertSetting(key: string, value: string): Promise<Setting> {
+    const existing = await db.select().from(settings).where(eq(settings.key, key));
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(settings)
+        .set({ value })
+        .where(eq(settings.key, key))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(settings)
+      .values({ key, value, category: key.split(".")[0], label: key, type: "text" })
+      .returning();
+    return created;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async bulkUpdateSettings(updates: { key: string; value: string }[]): Promise<void> {
+    for (const update of updates) {
+      await this.upsertSetting(update.key, update.value);
+    }
+  }
+
+  async getMachines(): Promise<Machine[]> {
+    return db.select().from(machines);
+  }
+
+  async getMachine(id: string): Promise<Machine | undefined> {
+    const [machine] = await db.select().from(machines).where(eq(machines.id, id));
+    return machine;
+  }
+
+  async createMachine(machine: InsertMachine): Promise<Machine> {
+    const [created] = await db.insert(machines).values(machine).returning();
+    return created;
+  }
+
+  async deleteMachine(id: string): Promise<void> {
+    await db.delete(machines).where(eq(machines.id, id));
+  }
+
+  async getApiKeys(): Promise<ApiKey[]> {
+    return db.select().from(apiKeys);
+  }
+
+  async getApiKey(id: string): Promise<ApiKey | undefined> {
+    const [key] = await db.select().from(apiKeys).where(eq(apiKeys.id, id));
+    return key;
+  }
+
+  async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
+    const key = `oc_${randomUUID().replace(/-/g, "")}`;
+    const [created] = await db
+      .insert(apiKeys)
+      .values({ ...apiKey, key })
+      .returning();
+    return created;
+  }
+
+  async updateApiKey(id: string, data: Partial<ApiKey>): Promise<ApiKey | undefined> {
+    const [updated] = await db
+      .update(apiKeys)
+      .set(data)
+      .where(eq(apiKeys.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    await db.delete(apiKeys).where(eq(apiKeys.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
