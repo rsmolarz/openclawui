@@ -16,12 +16,15 @@ export const settings = pgTable("settings", {
 export const machines = pgTable("machines", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  location: text("location").notNull(),
-  status: text("status").notNull().default("active"),
-  clawStrength: integer("claw_strength").notNull().default(50),
-  playTime: integer("play_time").notNull().default(30),
-  pricePerPlay: integer("price_per_play").notNull().default(100),
-  lastMaintenance: timestamp("last_maintenance"),
+  hostname: text("hostname"),
+  ipAddress: text("ip_address"),
+  os: text("os"),
+  location: text("location"),
+  status: text("status").notNull().default("pending"),
+  pairingCode: text("pairing_code"),
+  displayName: text("display_name"),
+  lastSeen: timestamp("last_seen"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const apiKeys = pgTable("api_keys", {
@@ -92,7 +95,7 @@ export const llmApiKeys = pgTable("llm_api_keys", {
 });
 
 export const insertSettingSchema = createInsertSchema(settings).omit({ id: true });
-export const insertMachineSchema = createInsertSchema(machines).omit({ id: true, lastMaintenance: true });
+export const insertMachineSchema = createInsertSchema(machines).omit({ id: true, lastSeen: true, createdAt: true });
 export const insertApiKeySchema = createInsertSchema(apiKeys).omit({ id: true, key: true, createdAt: true, lastUsed: true });
 export const insertVpsConnectionSchema = createInsertSchema(vpsConnections).omit({ id: true, isConnected: true, lastChecked: true, createdAt: true, updatedAt: true });
 export const insertDockerServiceSchema = createInsertSchema(dockerServices).omit({ id: true, lastChecked: true, createdAt: true });

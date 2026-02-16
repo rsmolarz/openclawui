@@ -84,6 +84,23 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/machines/:id", async (req, res) => {
+    try {
+      const updateSchema = insertMachineSchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      const updated = await storage.updateMachine(req.params.id, parsed.data);
+      if (!updated) {
+        return res.status(404).json({ error: "Node not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update node" });
+    }
+  });
+
   app.delete("/api/machines/:id", async (req, res) => {
     try {
       await storage.deleteMachine(req.params.id);

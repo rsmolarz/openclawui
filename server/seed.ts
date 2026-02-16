@@ -64,14 +64,7 @@ export async function seed() {
     { category: "appearance", key: "appearance.accent_color", value: "blue", label: "Accent Color", description: "Accent color theme", type: "select" },
   ]);
 
-  await db.insert(machines).values([
-    { name: "Claw Master Pro", location: "Main Floor, Zone A", status: "active", clawStrength: 65, playTime: 30, pricePerPlay: 100 },
-    { name: "Mega Grabber", location: "Main Floor, Zone B", status: "active", clawStrength: 50, playTime: 25, pricePerPlay: 150 },
-    { name: "Lucky Catcher", location: "Second Floor, Zone C", status: "maintenance", clawStrength: 40, playTime: 35, pricePerPlay: 75 },
-    { name: "Prize Crane XL", location: "Entrance Lobby", status: "active", clawStrength: 70, playTime: 45, pricePerPlay: 200 },
-    { name: "Mini Grabber", location: "Kids Corner", status: "offline", clawStrength: 30, playTime: 20, pricePerPlay: 50 },
-    { name: "Treasure Hunter", location: "Third Floor, Zone D", status: "active", clawStrength: 50, playTime: 30, pricePerPlay: 100 },
-  ]);
+  // No seed machines - users add their own nodes/computers via the dashboard
 
   await db.insert(apiKeys).values([
     { name: "Production API", key: `oc_${randomUUID().replace(/-/g, "")}`, permissions: "admin", active: true },
