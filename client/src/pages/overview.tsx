@@ -2,8 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Cpu, Settings, Bell, KeyRound, Activity, TrendingUp } from "lucide-react";
-import type { Machine, Setting, ApiKey } from "@shared/schema";
+import { Cpu, Settings, Bell, KeyRound, Activity, TrendingUp, Server, Cog } from "lucide-react";
+import type { Machine, Setting, ApiKey, VpsConnection, OpenclawConfig } from "@shared/schema";
 
 function StatCard({
   title,
@@ -43,6 +43,14 @@ export default function Overview() {
 
   const { data: apiKeys, isLoading: apiKeysLoading } = useQuery<ApiKey[]>({
     queryKey: ["/api/api-keys"],
+  });
+
+  const { data: vps } = useQuery<VpsConnection | null>({
+    queryKey: ["/api/vps"],
+  });
+
+  const { data: openclawCfg } = useQuery<OpenclawConfig | null>({
+    queryKey: ["/api/openclaw/config"],
   });
 
   const isLoading = machinesLoading || settingsLoading || apiKeysLoading;
@@ -110,11 +118,11 @@ export default function Overview() {
           testId="card-stat-api-keys"
         />
         <StatCard
-          title="System Status"
-          value="Operational"
-          icon={Activity}
-          description="All systems running"
-          testId="card-stat-status"
+          title="VPS Status"
+          value={vps?.isConnected ? "Connected" : "Disconnected"}
+          icon={Server}
+          description={vps?.vpsIp ?? "Not configured"}
+          testId="card-stat-vps"
         />
       </div>
 
@@ -171,6 +179,8 @@ export default function Overview() {
                 { icon: Bell, label: "Notifications", desc: "Manage alert preferences", href: "/settings/notifications" },
                 { icon: Cpu, label: "Machine Management", desc: "Add or configure machines", href: "/settings/machines" },
                 { icon: KeyRound, label: "API Configuration", desc: "Manage API access keys", href: "/settings/api-keys" },
+                { icon: Server, label: "VPS Connection", desc: "Manage server connection", href: "/settings/vps" },
+                { icon: Cog, label: "OpenClaw Config", desc: "Gateway, LLM, and nodes", href: "/settings/openclaw" },
               ].map((action) => (
                 <a
                   key={action.label}

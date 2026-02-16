@@ -6,6 +6,8 @@ import {
   Cpu,
   KeyRound,
   Palette,
+  Server,
+  Cog,
 } from "lucide-react";
 import {
   Sidebar,
@@ -22,6 +24,9 @@ import {
 
 const navItems = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
+];
+
+const settingsItems = [
   { title: "General", url: "/settings/general", icon: Settings },
   { title: "Notifications", url: "/settings/notifications", icon: Bell },
   { title: "Machines", url: "/settings/machines", icon: Cpu },
@@ -29,8 +34,34 @@ const navItems = [
   { title: "Appearance", url: "/settings/appearance", icon: Palette },
 ];
 
+const infraItems = [
+  { title: "VPS Connection", url: "/settings/vps", icon: Server },
+  { title: "OpenClaw Config", url: "/settings/openclaw", icon: Cog },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
+
+  const renderNavItem = (item: { title: string; url: string; icon: React.ElementType }) => {
+    const isActive =
+      item.url === "/"
+        ? location === "/"
+        : location.startsWith(item.url);
+    return (
+      <SidebarMenuItem key={item.title}>
+        <SidebarMenuButton
+          asChild
+          data-active={isActive}
+          className={isActive ? "bg-sidebar-accent" : ""}
+        >
+          <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
+            <item.icon className="h-4 w-4" />
+            <span>{item.title}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  };
 
   return (
     <Sidebar>
@@ -49,29 +80,25 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map(renderNavItem)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive =
-                  item.url === "/"
-                    ? location === "/"
-                    : location.startsWith(item.url);
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      data-active={isActive}
-                      className={isActive ? "bg-sidebar-accent" : ""}
-                    >
-                      <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {settingsItems.map(renderNavItem)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Infrastructure</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {infraItems.map(renderNavItem)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

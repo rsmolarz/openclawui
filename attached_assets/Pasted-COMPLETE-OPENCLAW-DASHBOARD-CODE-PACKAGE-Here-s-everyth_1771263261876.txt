@@ -1,0 +1,1026 @@
+COMPLETE OPENCLAW DASHBOARD CODE PACKAGE
+Here's everything you need. Copy and paste this into your Replit project:
+1. Replace server.py with this:
+pythonfrom flask import Flask, render_template, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+import os
+import json
+from datetime import datetime
+from dotenv import load_dotenv
+import subprocess
+import socket
+
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app)
+
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///openclaw.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# Models
+class GeneralSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    platform_name = db.Column(db.String(255), default='OpenClaw')
+    currency = db.Column(db.String(10), default='USD')
+    timezone = db.Column(db.String(50), default='UTC')
+    language = db.Column(db.String(20), default='en')
+    support_email = db.Column(db.String(255))
+    maintenance_mode = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class VPSConnection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    vps_ip = db.Column(db.String(255), default='187.77.192.215')
+    vps_port = db.Column(db.Integer, default=22)
+    ssh_user = db.Column(db.String(255), default='root')
+    ssh_key_path = db.Column(db.String(500))
+    is_connected = db.Column(db.Boolean, default=False)
+    last_checked = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class DockerStatus(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    service_name = db.Column(db.String(255))
+    status = db.Column(db.String(50))  # running, stopped, error
+    port = db.Column(db.Integer)
+    image = db.Column(db.String(255))
+    container_id = db.Column(db.String(255))
+    cpu_usage = db.Column(db.Float)
+    memory_usage = db.Column(db.Float)
+    last_checked = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class OpenClawConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    gateway_port = db.Column(db.Integer, default=18789)
+    gateway_bind = db.Column(db.String(50), default='127.0.0.1')
+    gateway_mode = db.Column(db.String(20), default='local')
+    gateway_token = db.Column(db.String(500))
+    gateway_status = db.Column(db.String(50), default='offline')
+    default_llm = db.Column(db.String(255), default='anthropic')
+    llm_api_key = db.Column(db.String(500))  # Encrypted in production
+    whatsapp_enabled = db.Column(db.Boolean, default=False)
+    whatsapp_phone = db.Column(db.String(20))
+    whatsapp_api_key = db.Column(db.String(500))
+    tailscale_enabled = db.Column(db.Boolean, default=False)
+    tailscale_ip = db.Column(db.String(50))
+    tailscale_status = db.Column(db.String(50))
+    nodes_approved = db.Column(db.Integer, default=0)
+    pending_nodes = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class NotificationSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email_notifications = db.Column(db.Boolean, default=True)
+    push_notifications = db.Column(db.Boolean, default=True)
+    in_app_notifications = db.Column(db.Boolean, default=True)
+    alert_frequency = db.Column(db.String(20), default='immediate')  # immediate, hourly, daily
+    alert_email = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class AppearanceSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    theme = db.Column(db.String(20), default='dark')  # light, dark, system
+    font_size = db.Column(db.String(20), default='medium')  # small, medium, large
+    accent_color = db.Column(db.String(10), default='#3b82f6')
+    ui_density = db.Column(db.String(20), default='normal')  # compact, normal, spacious
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Routes
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    try:
+        vps = VPSConnection.query.first()
+        docker = DockerStatus.query.all()
+        openclaw = OpenClawConfig.query.first()
+        
+        return jsonify({
+            'vps_connected': vps.is_connected if vps else False,
+            'openclaw_status': openclaw.gateway_status if openclaw else 'offline',
+            'docker_services': len(docker) if docker else 0,
+            'services': [
+                {
+                    'name': d.service_name,
+                    'status': d.status,
+                    'port': d.port
+                } for d in docker
+            ]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/openclaw/config', methods=['GET'])
+def get_openclaw_config():
+    config = OpenClawConfig.query.first()
+    if not config:
+        config = OpenClawConfig()
+        db.session.add(config)
+        db.session.commit()
+    
+    return jsonify({
+        'gateway_port': config.gateway_port,
+        'gateway_bind': config.gateway_bind,
+        'gateway_mode': config.gateway_mode,
+        'gateway_status': config.gateway_status,
+        'default_llm': config.default_llm,
+        'whatsapp_enabled': config.whatsapp_enabled,
+        'tailscale_enabled': config.tailscale_enabled,
+        'nodes_approved': config.nodes_approved,
+        'pending_nodes': config.pending_nodes or []
+    })
+
+@app.route('/api/openclaw/config', methods=['POST'])
+def update_openclaw_config():
+    data = request.json
+    config = OpenClawConfig.query.first()
+    if not config:
+        config = OpenClawConfig()
+    
+    # Update fields
+    if 'default_llm' in data:
+        config.default_llm = data['default_llm']
+    if 'gateway_port' in data:
+        config.gateway_port = data['gateway_port']
+    if 'gateway_bind' in data:
+        config.gateway_bind = data['gateway_bind']
+    if 'whatsapp_enabled' in data:
+        config.whatsapp_enabled = data['whatsapp_enabled']
+    if 'tailscale_enabled' in data:
+        config.tailscale_enabled = data['tailscale_enabled']
+    
+    db.session.add(config)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Configuration updated'}), 200
+
+@app.route('/api/vps/check', methods=['POST'])
+def check_vps():
+    """Check VPS connection"""
+    try:
+        vps = VPSConnection.query.first() or VPSConnection()
+        
+        # Try to ping the VPS
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        result = sock.connect_ex((vps.vps_ip, vps.vps_port))
+        sock.close()
+        
+        is_connected = result == 0
+        vps.is_connected = is_connected
+        vps.last_checked = datetime.utcnow()
+        
+        db.session.add(vps)
+        db.session.commit()
+        
+        return jsonify({'connected': is_connected}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/docker/status', methods=['GET'])
+def get_docker_status():
+    """Get Docker services status"""
+    try:
+        services = DockerStatus.query.all()
+        return jsonify([{
+            'name': s.service_name,
+            'status': s.status,
+            'port': s.port,
+            'image': s.image,
+            'cpu': s.cpu_usage,
+            'memory': s.memory_usage
+        } for s in services])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/settings/general', methods=['GET'])
+def get_general_settings():
+    settings = GeneralSettings.query.first()
+    if not settings:
+        settings = GeneralSettings()
+        db.session.add(settings)
+        db.session.commit()
+    
+    return jsonify({
+        'platform_name': settings.platform_name,
+        'currency': settings.currency,
+        'timezone': settings.timezone,
+        'language': settings.language,
+        'support_email': settings.support_email,
+        'maintenance_mode': settings.maintenance_mode
+    })
+
+@app.route('/api/settings/general', methods=['POST'])
+def update_general_settings():
+    data = request.json
+    settings = GeneralSettings.query.first()
+    if not settings:
+        settings = GeneralSettings()
+    
+    if 'platform_name' in data:
+        settings.platform_name = data['platform_name']
+    if 'currency' in data:
+        settings.currency = data['currency']
+    if 'timezone' in data:
+        settings.timezone = data['timezone']
+    if 'language' in data:
+        settings.language = data['language']
+    if 'support_email' in data:
+        settings.support_email = data['support_email']
+    if 'maintenance_mode' in data:
+        settings.maintenance_mode = data['maintenance_mode']
+    
+    db.session.add(settings)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Settings updated'}), 200
+
+@app.route('/api/settings/notifications', methods=['GET'])
+def get_notification_settings():
+    settings = NotificationSettings.query.first()
+    if not settings:
+        settings = NotificationSettings()
+        db.session.add(settings)
+        db.session.commit()
+    
+    return jsonify({
+        'email_notifications': settings.email_notifications,
+        'push_notifications': settings.push_notifications,
+        'in_app_notifications': settings.in_app_notifications,
+        'alert_frequency': settings.alert_frequency,
+        'alert_email': settings.alert_email
+    })
+
+@app.route('/api/settings/notifications', methods=['POST'])
+def update_notification_settings():
+    data = request.json
+    settings = NotificationSettings.query.first()
+    if not settings:
+        settings = NotificationSettings()
+    
+    if 'email_notifications' in data:
+        settings.email_notifications = data['email_notifications']
+    if 'push_notifications' in data:
+        settings.push_notifications = data['push_notifications']
+    if 'in_app_notifications' in data:
+        settings.in_app_notifications = data['in_app_notifications']
+    if 'alert_frequency' in data:
+        settings.alert_frequency = data['alert_frequency']
+    if 'alert_email' in data:
+        settings.alert_email = data['alert_email']
+    
+    db.session.add(settings)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Notification settings updated'}), 200
+
+@app.route('/api/settings/appearance', methods=['GET'])
+def get_appearance_settings():
+    settings = AppearanceSettings.query.first()
+    if not settings:
+        settings = AppearanceSettings()
+        db.session.add(settings)
+        db.session.commit()
+    
+    return jsonify({
+        'theme': settings.theme,
+        'font_size': settings.font_size,
+        'accent_color': settings.accent_color,
+        'ui_density': settings.ui_density
+    })
+
+@app.route('/api/settings/appearance', methods=['POST'])
+def update_appearance_settings():
+    data = request.json
+    settings = AppearanceSettings.query.first()
+    if not settings:
+        settings = AppearanceSettings()
+    
+    if 'theme' in data:
+        settings.theme = data['theme']
+    if 'font_size' in data:
+        settings.font_size = data['font_size']
+    if 'accent_color' in data:
+        settings.accent_color = data['accent_color']
+    if 'ui_density' in data:
+        settings.ui_density = data['ui_density']
+    
+    db.session.add(settings)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Appearance settings updated'}), 200
+
+@app.route('/api/nodes/pending', methods=['GET'])
+def get_pending_nodes():
+    """Get pending node approvals"""
+    config = OpenClawConfig.query.first()
+    return jsonify({'pending': config.pending_nodes or []}) if config else jsonify({'pending': []})
+
+@app.route('/api/nodes/approve', methods=['POST'])
+def approve_node():
+    """Approve a pending node"""
+    data = request.json
+    node_id = data.get('node_id')
+    config = OpenClawConfig.query.first()
+    
+    if config and config.pending_nodes:
+        pending = config.pending_nodes
+        if node_id in pending:
+            pending.remove(node_id)
+            config.nodes_approved += 1
+            config.pending_nodes = pending
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Node approved'}), 200
+    
+    return jsonify({'error': 'Node not found'}), 404
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(host='0.0.0.0', port=5000, debug=True)
+```
+
+### **2. Update `requirements.txt`:**
+```
+Flask==2.3.0
+Flask-SQLAlchemy==3.0.0
+Flask-CORS==4.0.0
+python-dotenv==1.0.0
+Werkzeug==2.3.0
+3. Create templates/index.html:
+html<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(4px);
+            border-radius: 20px;
+            margin: 20px;
+            padding: 30px;
+            height: calc(100vh - 40px);
+            overflow-y: auto;
+            position: sticky;
+            top: 20px;
+        }
+        
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .sidebar-logo {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .sidebar-title h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin: 0;
+        }
+        
+        .sidebar-title p {
+            font-size: 12px;
+            color: #999;
+            margin: 5px 0 0 0;
+        }
+        
+        .nav-menu {
+            list-style: none;
+        }
+        
+        .nav-item {
+            margin-bottom: 10px;
+        }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            text-decoration: none;
+            color: #666;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+        
+        .nav-link:hover {
+            background: #f5f5f5;
+            color: #667eea;
+            border-left-color: #667eea;
+        }
+        
+        .nav-link.active {
+            background: #f0f4ff;
+            color: #667eea;
+            font-weight: 600;
+            border-left-color: #667eea;
+        }
+        
+        .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        .main-content {
+            background: white;
+            border-radius: 20px;
+            margin: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            min-height: calc(100vh - 40px);
+        }
+        
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .page-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-online .status-dot {
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-offline .status-dot {
+            background: #dc3545;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+        
+        .stat-card h3 {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .settings-section {
+            margin-bottom: 40px;
+        }
+        
+        .settings-section h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            display: block;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            outline: none;
+        }
+        
+        .form-switch {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #667eea;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .table-responsive {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        table {
+            margin-bottom: 0;
+        }
+        
+        table thead {
+            background: #f5f5f5;
+        }
+        
+        table th {
+            font-weight: 600;
+            color: #1a1a1a;
+            border: none;
+            padding: 16px;
+        }
+        
+        table td {
+            border: none;
+            padding: 16px;
+            color: #666;
+        }
+        
+        table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        table tbody tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .alert {
+            border: none;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-content {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-header {
+            border-bottom: 2px solid #f0f0f0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .page {
+            display: none;
+        }
+        
+        .page.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            
+            .main-content {
+                margin: 10px;
+                padding: 20px;
+            }
+            
+            .page-header h1 {
+                font-size: 20px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid" style="display: flex; gap: 0; min-height: 100vh;">
+        <!-- Sidebar -->
+        <div style="flex: 0 0 280px;">
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-logo">🦅</div>
+                    <div class="sidebar-title">
+                        <h3>OpenClaw</h3>
+                        <p>Control Panel</p>
+                    </div>
+                </div>
+                
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a class="nav-link active" onclick="showPage('dashboard')">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="showPage('openclaw')">
+                            <i class="fas fa-cogs"></i>
+                            <span>OpenClaw Config</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="showPage('vps')">
+                            <i class="fas fa-server"></i>
+                            <span>VPS Connection</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="showPage('docker')">
+                            <i class="fas fa-docker"></i>
+                            <span>Docker Services</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="showPage('integrations')">
+                            <i class="fas fa-plug"></i>
+                            <span>Integrations</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="showPage('nodes')">
+                            <i class="fas fa-network-wired"></i>
+                            <span>Node Approval</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="showPage('settings')">
+                            <i class="fas fa-sliders-h"></i>
+                            <span>Settings</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div style="flex: 1;">
+            <div class="main-content">
+                <!-- Dashboard Page -->
+                <div id="dashboard" class="page active">
+                    <div class="page-header">
+                        <h1>Dashboard</h1>
+                        <button class="btn btn-primary" onclick="refreshStatus()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Gateway Status</h3>
+                            <div class="stat-value" id="gateway-status">Offline</div>
+                            <div class="status-badge status-offline" id="gateway-badge">
+                                <span class="status-dot"></span> Disconnected
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>VPS Connection</h3>
+                            <div class="stat-value" id="vps-status">Offline</div>
+                            <div class="status-badge status-offline" id="vps-badge">
+                                <span class="status-dot"></span> Disconnected
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Docker Services</h3>
+                            <div class="stat-value" id="docker-count">0</div>
+                            <div class="stat-label">Services Running</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Nodes Approved</h3>
+                            <div class="stat-value" id="nodes-count">0</div>
+                            <div class="stat-label">Active Nodes</div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h3><i class="fas fa-list"></i> Services Status</h3>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th>Status</th>
+                                        <th>Port</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="services-table">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color: #999;">
+                                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- OpenClaw Configuration Page -->
+                <div id="openclaw" class="page">
+                    <div class="page-header">
+                        <h1>OpenClaw Configuration</h1>
+                    </div>
+                    
+                    <div id="alert-container"></div>
+                    
+                    <div class="settings-section">
+                        <h3><i class="fas fa-network-wired"></i> Gateway Settings</h3>
+                        
+                        <div class="form-group">
+                            <label>Gateway Port</label>
+                            <input type="number" id="gateway-port" value="18789" placeholder="18789">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Gateway Bind Address</label>
+                            <input type="text" id="gateway-bind" value="127.0.0.1" placeholder="127.0.0.1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Gateway Mode</label>
+                            <select id="gateway-mode">
+                                <option value="local">Local</option>
+                                <option value="remote">Remote</option>
+                                <option value="hybrid">Hybrid</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h3><i class="fas fa-brain"></i> LLM Configuration</h3>
+                        
+                        <div class="form-group">
+                            <label>Default LLM Provider</label>
+                            <select id="default-llm">
+                                <option value="anthropic">Anthropic (Claude)</option>
+                                <option value="openai">OpenAI (GPT)</option>
+                                <option value="google">Google (Gemini)</option>
+                                <option value="local">Local Model</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>API Key</label>
+                            <input type="password" id="llm-api-key" placeholder="Enter your API key">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h3><i class="fas fa-save"></i> Save Configuration</h3>
+                        <button class="btn btn-primary" onclick="saveOpenClawConfig()">
+                            <i class="fas fa-save"></i> Save Configuration
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- VPS Connection Page -->
+                <div id="vps" class="page">
+                    <div class="page-header">
+                        <h1>VPS Connection</h1>
+                        <button class="btn btn-primary" onclick="checkVPSConnection()">
+                            <i class="fas fa-sync-alt"></i> Test Connection
+                        </button>
+                    </div>
+                    
+                    <div id="vps-alert-container"></div>
+                    
+                    <div class="settings-section">
+                        <h3><i class="fas fa-network-wired"></i> Connection Details</h3>
+                        
+                        <div class="form-group">
+                            <label>VPS IP Address</label>
+                            <input type="text" id="vps-ip" value="187.77.192.215" placeholder="187.77.192.215">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>SSH Port</label>
+                            <input type="number" id="vps-port" value="22" placeholder="22">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>SSH Username</label>

@@ -11,12 +11,34 @@ const bulkUpdateSchema = z.object({
   })),
 });
 
+const openclawConfigUpdateSchema = z.object({
+  gatewayPort: z.number().optional(),
+  gatewayBind: z.string().optional(),
+  gatewayMode: z.string().optional(),
+  gatewayToken: z.string().nullable().optional(),
+  defaultLlm: z.string().optional(),
+  llmApiKey: z.string().nullable().optional(),
+  whatsappEnabled: z.boolean().optional(),
+  whatsappPhone: z.string().nullable().optional(),
+  whatsappApiKey: z.string().nullable().optional(),
+  tailscaleEnabled: z.boolean().optional(),
+  tailscaleIp: z.string().nullable().optional(),
+  pendingNodes: z.any().optional(),
+  nodesApproved: z.number().optional(),
+});
+
+const vpsUpdateSchema = z.object({
+  vpsIp: z.string().optional(),
+  vpsPort: z.number().optional(),
+  sshUser: z.string().optional(),
+  sshKeyPath: z.string().nullable().optional(),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // Settings routes
   app.get("/api/settings", async (_req, res) => {
     try {
       const allSettings = await storage.getSettings();
@@ -39,7 +61,6 @@ export async function registerRoutes(
     }
   });
 
-  // Machine routes
   app.get("/api/machines", async (_req, res) => {
     try {
       const allMachines = await storage.getMachines();
@@ -71,7 +92,6 @@ export async function registerRoutes(
     }
   });
 
-  // API Key routes
   app.get("/api/api-keys", async (_req, res) => {
     try {
       const keys = await storage.getApiKeys();
@@ -112,6 +132,124 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete API key" });
+    }
+  });
+
+  app.get("/api/vps", async (_req, res) => {
+    try {
+      const vps = await storage.getVpsConnection();
+      res.json(vps ?? null);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch VPS connection" });
+    }
+  });
+
+  app.post("/api/vps", async (req, res) => {
+    try {
+      const parsed = vpsUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      const vps = await storage.upsertVpsConnection(parsed.data);
+      res.json(vps);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update VPS connection" });
+    }
+  });
+
+  app.post("/api/vps/check", async (_req, res) => {
+    try {
+      const vps = await storage.getVpsConnection();
+      if (!vps) {
+        return res.json({ connected: false, message: "No VPS configured" });
+      }
+      const hasValidConfig = !!(vps.vpsIp && vps.vpsPort && vps.sshUser);
+      const updated = await storage.updateVpsConnectionStatus(vps.id, hasValidConfig);
+      res.json({ connected: hasValidConfig, vps: updated });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check VPS" });
+    }
+  });
+
+  app.get("/api/docker/services", async (_req, res) => {
+    try {
+      const services = await storage.getDockerServices();
+      res.json(services);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch Docker services" });
+    }
+  });
+
+  app.get("/api/openclaw/config", async (_req, res) => {
+    try {
+      const config = await storage.getOpenclawConfig();
+      res.json(config ?? null);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch OpenClaw config" });
+    }
+  });
+
+  app.post("/api/openclaw/config", async (req, res) => {
+    try {
+      const parsed = openclawConfigUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      const config = await storage.upsertOpenclawConfig(parsed.data);
+      res.json(config);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update OpenClaw config" });
+    }
+  });
+
+  app.get("/api/status", async (_req, res) => {
+    try {
+      const vps = await storage.getVpsConnection();
+      const docker = await storage.getDockerServices();
+      const config = await storage.getOpenclawConfig();
+      res.json({
+        vps_connected: vps?.isConnected ?? false,
+        openclaw_status: config?.gatewayStatus ?? "offline",
+        docker_services: docker.length,
+        services: docker.map((d) => ({
+          name: d.serviceName,
+          status: d.status,
+          port: d.port,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch status" });
+    }
+  });
+
+  app.get("/api/nodes/pending", async (_req, res) => {
+    try {
+      const config = await storage.getOpenclawConfig();
+      res.json({ pending: (config?.pendingNodes as string[]) ?? [] });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch pending nodes" });
+    }
+  });
+
+  app.post("/api/nodes/approve", async (req, res) => {
+    try {
+      const { node_id } = req.body;
+      const config = await storage.getOpenclawConfig();
+      if (config && config.pendingNodes) {
+        const pending = config.pendingNodes as string[];
+        const idx = pending.indexOf(node_id);
+        if (idx >= 0) {
+          pending.splice(idx, 1);
+          await storage.upsertOpenclawConfig({
+            pendingNodes: pending,
+            nodesApproved: (config.nodesApproved ?? 0) + 1,
+          });
+          return res.json({ success: true });
+        }
+      }
+      res.status(404).json({ error: "Node not found" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve node" });
     }
   });
 

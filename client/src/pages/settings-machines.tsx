@@ -1,6 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Cpu, Trash2, Pencil } from "lucide-react";
+import { Plus, Cpu, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,16 +33,16 @@ function MachineCard({
   return (
     <Card data-testid={`card-machine-${machine.id}`}>
       <CardContent className="pt-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
               <Cpu className="h-5 w-5 text-muted-foreground" />
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold truncate" data-testid={`text-machine-name-${machine.id}`}>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-tight" data-testid={`text-machine-name-${machine.id}`}>
                 {machine.name}
               </p>
-              <p className="text-xs text-muted-foreground truncate">{machine.location}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{machine.location}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -64,7 +63,7 @@ function MachineCard({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+        <div className="mt-4 grid grid-cols-3 gap-3 text-center">
           <div className="rounded-md bg-muted/50 p-2">
             <p className="text-xs text-muted-foreground">Claw Strength</p>
             <p className="text-sm font-semibold" data-testid={`text-claw-strength-${machine.id}`}>
@@ -148,7 +147,7 @@ export default function SettingsMachines() {
           <Skeleton className="h-8 w-48 mb-2" />
           <Skeleton className="h-4 w-72" />
         </div>
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Card key={i}>
               <CardContent className="pt-6">
@@ -309,7 +308,7 @@ export default function SettingsMachines() {
       </div>
 
       {machines && machines.length > 0 ? (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {machines.map((machine) => (
             <MachineCard
               key={machine.id}
