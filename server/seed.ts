@@ -1,8 +1,34 @@
 import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+const defaultNodeDetails: Record<string, { hostname: string; ip: string; os: string; location: string }> = {
+  "node-alpha-7": { hostname: "arcade-pc-front-01", ip: "192.168.1.42", os: "Ubuntu 22.04", location: "Main Floor, Zone A" },
+  "node-beta-12": { hostname: "arcade-pc-back-03", ip: "192.168.1.78", os: "Debian 12", location: "Second Floor, Zone C" },
+};
+
+async function migrateNodeData() {
+  const configs = await db.select().from(openclawConfig);
+  for (const cfg of configs) {
+    if (!Array.isArray(cfg.pendingNodes)) continue;
+    const nodes = cfg.pendingNodes as any[];
+    const hasStringNodes = nodes.some((n) => typeof n === "string");
+    if (!hasStringNodes) continue;
+    const enriched = nodes.map((n: any) => {
+      if (typeof n === "string") {
+        const details = defaultNodeDetails[n];
+        return details ? { id: n, ...details } : { id: n, hostname: n, ip: "Pending discovery", os: "Pending discovery", location: "Pending discovery" };
+      }
+      return n;
+    });
+    await db.update(openclawConfig).set({ pendingNodes: enriched, updatedAt: new Date() }).where(eq(openclawConfig.id, cfg.id));
+  }
+}
+
 export async function seed() {
+  await migrateNodeData();
+
   const existingSettings = await db.select().from(settings);
   if (existingSettings.length > 0) return;
 

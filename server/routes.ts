@@ -184,6 +184,14 @@ export async function registerRoutes(
   app.get("/api/openclaw/config", async (_req, res) => {
     try {
       const config = await storage.getOpenclawConfig();
+      if (config && Array.isArray(config.pendingNodes)) {
+        config.pendingNodes = (config.pendingNodes as any[]).map((n: any) => {
+          if (typeof n === "string") {
+            return { id: n, hostname: n, ip: "Pending discovery", os: "Pending discovery", location: "Pending discovery" };
+          }
+          return n;
+        });
+      }
       res.json(config ?? null);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch OpenClaw config" });
