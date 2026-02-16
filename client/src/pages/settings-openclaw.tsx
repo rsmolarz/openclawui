@@ -4,14 +4,145 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { useState, useEffect } from "react";
-import type { OpenclawConfig, DockerService } from "@shared/schema";
+import type { OpenclawConfig, DockerService, LlmApiKey } from "@shared/schema";
+
+const OPENROUTER_MODELS = [
+  { group: "Routing", models: [
+    { value: "openrouter/auto", label: "Auto (Best Available)" },
+    { value: "openrouter/free", label: "Free (Auto-select Free)" },
+  ]},
+  { group: "OpenAI", models: [
+    { value: "openai/gpt-5", label: "GPT-5" },
+    { value: "openai/gpt-4.1", label: "GPT-4.1" },
+    { value: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini" },
+    { value: "openai/gpt-4.1-nano", label: "GPT-4.1 Nano" },
+    { value: "openai/gpt-4o", label: "GPT-4o" },
+    { value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
+    { value: "openai/o3", label: "o3" },
+    { value: "openai/o3-mini", label: "o3 Mini" },
+    { value: "openai/o4-mini", label: "o4 Mini" },
+    { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo" },
+  ]},
+  { group: "Anthropic", models: [
+    { value: "anthropic/claude-4-opus", label: "Claude 4 Opus" },
+    { value: "anthropic/claude-4-sonnet", label: "Claude 4 Sonnet" },
+    { value: "anthropic/claude-3.7-sonnet", label: "Claude 3.7 Sonnet" },
+    { value: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+    { value: "anthropic/claude-3.5-haiku", label: "Claude 3.5 Haiku" },
+    { value: "anthropic/claude-3-opus", label: "Claude 3 Opus" },
+    { value: "anthropic/claude-3-haiku", label: "Claude 3 Haiku" },
+  ]},
+  { group: "Google", models: [
+    { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+    { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+    { value: "google/gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
+    { value: "google/gemini-pro-1.5", label: "Gemini Pro 1.5" },
+    { value: "google/gemini-flash-1.5", label: "Gemini Flash 1.5" },
+  ]},
+  { group: "DeepSeek", models: [
+    { value: "deepseek/deepseek-chat-v3", label: "DeepSeek V3" },
+    { value: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
+    { value: "deepseek/deepseek-r1", label: "DeepSeek R1" },
+    { value: "deepseek/deepseek-r1-0528", label: "DeepSeek R1 0528" },
+    { value: "deepseek/deepseek-coder", label: "DeepSeek Coder" },
+    { value: "deepseek/deepseek-prover-v2", label: "DeepSeek Prover V2" },
+  ]},
+  { group: "Meta (Llama)", models: [
+    { value: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick" },
+    { value: "meta-llama/llama-4-scout", label: "Llama 4 Scout" },
+    { value: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B" },
+    { value: "meta-llama/llama-3.1-405b-instruct", label: "Llama 3.1 405B" },
+    { value: "meta-llama/llama-3.1-70b-instruct", label: "Llama 3.1 70B" },
+    { value: "meta-llama/llama-3.1-8b-instruct", label: "Llama 3.1 8B" },
+  ]},
+  { group: "Mistral", models: [
+    { value: "mistralai/mistral-large-2", label: "Mistral Large 2" },
+    { value: "mistralai/mistral-medium-3", label: "Mistral Medium 3" },
+    { value: "mistralai/mistral-small-3.1", label: "Mistral Small 3.1" },
+    { value: "mistralai/codestral-2501", label: "Codestral" },
+    { value: "mistralai/mixtral-8x22b-instruct", label: "Mixtral 8x22B" },
+    { value: "mistralai/mixtral-8x7b-instruct", label: "Mixtral 8x7B" },
+    { value: "mistralai/ministral-8b", label: "Ministral 8B" },
+  ]},
+  { group: "xAI (Grok)", models: [
+    { value: "x-ai/grok-4", label: "Grok 4" },
+    { value: "x-ai/grok-3", label: "Grok 3" },
+    { value: "x-ai/grok-3-mini", label: "Grok 3 Mini" },
+    { value: "x-ai/grok-2", label: "Grok 2" },
+  ]},
+  { group: "Qwen", models: [
+    { value: "qwen/qwen-3-235b-a22b", label: "Qwen 3 235B" },
+    { value: "qwen/qwen-3-32b", label: "Qwen 3 32B" },
+    { value: "qwen/qwen-3-14b", label: "Qwen 3 14B" },
+    { value: "qwen/qwen-3-8b", label: "Qwen 3 8B" },
+    { value: "qwen/qwen-2.5-coder-32b-instruct", label: "Qwen 2.5 Coder 32B" },
+    { value: "qwen/qwen-2.5-72b-instruct", label: "Qwen 2.5 72B" },
+    { value: "qwen/qwq-32b", label: "QwQ 32B (Reasoning)" },
+  ]},
+  { group: "Cohere", models: [
+    { value: "cohere/command-r-plus", label: "Command R+" },
+    { value: "cohere/command-r", label: "Command R" },
+    { value: "cohere/command-a", label: "Command A" },
+  ]},
+  { group: "NVIDIA", models: [
+    { value: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Nemotron 70B" },
+    { value: "nvidia/nemotron-mini-9b-v2", label: "Nemotron Mini 9B" },
+  ]},
+  { group: "Other", models: [
+    { value: "perplexity/sonar-pro", label: "Perplexity Sonar Pro" },
+    { value: "perplexity/sonar", label: "Perplexity Sonar" },
+    { value: "microsoft/phi-4", label: "Microsoft Phi 4" },
+    { value: "microsoft/mai-ds-r1", label: "Microsoft MAI DS R1" },
+    { value: "amazon/nova-pro-v1", label: "Amazon Nova Pro" },
+    { value: "amazon/nova-lite-v1", label: "Amazon Nova Lite" },
+  ]},
+  { group: "Local / Self-Hosted", models: [
+    { value: "ollama", label: "Ollama (Local)" },
+  ]},
+];
+
+const LLM_PROVIDERS = [
+  "OpenRouter",
+  "OpenAI",
+  "Anthropic",
+  "Google",
+  "DeepSeek",
+  "Mistral",
+  "Cohere",
+  "xAI",
+  "Perplexity",
+  "Other",
+];
+
+function LlmModelSelect({ value, onChange, testId }: { value: string; onChange: (val: string) => void; testId: string }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger data-testid={testId}>
+        <SelectValue placeholder="Select a model" />
+      </SelectTrigger>
+      <SelectContent className="max-h-80">
+        {OPENROUTER_MODELS.map((group) => (
+          <SelectGroup key={group.group}>
+            <SelectLabel>{group.group}</SelectLabel>
+            {group.models.map((model) => (
+              <SelectItem key={model.value} value={model.value}>
+                {model.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export default function SettingsOpenclaw() {
   const { toast } = useToast();
@@ -24,7 +155,11 @@ export default function SettingsOpenclaw() {
     queryKey: ["/api/docker/services"],
   });
 
-  const isLoading = configLoading || dockerLoading;
+  const { data: llmKeys, isLoading: keysLoading } = useQuery<LlmApiKey[]>({
+    queryKey: ["/api/llm-api-keys"],
+  });
+
+  const isLoading = configLoading || dockerLoading || keysLoading;
 
   const [formValues, setFormValues] = useState({
     gatewayPort: 18789,
@@ -36,6 +171,10 @@ export default function SettingsOpenclaw() {
     whatsappPhone: "",
     tailscaleEnabled: false,
   });
+
+  const [newKey, setNewKey] = useState({ provider: "OpenRouter", label: "", apiKey: "", baseUrl: "" });
+  const [showAddKey, setShowAddKey] = useState(false);
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (config) {
@@ -78,6 +217,56 @@ export default function SettingsOpenclaw() {
       toast({ title: "Error", description: "Failed to approve node.", variant: "destructive" });
     },
   });
+
+  const createKeyMutation = useMutation({
+    mutationFn: async (data: typeof newKey) => {
+      await apiRequest("POST", "/api/llm-api-keys", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/llm-api-keys"] });
+      setNewKey({ provider: "OpenRouter", label: "", apiKey: "", baseUrl: "" });
+      setShowAddKey(false);
+      toast({ title: "API key added", description: "LLM API key has been saved." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to add API key.", variant: "destructive" });
+    },
+  });
+
+  const toggleKeyMutation = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      await apiRequest("PATCH", `/api/llm-api-keys/${id}`, { active });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/llm-api-keys"] });
+    },
+  });
+
+  const deleteKeyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/llm-api-keys/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/llm-api-keys"] });
+      toast({ title: "Key deleted", description: "LLM API key removed." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete API key.", variant: "destructive" });
+    },
+  });
+
+  const toggleKeyVisibility = (id: string) => {
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const maskKey = (key: string) => {
+    if (key.length <= 8) return "****";
+    return key.slice(0, 4) + "****" + key.slice(-4);
+  };
 
   if (isLoading) {
     return (
@@ -214,39 +403,164 @@ export default function SettingsOpenclaw() {
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="default_llm">Default LLM</Label>
-              <Select value={formValues.defaultLlm} onValueChange={(val) => setFormValues((p) => ({ ...p, defaultLlm: val }))}>
-                <SelectTrigger data-testid="select-default-llm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openrouter/deepseek-chat">OpenRouter / DeepSeek Chat</SelectItem>
-                  <SelectItem value="openrouter/auto">OpenRouter / Auto</SelectItem>
-                  <SelectItem value="openrouter/gpt-4o">OpenRouter / GPT-4o</SelectItem>
-                  <SelectItem value="openrouter/claude-sonnet">OpenRouter / Claude Sonnet</SelectItem>
-                  <SelectItem value="openrouter/llama-3">OpenRouter / Llama 3</SelectItem>
-                  <SelectItem value="openrouter/mixtral">OpenRouter / Mixtral</SelectItem>
-                  <SelectItem value="ollama">Ollama (Local)</SelectItem>
-                </SelectContent>
-              </Select>
+              <LlmModelSelect
+                value={formValues.defaultLlm}
+                onChange={(val) => setFormValues((p) => ({ ...p, defaultLlm: val }))}
+                testId="select-default-llm"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="fallback_llm">Fallback LLM</Label>
-              <Select value={formValues.fallbackLlm} onValueChange={(val) => setFormValues((p) => ({ ...p, fallbackLlm: val }))}>
-                <SelectTrigger data-testid="select-fallback-llm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openrouter/auto">OpenRouter / Auto</SelectItem>
-                  <SelectItem value="openrouter/deepseek-chat">OpenRouter / DeepSeek Chat</SelectItem>
-                  <SelectItem value="openrouter/gpt-4o">OpenRouter / GPT-4o</SelectItem>
-                  <SelectItem value="openrouter/claude-sonnet">OpenRouter / Claude Sonnet</SelectItem>
-                  <SelectItem value="openrouter/llama-3">OpenRouter / Llama 3</SelectItem>
-                  <SelectItem value="openrouter/mixtral">OpenRouter / Mixtral</SelectItem>
-                  <SelectItem value="ollama">Ollama (Local)</SelectItem>
-                </SelectContent>
-              </Select>
+              <LlmModelSelect
+                value={formValues.fallbackLlm}
+                onChange={(val) => setFormValues((p) => ({ ...p, fallbackLlm: val }))}
+                testId="select-fallback-llm"
+              />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Key className="h-4 w-4" />
+              LLM API Keys
+            </CardTitle>
+            <CardDescription>Manage API keys for LLM providers used by your gateway.</CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowAddKey(!showAddKey)}
+            data-testid="button-add-llm-key"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Key
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showAddKey && (
+            <div className="border rounded-md p-4 space-y-4 bg-muted/30">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Provider</Label>
+                  <Select value={newKey.provider} onValueChange={(val) => setNewKey((p) => ({ ...p, provider: val }))}>
+                    <SelectTrigger data-testid="select-new-key-provider">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LLM_PROVIDERS.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Label</Label>
+                  <Input
+                    placeholder="e.g. Production Key"
+                    value={newKey.label}
+                    onChange={(e) => setNewKey((p) => ({ ...p, label: e.target.value }))}
+                    data-testid="input-new-key-label"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>API Key</Label>
+                  <Input
+                    type="password"
+                    placeholder="sk-..."
+                    value={newKey.apiKey}
+                    onChange={(e) => setNewKey((p) => ({ ...p, apiKey: e.target.value }))}
+                    data-testid="input-new-key-value"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Base URL (optional)</Label>
+                  <Input
+                    placeholder="https://openrouter.ai/api/v1"
+                    value={newKey.baseUrl}
+                    onChange={(e) => setNewKey((p) => ({ ...p, baseUrl: e.target.value }))}
+                    data-testid="input-new-key-base-url"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowAddKey(false)} data-testid="button-cancel-add-key">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => createKeyMutation.mutate(newKey)}
+                  disabled={!newKey.label || !newKey.apiKey || createKeyMutation.isPending}
+                  data-testid="button-save-new-key"
+                >
+                  {createKeyMutation.isPending ? "Saving..." : "Save Key"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {(!llmKeys || llmKeys.length === 0) && !showAddKey && (
+            <p className="text-sm text-muted-foreground py-4 text-center" data-testid="text-llm-keys-empty">
+              No LLM API keys configured. Add one to connect your gateway to LLM providers.
+            </p>
+          )}
+
+          {llmKeys && llmKeys.length > 0 && (
+            <div className="space-y-3">
+              {llmKeys.map((key) => (
+                <div
+                  key={key.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                  data-testid={`row-llm-key-${key.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium" data-testid={`text-llm-key-label-${key.id}`}>{key.label}</p>
+                      <Badge variant="secondary" className="text-xs" data-testid={`badge-llm-key-provider-${key.id}`}>{key.provider}</Badge>
+                      <Badge variant={key.active ? "default" : "secondary"} className="text-xs" data-testid={`badge-llm-key-status-${key.id}`}>
+                        {key.active ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="text-xs text-muted-foreground font-mono" data-testid={`text-llm-key-value-${key.id}`}>
+                        {visibleKeys.has(key.id) ? key.apiKey : maskKey(key.apiKey)}
+                      </code>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => toggleKeyVisibility(key.id)}
+                        data-testid={`button-toggle-visibility-${key.id}`}
+                      >
+                        {visibleKeys.has(key.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      </Button>
+                    </div>
+                    {key.baseUrl && (
+                      <p className="text-xs text-muted-foreground mt-0.5" data-testid={`text-llm-key-baseurl-${key.id}`}>{key.baseUrl}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Switch
+                      checked={key.active}
+                      onCheckedChange={(checked) => toggleKeyMutation.mutate({ id: key.id, active: checked })}
+                      data-testid={`switch-llm-key-active-${key.id}`}
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteKeyMutation.mutate(key.id)}
+                      disabled={deleteKeyMutation.isPending}
+                      data-testid={`button-delete-llm-key-${key.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

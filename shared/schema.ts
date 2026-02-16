@@ -81,6 +81,16 @@ export const openclawConfig = pgTable("openclaw_config", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const llmApiKeys = pgTable("llm_api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  provider: text("provider").notNull(),
+  label: text("label").notNull(),
+  apiKey: text("api_key").notNull(),
+  baseUrl: text("base_url"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertSettingSchema = createInsertSchema(settings).omit({ id: true });
 export const insertMachineSchema = createInsertSchema(machines).omit({ id: true, lastMaintenance: true });
 export const insertApiKeySchema = createInsertSchema(apiKeys).omit({ id: true, key: true, createdAt: true, lastUsed: true });
@@ -98,5 +108,8 @@ export type VpsConnection = typeof vpsConnections.$inferSelect;
 export type InsertVpsConnection = z.infer<typeof insertVpsConnectionSchema>;
 export type DockerService = typeof dockerServices.$inferSelect;
 export type InsertDockerService = z.infer<typeof insertDockerServiceSchema>;
+export const insertLlmApiKeySchema = createInsertSchema(llmApiKeys).omit({ id: true, createdAt: true });
 export type OpenclawConfig = typeof openclawConfig.$inferSelect;
 export type InsertOpenclawConfig = z.infer<typeof insertOpenclawConfigSchema>;
+export type LlmApiKey = typeof llmApiKeys.$inferSelect;
+export type InsertLlmApiKey = z.infer<typeof insertLlmApiKeySchema>;

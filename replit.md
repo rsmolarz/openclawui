@@ -46,7 +46,8 @@ shared/
 - **apiKeys**: API keys with permissions and active status
 - **vpsConnections**: VPS server connection details (IP, port, SSH user, key path, connection status)
 - **dockerServices**: Docker container services (name, status, port, image, CPU/memory usage)
-- **openclawConfig**: Gateway settings, LLM provider, WhatsApp, Tailscale, node approvals
+- **openclawConfig**: Gateway settings, LLM provider (primary + fallback), WhatsApp, Tailscale, node approvals
+- **llmApiKeys**: LLM provider API keys (provider, label, apiKey, baseUrl, active status)
 
 ## API Endpoints
 - `GET /api/settings` - List all settings
@@ -67,6 +68,10 @@ shared/
 - `GET /api/nodes/pending` - Get pending node approvals
 - `POST /api/nodes/approve` - Approve a pending node
 - `GET /api/status` - Overall system status summary
+- `GET /api/llm-api-keys` - List LLM API keys
+- `POST /api/llm-api-keys` - Create LLM API key
+- `PATCH /api/llm-api-keys/:id` - Update LLM API key
+- `DELETE /api/llm-api-keys/:id` - Delete LLM API key
 
 ## Sidebar Navigation
 - **Main**: Overview

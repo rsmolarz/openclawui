@@ -5,7 +5,8 @@ import {
   type VpsConnection, type InsertVpsConnection,
   type DockerService, type InsertDockerService,
   type OpenclawConfig, type InsertOpenclawConfig,
-  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig,
+  type LlmApiKey, type InsertLlmApiKey,
+  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -38,6 +39,11 @@ export interface IStorage {
 
   getOpenclawConfig(): Promise<OpenclawConfig | undefined>;
   upsertOpenclawConfig(data: Partial<InsertOpenclawConfig>): Promise<OpenclawConfig>;
+
+  getLlmApiKeys(): Promise<LlmApiKey[]>;
+  createLlmApiKey(data: InsertLlmApiKey): Promise<LlmApiKey>;
+  updateLlmApiKey(id: string, data: Partial<InsertLlmApiKey>): Promise<LlmApiKey | undefined>;
+  deleteLlmApiKey(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -190,6 +196,28 @@ export class DatabaseStorage implements IStorage {
       .values(data as InsertOpenclawConfig)
       .returning();
     return created;
+  }
+
+  async getLlmApiKeys(): Promise<LlmApiKey[]> {
+    return db.select().from(llmApiKeys);
+  }
+
+  async createLlmApiKey(data: InsertLlmApiKey): Promise<LlmApiKey> {
+    const [created] = await db.insert(llmApiKeys).values(data).returning();
+    return created;
+  }
+
+  async updateLlmApiKey(id: string, data: Partial<InsertLlmApiKey>): Promise<LlmApiKey | undefined> {
+    const [updated] = await db
+      .update(llmApiKeys)
+      .set(data)
+      .where(eq(llmApiKeys.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLlmApiKey(id: string): Promise<void> {
+    await db.delete(llmApiKeys).where(eq(llmApiKeys.id, id));
   }
 }
 

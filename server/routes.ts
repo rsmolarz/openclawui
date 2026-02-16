@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMachineSchema, insertApiKeySchema } from "@shared/schema";
+import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema } from "@shared/schema";
 import { z } from "zod";
 
 const bulkUpdateSchema = z.object({
@@ -262,6 +262,54 @@ export async function registerRoutes(
       res.status(404).json({ error: "Node not found" });
     } catch (error) {
       res.status(500).json({ error: "Failed to approve node" });
+    }
+  });
+
+  app.get("/api/llm-api-keys", async (_req, res) => {
+    try {
+      const keys = await storage.getLlmApiKeys();
+      res.json(keys);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch LLM API keys" });
+    }
+  });
+
+  app.post("/api/llm-api-keys", async (req, res) => {
+    try {
+      const parsed = insertLlmApiKeySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      const key = await storage.createLlmApiKey(parsed.data);
+      res.status(201).json(key);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create LLM API key" });
+    }
+  });
+
+  app.patch("/api/llm-api-keys/:id", async (req, res) => {
+    try {
+      const updateSchema = insertLlmApiKeySchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      const updated = await storage.updateLlmApiKey(req.params.id, parsed.data);
+      if (!updated) {
+        return res.status(404).json({ error: "LLM API key not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update LLM API key" });
+    }
+  });
+
+  app.delete("/api/llm-api-keys/:id", async (req, res) => {
+    try {
+      await storage.deleteLlmApiKey(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete LLM API key" });
     }
   });
 
