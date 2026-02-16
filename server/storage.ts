@@ -34,6 +34,7 @@ export interface IStorage {
 
   getDockerServices(): Promise<DockerService[]>;
   upsertDockerService(data: InsertDockerService): Promise<DockerService>;
+  updateDockerServiceStatus(serviceName: string, status: string): Promise<DockerService | undefined>;
 
   getOpenclawConfig(): Promise<OpenclawConfig | undefined>;
   upsertOpenclawConfig(data: Partial<InsertOpenclawConfig>): Promise<OpenclawConfig>;
@@ -158,6 +159,15 @@ export class DatabaseStorage implements IStorage {
   async upsertDockerService(data: InsertDockerService): Promise<DockerService> {
     const [created] = await db.insert(dockerServices).values(data).returning();
     return created;
+  }
+
+  async updateDockerServiceStatus(serviceName: string, status: string): Promise<DockerService | undefined> {
+    const [updated] = await db
+      .update(dockerServices)
+      .set({ status, lastChecked: new Date() })
+      .where(eq(dockerServices.serviceName, serviceName))
+      .returning();
+    return updated;
   }
 
   async getOpenclawConfig(): Promise<OpenclawConfig | undefined> {

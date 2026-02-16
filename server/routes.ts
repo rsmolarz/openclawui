@@ -205,6 +205,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: parsed.error.message });
       }
       const config = await storage.upsertOpenclawConfig(parsed.data);
+      if (parsed.data.whatsappEnabled !== undefined) {
+        await storage.updateDockerServiceStatus("whatsapp-bridge", parsed.data.whatsappEnabled ? "running" : "stopped");
+      }
       res.json(config);
     } catch (error) {
       res.status(500).json({ error: "Failed to update OpenClaw config" });

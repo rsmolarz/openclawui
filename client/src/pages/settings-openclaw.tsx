@@ -58,6 +58,7 @@ export default function SettingsOpenclaw() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/docker/services"] });
       toast({ title: "Configuration saved", description: "OpenClaw settings updated." });
     },
     onError: () => {

@@ -11,18 +11,23 @@ const defaultNodeDetails: Record<string, { hostname: string; ip: string; os: str
 async function migrateNodeData() {
   const configs = await db.select().from(openclawConfig);
   for (const cfg of configs) {
-    if (!Array.isArray(cfg.pendingNodes)) continue;
-    const nodes = cfg.pendingNodes as any[];
-    const hasStringNodes = nodes.some((n) => typeof n === "string");
-    if (!hasStringNodes) continue;
-    const enriched = nodes.map((n: any) => {
-      if (typeof n === "string") {
-        const details = defaultNodeDetails[n];
-        return details ? { id: n, ...details } : { id: n, hostname: n, ip: "Pending discovery", os: "Pending discovery", location: "Pending discovery" };
+    if (Array.isArray(cfg.pendingNodes)) {
+      const nodes = cfg.pendingNodes as any[];
+      const hasStringNodes = nodes.some((n) => typeof n === "string");
+      if (hasStringNodes) {
+        const enriched = nodes.map((n: any) => {
+          if (typeof n === "string") {
+            const details = defaultNodeDetails[n];
+            return details ? { id: n, ...details } : { id: n, hostname: n, ip: "Pending discovery", os: "Pending discovery", location: "Pending discovery" };
+          }
+          return n;
+        });
+        await db.update(openclawConfig).set({ pendingNodes: enriched, updatedAt: new Date() }).where(eq(openclawConfig.id, cfg.id));
       }
-      return n;
-    });
-    await db.update(openclawConfig).set({ pendingNodes: enriched, updatedAt: new Date() }).where(eq(openclawConfig.id, cfg.id));
+    }
+    if (cfg.whatsappEnabled) {
+      await db.update(dockerServices).set({ status: "running", lastChecked: new Date() }).where(eq(dockerServices.serviceName, "whatsapp-bridge"));
+    }
   }
 }
 
