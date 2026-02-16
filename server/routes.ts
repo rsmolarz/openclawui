@@ -90,9 +90,15 @@ export async function registerRoutes(
 
   app.get("/api/auth/medinvest/callback", async (req, res) => {
     try {
-      const { code, state } = req.query;
+      const { code, state, error } = req.query;
+
+      if (error) {
+        console.error("OAuth error from provider:", error, req.query.error_description);
+        return res.redirect(`/?error=${error}`);
+      }
 
       if (!code || !state || state !== req.session.oauthState) {
+        console.error("OAuth state mismatch - code:", !!code, "state:", !!state, "match:", state === req.session.oauthState);
         return res.redirect("/?error=invalid_state");
       }
 
@@ -101,6 +107,8 @@ export async function registerRoutes(
       const protocol = req.headers["x-forwarded-proto"] || req.protocol;
       const host = req.headers["x-forwarded-host"] || req.headers.host;
       const redirectUri = `${protocol}://${host}/api/auth/medinvest/callback`;
+
+      console.log("Exchanging code for token with redirect_uri:", redirectUri);
 
       const tokenRes = await fetch(`${MEDINVEST_BASE_URL}/api/oauth/token`, {
         method: "POST",
