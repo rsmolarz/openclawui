@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema } from "@shared/schema";
+import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 
@@ -83,6 +83,13 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ error: "Not authenticated" });
   }
   next();
+}
+
+async function resolveInstanceId(req: Request): Promise<string | null> {
+  const instanceId = (req.query.instanceId as string) || (req.body?.instanceId as string);
+  if (instanceId) return instanceId;
+  const defaultInstance = await storage.getDefaultInstance();
+  return defaultInstance?.id ?? null;
 }
 
 export async function registerRoutes(
@@ -210,6 +217,82 @@ export async function registerRoutes(
     });
   });
 
+  app.get("/api/instances", requireAuth, async (_req, res) => {
+    try {
+      const instances = await storage.getInstances();
+      res.json(instances);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch instances" });
+    }
+  });
+
+  app.get("/api/instances/default", requireAuth, async (_req, res) => {
+    try {
+      const instance = await storage.getDefaultInstance();
+      res.json(instance ?? null);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch default instance" });
+    }
+  });
+
+  app.get("/api/instances/:id", requireAuth, async (req, res) => {
+    try {
+      const instance = await storage.getInstance(req.params.id as string);
+      if (!instance) {
+        return res.status(404).json({ error: "Instance not found" });
+      }
+      res.json(instance);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch instance" });
+    }
+  });
+
+  app.post("/api/instances", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertInstanceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      const instance = await storage.createInstance(parsed.data);
+      res.status(201).json(instance);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create instance" });
+    }
+  });
+
+  app.patch("/api/instances/:id", requireAuth, async (req, res) => {
+    try {
+      const updateSchema = insertInstanceSchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      const updated = await storage.updateInstance(req.params.id as string, parsed.data);
+      if (!updated) {
+        return res.status(404).json({ error: "Instance not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update instance" });
+    }
+  });
+
+  app.delete("/api/instances/:id", requireAuth, async (req, res) => {
+    try {
+      const instance = await storage.getInstance(req.params.id as string);
+      if (!instance) {
+        return res.status(404).json({ error: "Instance not found" });
+      }
+      if (instance.isDefault) {
+        return res.status(400).json({ error: "Cannot delete the default instance" });
+      }
+      await storage.deleteInstance(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete instance" });
+    }
+  });
+
   app.get("/api/settings", requireAuth, async (_req, res) => {
     try {
       const allSettings = await storage.getSettings();
@@ -323,9 +406,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vps", requireAuth, async (_req, res) => {
+  app.get("/api/vps", requireAuth, async (req, res) => {
     try {
-      const vps = await storage.getVpsConnection();
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json(null);
+      const vps = await storage.getVpsConnection(instanceId);
       res.json(vps ?? null);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch VPS connection" });
@@ -334,20 +419,24 @@ export async function registerRoutes(
 
   app.post("/api/vps", requireAuth, async (req, res) => {
     try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
       const parsed = vpsUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const vps = await storage.upsertVpsConnection(parsed.data);
+      const vps = await storage.upsertVpsConnection(instanceId, parsed.data);
       res.json(vps);
     } catch (error) {
       res.status(500).json({ error: "Failed to update VPS connection" });
     }
   });
 
-  app.post("/api/vps/check", requireAuth, async (_req, res) => {
+  app.post("/api/vps/check", requireAuth, async (req, res) => {
     try {
-      const vps = await storage.getVpsConnection();
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json({ connected: false, message: "No instance specified" });
+      const vps = await storage.getVpsConnection(instanceId);
       if (!vps) {
         return res.json({ connected: false, message: "No VPS configured" });
       }
@@ -359,18 +448,22 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/docker/services", requireAuth, async (_req, res) => {
+  app.get("/api/docker/services", requireAuth, async (req, res) => {
     try {
-      const services = await storage.getDockerServices();
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json([]);
+      const services = await storage.getDockerServices(instanceId);
       res.json(services);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch Docker services" });
     }
   });
 
-  app.get("/api/openclaw/config", requireAuth, async (_req, res) => {
+  app.get("/api/openclaw/config", requireAuth, async (req, res) => {
     try {
-      const config = await storage.getOpenclawConfig();
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json(null);
+      const config = await storage.getOpenclawConfig(instanceId);
       if (config && Array.isArray(config.pendingNodes)) {
         config.pendingNodes = (config.pendingNodes as any[]).map((n: any) => {
           if (typeof n === "string") {
@@ -387,13 +480,15 @@ export async function registerRoutes(
 
   app.post("/api/openclaw/config", requireAuth, async (req, res) => {
     try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
       const parsed = openclawConfigUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const config = await storage.upsertOpenclawConfig(parsed.data);
+      const config = await storage.upsertOpenclawConfig(instanceId, parsed.data);
       if (parsed.data.whatsappEnabled !== undefined) {
-        await storage.updateDockerServiceStatus("whatsapp-bridge", parsed.data.whatsappEnabled ? "running" : "stopped");
+        await storage.updateDockerServiceStatus("whatsapp-bridge", parsed.data.whatsappEnabled ? "running" : "stopped", instanceId);
         if (!isProductionRuntime) {
           try {
             const bot = await getWhatsappBot();
@@ -411,11 +506,13 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/status", async (_req, res) => {
+  app.get("/api/status", async (req, res) => {
     try {
-      const vps = await storage.getVpsConnection();
-      const docker = await storage.getDockerServices();
-      const config = await storage.getOpenclawConfig();
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json({ vps_connected: false, openclaw_status: "offline", docker_services: 0, services: [] });
+      const vps = await storage.getVpsConnection(instanceId);
+      const docker = await storage.getDockerServices(instanceId);
+      const config = await storage.getOpenclawConfig(instanceId);
       res.json({
         vps_connected: vps?.isConnected ?? false,
         openclaw_status: config?.gatewayStatus ?? "offline",
@@ -431,9 +528,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/nodes/pending", requireAuth, async (_req, res) => {
+  app.get("/api/nodes/pending", requireAuth, async (req, res) => {
     try {
-      const config = await storage.getOpenclawConfig();
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json({ pending: [] });
+      const config = await storage.getOpenclawConfig(instanceId);
       res.json({ pending: (config?.pendingNodes as any[]) ?? [] });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch pending nodes" });
@@ -442,14 +541,16 @@ export async function registerRoutes(
 
   app.post("/api/nodes/approve", requireAuth, async (req, res) => {
     try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
       const { node_id } = req.body;
-      const config = await storage.getOpenclawConfig();
+      const config = await storage.getOpenclawConfig(instanceId);
       if (config && config.pendingNodes) {
         const pending = config.pendingNodes as any[];
         const idx = pending.findIndex((n: any) => (typeof n === "string" ? n === node_id : n.id === node_id));
         if (idx >= 0) {
           pending.splice(idx, 1);
-          await storage.upsertOpenclawConfig({
+          await storage.upsertOpenclawConfig(instanceId, {
             pendingNodes: pending,
             nodesApproved: (config.nodesApproved ?? 0) + 1,
           });
@@ -558,10 +659,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/whatsapp/status", requireAuth, async (_req, res) => {
+  app.get("/api/whatsapp/status", requireAuth, async (req, res) => {
     try {
       if (isProductionRuntime) {
-        const config = await storage.getOpenclawConfig();
+        const instanceId = await resolveInstanceId(req);
+        const config = instanceId ? await storage.getOpenclawConfig(instanceId) : null;
         res.json({
           state: "external",
           qrDataUrl: null,
@@ -597,18 +699,23 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/whatsapp/start", requireAuth, async (_req, res) => {
+  app.post("/api/whatsapp/start", requireAuth, async (req, res) => {
     try {
+      const instanceId = await resolveInstanceId(req);
       if (isProductionRuntime) {
-        const config = await storage.getOpenclawConfig();
-        if (!config?.whatsappEnabled) {
-          await storage.upsertOpenclawConfig({ whatsappEnabled: true });
+        if (instanceId) {
+          const config = await storage.getOpenclawConfig(instanceId);
+          if (!config?.whatsappEnabled) {
+            await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: true });
+          }
         }
         return res.json({ success: true, message: "WhatsApp enabled. Bot will start on your OpenClaw server." });
       }
-      const config = await storage.getOpenclawConfig();
-      if (!config?.whatsappEnabled) {
-        await storage.upsertOpenclawConfig({ whatsappEnabled: true });
+      if (instanceId) {
+        const config = await storage.getOpenclawConfig(instanceId);
+        if (!config?.whatsappEnabled) {
+          await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: true });
+        }
       }
       const bot = await getWhatsappBot();
       bot.start();
@@ -618,10 +725,13 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/whatsapp/stop", requireAuth, async (_req, res) => {
+  app.post("/api/whatsapp/stop", requireAuth, async (req, res) => {
     try {
+      const instanceId = await resolveInstanceId(req);
       if (isProductionRuntime) {
-        await storage.upsertOpenclawConfig({ whatsappEnabled: false });
+        if (instanceId) {
+          await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: false });
+        }
         return res.json({ success: true, message: "WhatsApp disabled. Bot will stop on your OpenClaw server." });
       }
       const bot = await getWhatsappBot();

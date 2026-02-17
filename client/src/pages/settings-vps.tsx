@@ -7,15 +7,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useInstance } from "@/hooks/use-instance";
 import { Save, Wifi, WifiOff, RefreshCw, Server, Terminal } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { VpsConnection } from "@shared/schema";
 
 export default function SettingsVps() {
   const { toast } = useToast();
+  const { selectedInstanceId } = useInstance();
 
   const { data: vps, isLoading } = useQuery<VpsConnection | null>({
-    queryKey: ["/api/vps"],
+    queryKey: ["/api/vps", selectedInstanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/vps?instanceId=${selectedInstanceId ?? ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch VPS");
+      return res.json();
+    },
+    enabled: !!selectedInstanceId,
   });
 
   const [formValues, setFormValues] = useState({
@@ -38,10 +46,10 @@ export default function SettingsVps() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formValues) => {
-      await apiRequest("POST", "/api/vps", data);
+      await apiRequest("POST", `/api/vps?instanceId=${selectedInstanceId ?? ""}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/vps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vps", selectedInstanceId] });
       toast({ title: "VPS settings saved", description: "Connection configuration updated." });
     },
     onError: () => {
@@ -51,11 +59,11 @@ export default function SettingsVps() {
 
   const checkMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/vps/check");
+      const res = await apiRequest("POST", `/api/vps/check?instanceId=${selectedInstanceId ?? ""}`);
       return res.json();
     },
     onSuccess: (data: { connected: boolean }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/vps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vps", selectedInstanceId] });
       if (data.connected) {
         toast({ title: "Connected", description: "VPS connection is active." });
       } else {

@@ -7,6 +7,8 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { InstanceProvider } from "@/components/instance-provider";
+import { InstanceSelector } from "@/components/instance-selector";
 import { useAuth } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
 import Overview from "@/pages/overview";
@@ -19,6 +21,7 @@ import SettingsAppearance from "@/pages/settings-appearance";
 import SettingsVps from "@/pages/settings-vps";
 import SettingsOpenclaw from "@/pages/settings-openclaw";
 import SettingsIntegrations from "@/pages/settings-integrations";
+import SettingsInstances from "@/pages/settings-instances";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -33,6 +36,7 @@ function Router() {
       <Route path="/settings/vps" component={SettingsVps} />
       <Route path="/settings/openclaw" component={SettingsOpenclaw} />
       <Route path="/settings/integrations" component={SettingsIntegrations} />
+      <Route path="/settings/instances" component={SettingsInstances} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -45,20 +49,25 @@ function AuthenticatedLayout() {
   };
 
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-2 p-2 border-b sticky top-0 bg-background z-50">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <ThemeToggle />
-          </header>
-          <main className="flex-1 overflow-auto">
-            <Router />
-          </main>
+    <InstanceProvider>
+      <SidebarProvider style={style as React.CSSProperties}>
+        <div className="flex h-screen w-full">
+          <AppSidebar />
+          <div className="flex flex-col flex-1 min-w-0">
+            <header className="flex items-center justify-between gap-2 p-2 border-b sticky top-0 bg-background z-50">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <div className="flex items-center gap-2">
+                <InstanceSelector />
+                <ThemeToggle />
+              </div>
+            </header>
+            <main className="flex-1 overflow-auto">
+              <Router />
+            </main>
+          </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </InstanceProvider>
   );
 }
 

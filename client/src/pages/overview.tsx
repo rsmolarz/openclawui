@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Cpu, Settings, Bell, KeyRound, TrendingUp, Server, Cog } from "lucide-react";
+import { useInstance } from "@/hooks/use-instance";
 import type { Machine, Setting, ApiKey, VpsConnection, OpenclawConfig } from "@shared/schema";
 
 function StatCard({
@@ -33,6 +34,8 @@ function StatCard({
 }
 
 export default function Overview() {
+  const { selectedInstanceId } = useInstance();
+
   const { data: machines, isLoading: machinesLoading } = useQuery<Machine[]>({
     queryKey: ["/api/machines"],
   });
@@ -46,11 +49,23 @@ export default function Overview() {
   });
 
   const { data: vps } = useQuery<VpsConnection | null>({
-    queryKey: ["/api/vps"],
+    queryKey: ["/api/vps", selectedInstanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/vps?instanceId=${selectedInstanceId ?? ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch VPS");
+      return res.json();
+    },
+    enabled: !!selectedInstanceId,
   });
 
   const { data: openclawCfg } = useQuery<OpenclawConfig | null>({
-    queryKey: ["/api/openclaw/config"],
+    queryKey: ["/api/openclaw/config", selectedInstanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch config");
+      return res.json();
+    },
+    enabled: !!selectedInstanceId,
   });
 
   const isLoading = machinesLoading || settingsLoading || apiKeysLoading;

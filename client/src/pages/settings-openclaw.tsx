@@ -11,6 +11,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession } from "@shared/schema";
 
 const OPENROUTER_MODELS = [
@@ -269,13 +270,26 @@ function LlmModelSelect({ value, onChange, testId }: { value: string; onChange: 
 
 export default function SettingsOpenclaw() {
   const { toast } = useToast();
+  const { selectedInstanceId } = useInstance();
 
   const { data: config, isLoading: configLoading } = useQuery<OpenclawConfig | null>({
-    queryKey: ["/api/openclaw/config"],
+    queryKey: ["/api/openclaw/config", selectedInstanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch config");
+      return res.json();
+    },
+    enabled: !!selectedInstanceId,
   });
 
   const { data: dockerServices, isLoading: dockerLoading } = useQuery<DockerService[]>({
-    queryKey: ["/api/docker/services"],
+    queryKey: ["/api/docker/services", selectedInstanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/docker/services?instanceId=${selectedInstanceId ?? ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch docker services");
+      return res.json();
+    },
+    enabled: !!selectedInstanceId,
   });
 
   const { data: llmKeys, isLoading: keysLoading } = useQuery<LlmApiKey[]>({
@@ -401,11 +415,11 @@ export default function SettingsOpenclaw() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formValues) => {
-      await apiRequest("POST", "/api/openclaw/config", data);
+      await apiRequest("POST", `/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/docker/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config", selectedInstanceId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/docker/services", selectedInstanceId] });
       toast({ title: "Configuration saved", description: "OpenClaw settings updated." });
     },
     onError: () => {
@@ -415,10 +429,10 @@ export default function SettingsOpenclaw() {
 
   const approveMutation = useMutation({
     mutationFn: async (nodeId: string) => {
-      await apiRequest("POST", "/api/nodes/approve", { node_id: nodeId });
+      await apiRequest("POST", `/api/nodes/approve?instanceId=${selectedInstanceId ?? ""}`, { node_id: nodeId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config", selectedInstanceId] });
       toast({ title: "Node approved", description: "Node has been approved." });
     },
     onError: () => {

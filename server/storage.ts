@@ -9,7 +9,8 @@ import {
   type Integration, type InsertIntegration,
   type User, type InsertUser,
   type WhatsappSession, type InsertWhatsappSession,
-  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions,
+  type OpenclawInstance, type InsertInstance,
+  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -33,16 +34,23 @@ export interface IStorage {
   updateApiKey(id: string, data: Partial<ApiKey>): Promise<ApiKey | undefined>;
   deleteApiKey(id: string): Promise<void>;
 
-  getVpsConnection(): Promise<VpsConnection | undefined>;
-  upsertVpsConnection(data: Partial<InsertVpsConnection>): Promise<VpsConnection>;
+  getInstances(): Promise<OpenclawInstance[]>;
+  getInstance(id: string): Promise<OpenclawInstance | undefined>;
+  getDefaultInstance(): Promise<OpenclawInstance | undefined>;
+  createInstance(data: InsertInstance): Promise<OpenclawInstance>;
+  updateInstance(id: string, data: Partial<InsertInstance>): Promise<OpenclawInstance | undefined>;
+  deleteInstance(id: string): Promise<void>;
+
+  getVpsConnection(instanceId: string): Promise<VpsConnection | undefined>;
+  upsertVpsConnection(instanceId: string, data: Partial<InsertVpsConnection>): Promise<VpsConnection>;
   updateVpsConnectionStatus(id: string, isConnected: boolean): Promise<VpsConnection | undefined>;
 
-  getDockerServices(): Promise<DockerService[]>;
+  getDockerServices(instanceId: string): Promise<DockerService[]>;
   upsertDockerService(data: InsertDockerService): Promise<DockerService>;
-  updateDockerServiceStatus(serviceName: string, status: string): Promise<DockerService | undefined>;
+  updateDockerServiceStatus(serviceName: string, status: string, instanceId?: string): Promise<DockerService | undefined>;
 
-  getOpenclawConfig(): Promise<OpenclawConfig | undefined>;
-  upsertOpenclawConfig(data: Partial<InsertOpenclawConfig>): Promise<OpenclawConfig>;
+  getOpenclawConfig(instanceId: string): Promise<OpenclawConfig | undefined>;
+  upsertOpenclawConfig(instanceId: string, data: Partial<InsertOpenclawConfig>): Promise<OpenclawConfig>;
 
   getLlmApiKeys(): Promise<LlmApiKey[]>;
   createLlmApiKey(data: InsertLlmApiKey): Promise<LlmApiKey>;
@@ -158,13 +166,48 @@ export class DatabaseStorage implements IStorage {
     await db.delete(apiKeys).where(eq(apiKeys.id, id));
   }
 
-  async getVpsConnection(): Promise<VpsConnection | undefined> {
-    const [vps] = await db.select().from(vpsConnections);
+  async getInstances(): Promise<OpenclawInstance[]> {
+    return db.select().from(openclawInstances);
+  }
+
+  async getInstance(id: string): Promise<OpenclawInstance | undefined> {
+    const [instance] = await db.select().from(openclawInstances).where(eq(openclawInstances.id, id));
+    return instance;
+  }
+
+  async getDefaultInstance(): Promise<OpenclawInstance | undefined> {
+    const [instance] = await db.select().from(openclawInstances).where(eq(openclawInstances.isDefault, true));
+    return instance;
+  }
+
+  async createInstance(data: InsertInstance): Promise<OpenclawInstance> {
+    const [created] = await db.insert(openclawInstances).values(data).returning();
+    return created;
+  }
+
+  async updateInstance(id: string, data: Partial<InsertInstance>): Promise<OpenclawInstance | undefined> {
+    const [updated] = await db
+      .update(openclawInstances)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(openclawInstances.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteInstance(id: string): Promise<void> {
+    await db.delete(openclawConfig).where(eq(openclawConfig.instanceId, id));
+    await db.delete(vpsConnections).where(eq(vpsConnections.instanceId, id));
+    await db.delete(dockerServices).where(eq(dockerServices.instanceId, id));
+    await db.delete(openclawInstances).where(eq(openclawInstances.id, id));
+  }
+
+  async getVpsConnection(instanceId: string): Promise<VpsConnection | undefined> {
+    const [vps] = await db.select().from(vpsConnections).where(eq(vpsConnections.instanceId, instanceId));
     return vps;
   }
 
-  async upsertVpsConnection(data: Partial<InsertVpsConnection>): Promise<VpsConnection> {
-    const existing = await this.getVpsConnection();
+  async upsertVpsConnection(instanceId: string, data: Partial<InsertVpsConnection>): Promise<VpsConnection> {
+    const existing = await this.getVpsConnection(instanceId);
     if (existing) {
       const [updated] = await db
         .update(vpsConnections)
@@ -175,7 +218,7 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db
       .insert(vpsConnections)
-      .values(data as InsertVpsConnection)
+      .values({ ...data, instanceId } as InsertVpsConnection)
       .returning();
     return created;
   }
@@ -189,8 +232,8 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getDockerServices(): Promise<DockerService[]> {
-    return db.select().from(dockerServices);
+  async getDockerServices(instanceId: string): Promise<DockerService[]> {
+    return db.select().from(dockerServices).where(eq(dockerServices.instanceId, instanceId));
   }
 
   async upsertDockerService(data: InsertDockerService): Promise<DockerService> {
@@ -198,7 +241,21 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateDockerServiceStatus(serviceName: string, status: string): Promise<DockerService | undefined> {
+  async updateDockerServiceStatus(serviceName: string, status: string, instanceId?: string): Promise<DockerService | undefined> {
+    if (instanceId) {
+      const services = await db.select().from(dockerServices)
+        .where(eq(dockerServices.instanceId, instanceId));
+      const target = services.find(s => s.serviceName === serviceName);
+      if (target) {
+        const [updated] = await db
+          .update(dockerServices)
+          .set({ status, lastChecked: new Date() })
+          .where(eq(dockerServices.id, target.id))
+          .returning();
+        return updated;
+      }
+      return undefined;
+    }
     const [updated] = await db
       .update(dockerServices)
       .set({ status, lastChecked: new Date() })
@@ -207,13 +264,13 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getOpenclawConfig(): Promise<OpenclawConfig | undefined> {
-    const [config] = await db.select().from(openclawConfig);
+  async getOpenclawConfig(instanceId: string): Promise<OpenclawConfig | undefined> {
+    const [config] = await db.select().from(openclawConfig).where(eq(openclawConfig.instanceId, instanceId));
     return config;
   }
 
-  async upsertOpenclawConfig(data: Partial<InsertOpenclawConfig>): Promise<OpenclawConfig> {
-    const existing = await this.getOpenclawConfig();
+  async upsertOpenclawConfig(instanceId: string, data: Partial<InsertOpenclawConfig>): Promise<OpenclawConfig> {
+    const existing = await this.getOpenclawConfig(instanceId);
     if (existing) {
       const [updated] = await db
         .update(openclawConfig)
@@ -224,7 +281,7 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db
       .insert(openclawConfig)
-      .values(data as InsertOpenclawConfig)
+      .values({ ...data, instanceId } as InsertOpenclawConfig)
       .returning();
     return created;
   }

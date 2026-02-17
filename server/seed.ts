@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { eq } from "drizzle-orm";
-import { settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, integrations } from "@shared/schema";
+import { eq, isNull } from "drizzle-orm";
+import { settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, integrations, openclawInstances } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 const defaultNodeDetails: Record<string, { hostname: string; ip: string; os: string; location: string }> = {
@@ -139,7 +139,32 @@ async function seedIntegrations() {
   ]);
 }
 
+async function ensureDefaultInstance(): Promise<string> {
+  const existing = await db.select().from(openclawInstances).where(eq(openclawInstances.isDefault, true));
+  if (existing.length > 0) {
+    return existing[0].id;
+  }
+  const [instance] = await db.insert(openclawInstances).values({
+    name: "Default Instance",
+    description: "Primary OpenClaw server instance",
+    serverUrl: "https://187.77.192.215",
+    status: "online",
+    isDefault: true,
+  }).returning();
+  console.log("Created default OpenClaw instance:", instance.id);
+  return instance.id;
+}
+
+async function backfillInstanceIds(defaultInstanceId: string) {
+  await db.update(openclawConfig).set({ instanceId: defaultInstanceId }).where(isNull(openclawConfig.instanceId));
+  await db.update(vpsConnections).set({ instanceId: defaultInstanceId }).where(isNull(vpsConnections.instanceId));
+  await db.update(dockerServices).set({ instanceId: defaultInstanceId }).where(isNull(dockerServices.instanceId));
+  console.log("Backfilled instanceId on existing config/VPS/docker rows");
+}
+
 export async function seed() {
+  const defaultInstanceId = await ensureDefaultInstance();
+  await backfillInstanceIds(defaultInstanceId);
   await migrateNodeData();
   await seedIntegrations();
 
@@ -182,19 +207,20 @@ export async function seed() {
   ]);
 
   await db.insert(vpsConnections).values([
-    { vpsIp: "187.77.192.215", vpsPort: 22, sshUser: "root", isConnected: false },
+    { instanceId: defaultInstanceId, vpsIp: "187.77.192.215", vpsPort: 22, sshUser: "root", isConnected: false },
   ]);
 
   await db.insert(dockerServices).values([
-    { serviceName: "openclaw-gateway", status: "running", port: 18789, image: "openclaw/gateway:latest", cpuUsage: 12.5, memoryUsage: 256 },
-    { serviceName: "openclaw-api", status: "running", port: 3000, image: "openclaw/api:latest", cpuUsage: 8.2, memoryUsage: 192 },
-    { serviceName: "redis", status: "running", port: 6379, image: "redis:7-alpine", cpuUsage: 2.1, memoryUsage: 64 },
-    { serviceName: "postgres", status: "running", port: 5432, image: "postgres:16", cpuUsage: 5.4, memoryUsage: 384 },
-    { serviceName: "whatsapp-bridge", status: "stopped", port: 8080, image: "openclaw/whatsapp:latest", cpuUsage: 0, memoryUsage: 0 },
+    { instanceId: defaultInstanceId, serviceName: "openclaw-gateway", status: "running", port: 18789, image: "openclaw/gateway:latest", cpuUsage: 12.5, memoryUsage: 256 },
+    { instanceId: defaultInstanceId, serviceName: "openclaw-api", status: "running", port: 3000, image: "openclaw/api:latest", cpuUsage: 8.2, memoryUsage: 192 },
+    { instanceId: defaultInstanceId, serviceName: "redis", status: "running", port: 6379, image: "redis:7-alpine", cpuUsage: 2.1, memoryUsage: 64 },
+    { instanceId: defaultInstanceId, serviceName: "postgres", status: "running", port: 5432, image: "postgres:16", cpuUsage: 5.4, memoryUsage: 384 },
+    { instanceId: defaultInstanceId, serviceName: "whatsapp-bridge", status: "stopped", port: 8080, image: "openclaw/whatsapp:latest", cpuUsage: 0, memoryUsage: 0 },
   ]);
 
   await db.insert(openclawConfig).values([
     {
+      instanceId: defaultInstanceId,
       gatewayPort: 18789,
       gatewayBind: "127.0.0.1",
       gatewayMode: "local",

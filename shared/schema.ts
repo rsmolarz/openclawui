@@ -37,8 +37,20 @@ export const apiKeys = pgTable("api_keys", {
   lastUsed: timestamp("last_used"),
 });
 
+export const openclawInstances = pgTable("openclaw_instances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  serverUrl: text("server_url"),
+  status: text("status").notNull().default("offline"),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const vpsConnections = pgTable("vps_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instanceId: varchar("instance_id"),
   vpsIp: text("vps_ip").notNull().default("187.77.192.215"),
   vpsPort: integer("vps_port").notNull().default(22),
   sshUser: text("ssh_user").notNull().default("root"),
@@ -51,6 +63,7 @@ export const vpsConnections = pgTable("vps_connections", {
 
 export const dockerServices = pgTable("docker_services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instanceId: varchar("instance_id"),
   serviceName: text("service_name").notNull(),
   status: text("status").notNull().default("stopped"),
   port: integer("port"),
@@ -64,6 +77,7 @@ export const dockerServices = pgTable("docker_services", {
 
 export const openclawConfig = pgTable("openclaw_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instanceId: varchar("instance_id"),
   gatewayPort: integer("gateway_port").notNull().default(18789),
   gatewayBind: text("gateway_bind").notNull().default("127.0.0.1"),
   gatewayMode: text("gateway_mode").notNull().default("local"),
@@ -97,6 +111,7 @@ export const llmApiKeys = pgTable("llm_api_keys", {
 export const insertSettingSchema = createInsertSchema(settings).omit({ id: true });
 export const insertMachineSchema = createInsertSchema(machines).omit({ id: true, lastSeen: true, createdAt: true });
 export const insertApiKeySchema = createInsertSchema(apiKeys).omit({ id: true, key: true, createdAt: true, lastUsed: true });
+export const insertInstanceSchema = createInsertSchema(openclawInstances).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertVpsConnectionSchema = createInsertSchema(vpsConnections).omit({ id: true, isConnected: true, lastChecked: true, createdAt: true, updatedAt: true });
 export const insertDockerServiceSchema = createInsertSchema(dockerServices).omit({ id: true, lastChecked: true, createdAt: true });
 export const insertOpenclawConfigSchema = createInsertSchema(openclawConfig).omit({ id: true, gatewayStatus: true, createdAt: true, updatedAt: true });
@@ -107,6 +122,8 @@ export type InsertMachine = z.infer<typeof insertMachineSchema>;
 export type Machine = typeof machines.$inferSelect;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKey = typeof apiKeys.$inferSelect;
+export type OpenclawInstance = typeof openclawInstances.$inferSelect;
+export type InsertInstance = z.infer<typeof insertInstanceSchema>;
 export type VpsConnection = typeof vpsConnections.$inferSelect;
 export type InsertVpsConnection = z.infer<typeof insertVpsConnectionSchema>;
 export type DockerService = typeof dockerServices.$inferSelect;
