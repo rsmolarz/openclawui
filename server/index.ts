@@ -5,7 +5,6 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
-import { whatsappBot } from "./bot/whatsapp";
 
 declare module "express-session" {
   interface SessionData {
@@ -101,6 +100,7 @@ app.use((req, res, next) => {
       const config = await storage.getOpenclawConfig();
       if (config?.whatsappEnabled) {
         console.log("[OpenClaw] WhatsApp is enabled, starting bot...");
+        const { whatsappBot } = await import("./bot/whatsapp");
         whatsappBot.start();
       }
     } catch (err) {

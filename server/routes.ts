@@ -4,7 +4,11 @@ import { storage } from "./storage";
 import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
-import { whatsappBot } from "./bot/whatsapp";
+
+async function getWhatsappBot() {
+  const { whatsappBot } = await import("./bot/whatsapp");
+  return whatsappBot;
+}
 
 const bulkUpdateSchema = z.object({
   updates: z.array(z.object({
@@ -85,6 +89,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const isProductionRuntime = process.env.NODE_ENV === "production";
 
   app.get("/api/auth/me", async (req, res) => {
     console.log("Auth check - SID:", req.sessionID, "userId:", req.session.userId, "cookie:", !!req.headers.cookie);
@@ -389,10 +394,15 @@ export async function registerRoutes(
       const config = await storage.upsertOpenclawConfig(parsed.data);
       if (parsed.data.whatsappEnabled !== undefined) {
         await storage.updateDockerServiceStatus("whatsapp-bridge", parsed.data.whatsappEnabled ? "running" : "stopped");
-        if (parsed.data.whatsappEnabled && !whatsappBot.isConnected()) {
-          whatsappBot.start();
-        } else if (!parsed.data.whatsappEnabled && (whatsappBot.isConnected() || whatsappBot.getStatus().state !== "disconnected")) {
-          await whatsappBot.stop();
+        if (!isProductionRuntime) {
+          try {
+            const bot = await getWhatsappBot();
+            if (parsed.data.whatsappEnabled && !bot.isConnected()) {
+              bot.start();
+            } else if (!parsed.data.whatsappEnabled && (bot.isConnected() || bot.getStatus().state !== "disconnected")) {
+              await bot.stop();
+            }
+          } catch {}
         }
       }
       res.json(config);
@@ -548,8 +558,6 @@ export async function registerRoutes(
     }
   });
 
-  const isProductionRuntime = process.env.NODE_ENV === "production";
-
   app.get("/api/whatsapp/status", requireAuth, async (_req, res) => {
     try {
       if (isProductionRuntime) {
@@ -563,7 +571,8 @@ export async function registerRoutes(
           enabled: config?.whatsappEnabled ?? false,
         });
       } else {
-        const status = whatsappBot.getStatus();
+        const bot = await getWhatsappBot();
+        const status = bot.getStatus();
         res.json({ ...status, runtime: "local", enabled: true });
       }
     } catch (error) {
@@ -576,7 +585,8 @@ export async function registerRoutes(
       if (isProductionRuntime) {
         return res.json({ qrDataUrl: null, state: "external", phone: null });
       }
-      const status = whatsappBot.getStatus();
+      const bot = await getWhatsappBot();
+      const status = bot.getStatus();
       res.json({
         qrDataUrl: status.qrDataUrl,
         state: status.state,
@@ -600,7 +610,8 @@ export async function registerRoutes(
       if (!config?.whatsappEnabled) {
         await storage.upsertOpenclawConfig({ whatsappEnabled: true });
       }
-      whatsappBot.start();
+      const bot = await getWhatsappBot();
+      bot.start();
       res.json({ success: true, message: "WhatsApp bot starting..." });
     } catch (error) {
       res.status(500).json({ error: "Failed to start WhatsApp bot" });
@@ -613,7 +624,8 @@ export async function registerRoutes(
         await storage.upsertOpenclawConfig({ whatsappEnabled: false });
         return res.json({ success: true, message: "WhatsApp disabled. Bot will stop on your OpenClaw server." });
       }
-      await whatsappBot.stop();
+      const bot = await getWhatsappBot();
+      await bot.stop();
       res.json({ success: true, message: "WhatsApp bot stopped" });
     } catch (error) {
       res.status(500).json({ error: "Failed to stop WhatsApp bot" });
@@ -625,7 +637,8 @@ export async function registerRoutes(
       if (isProductionRuntime) {
         return res.json({ success: true, message: "Restart signal sent. Bot will restart on your OpenClaw server." });
       }
-      await whatsappBot.restart();
+      const bot = await getWhatsappBot();
+      await bot.restart();
       res.json({ success: true, message: "WhatsApp bot restarting..." });
     } catch (error) {
       res.status(500).json({ error: "Failed to restart WhatsApp bot" });
@@ -656,9 +669,11 @@ export async function registerRoutes(
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
       }
-      try {
-        await whatsappBot.sendApprovalNotification(session.phone);
-      } catch {
+      if (!isProductionRuntime) {
+        try {
+          const bot = await getWhatsappBot();
+          await bot.sendApprovalNotification(session.phone);
+        } catch {}
       }
       res.json(session);
     } catch (error) {
