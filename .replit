@@ -42,8 +42,8 @@ waitForPort = 5000
 [userenv]
 
 [userenv.shared]
-MEDINVEST_BASE_URL = "https://did-login.replit.app"
-MEDINVEST_CLIENT_ID = "mi_7372fbc05a34a6226ce0d31d1ff5cec9"
+OPENCLAW_DID_BASE_URL = "https://did-login.replit.app"
+OPENCLAW_DID_CLIENT_ID = "mi_7372fbc05a34a6226ce0d31d1ff5cec9"
 
 [userenv.production]
 APP_BASE_URL = "https://claw-settings.replit.app"

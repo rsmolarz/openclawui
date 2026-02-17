@@ -37,9 +37,9 @@ const vpsUpdateSchema = z.object({
   sshKeyPath: z.string().nullable().optional(),
 });
 
-const MEDINVEST_BASE_URL = process.env.MEDINVEST_BASE_URL || "https://did-login.replit.app";
-const MEDINVEST_CLIENT_ID = process.env.MEDINVEST_CLIENT_ID || "";
-const MEDINVEST_CLIENT_SECRET = process.env.MEDINVEST_CLIENT_SECRET || "";
+const MEDINVEST_BASE_URL = process.env.OPENCLAW_DID_BASE_URL || "https://did-login.replit.app";
+const MEDINVEST_CLIENT_ID = process.env.OPENCLAW_DID_CLIENT_ID || "";
+const MEDINVEST_CLIENT_SECRET = process.env.OPENCLAW_DID_SECRET || "";
 const APP_BASE_URL = process.env.APP_BASE_URL || "";
 const STATE_SECRET = process.env.SESSION_SECRET || "openclaw-dev-session-secret";
 
