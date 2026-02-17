@@ -905,14 +905,14 @@ export default function SettingsOpenclaw() {
             <Badge
               variant={
                 botStatus?.state === "connected" ? "default" :
-                botStatus?.state === "external" && botStatus?.enabled ? "default" :
+                botStatus?.state === "external" && botStatus?.enabled ? "secondary" :
                 botStatus?.state === "connecting" || botStatus?.state === "qr_ready" ? "secondary" :
                 "destructive"
               }
               data-testid="badge-bot-status"
             >
               {botStatus?.state === "connected" ? "Connected" :
-               botStatus?.state === "external" && botStatus?.enabled ? "Enabled" :
+               botStatus?.state === "external" && botStatus?.enabled ? "Enabled (Config Only)" :
                botStatus?.state === "external" && !botStatus?.enabled ? "Disabled" :
                botStatus?.state === "connecting" ? "Connecting..." :
                botStatus?.state === "qr_ready" ? "QR Ready" : "Disconnected"}
@@ -923,7 +923,7 @@ export default function SettingsOpenclaw() {
           {botStatus?.runtime === "external" && (
             <div className="rounded-md bg-muted/50 p-3">
               <p className="text-sm text-muted-foreground" data-testid="text-bot-external-info">
-                The WhatsApp bot runs on your OpenClaw server. Use the controls below to enable/disable it. Changes will take effect when your server syncs.
+                The WhatsApp bot runs on your OpenClaw server, not on this dashboard. The controls below only toggle the configuration setting. Check your OpenClaw server to confirm the bot is actually connected and running.
               </p>
             </div>
           )}
