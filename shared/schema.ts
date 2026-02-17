@@ -182,6 +182,65 @@ export const insertSkillSchema = createInsertSchema(skills).omit({ id: true, ins
 export type Skill = typeof skills.$inferSelect;
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
 
+export const docs = pgTable("docs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  category: text("category").notNull().default("guide"),
+  content: text("content").notNull().default(""),
+  tags: text("tags").array(),
+  pinned: boolean("pinned").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const vpsConnectionLogs = pgTable("vps_connection_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instanceId: varchar("instance_id"),
+  status: text("status").notNull(),
+  message: text("message"),
+  checkedAt: timestamp("checked_at").notNull().defaultNow(),
+});
+
+export const nodeSetupSessions = pgTable("node_setup_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instanceId: varchar("instance_id"),
+  os: text("os").notNull().default("linux"),
+  currentStep: integer("current_step").notNull().default(0),
+  totalSteps: integer("total_steps").notNull().default(5),
+  status: text("status").notNull().default("in_progress"),
+  machineId: varchar("machine_id"),
+  completedSteps: jsonb("completed_steps").$type<number[]>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const onboardingChecklist = pgTable("onboarding_checklist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  instanceId: varchar("instance_id"),
+  steps: jsonb("steps").$type<Record<string, boolean>>().notNull().default({}),
+  dismissed: boolean("dismissed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertDocSchema = createInsertSchema(docs).omit({ id: true, createdAt: true, updatedAt: true });
+export type Doc = typeof docs.$inferSelect;
+export type InsertDoc = z.infer<typeof insertDocSchema>;
+
+export const insertVpsConnectionLogSchema = createInsertSchema(vpsConnectionLogs).omit({ id: true, checkedAt: true });
+export type VpsConnectionLog = typeof vpsConnectionLogs.$inferSelect;
+export type InsertVpsConnectionLog = z.infer<typeof insertVpsConnectionLogSchema>;
+
+export const insertNodeSetupSessionSchema = createInsertSchema(nodeSetupSessions).omit({ id: true, createdAt: true, updatedAt: true });
+export type NodeSetupSession = typeof nodeSetupSessions.$inferSelect;
+export type InsertNodeSetupSession = z.infer<typeof insertNodeSetupSessionSchema>;
+
+export const insertOnboardingChecklistSchema = createInsertSchema(onboardingChecklist).omit({ id: true, createdAt: true, updatedAt: true });
+export type OnboardingChecklist = typeof onboardingChecklist.$inferSelect;
+export type InsertOnboardingChecklist = z.infer<typeof insertOnboardingChecklistSchema>;
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertIntegrationSchema = createInsertSchema(integrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLlmApiKeySchema = createInsertSchema(llmApiKeys).omit({ id: true, createdAt: true });
