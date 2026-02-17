@@ -199,7 +199,7 @@ export async function seed() {
       gatewayBind: "127.0.0.1",
       gatewayMode: "local",
       gatewayStatus: "online",
-      defaultLlm: "openrouter/deepseek-chat",
+      defaultLlm: "deepseek/deepseek-chat",
       fallbackLlm: "openrouter/auto",
       whatsappEnabled: false,
       tailscaleEnabled: true,

@@ -18,6 +18,19 @@ const OPENROUTER_MODELS = [
     { value: "openrouter/auto", label: "Auto (Best Available)" },
     { value: "openrouter/free", label: "Free (Auto-select Free)" },
   ]},
+  { group: "DeepSeek", models: [
+    { value: "deepseek/deepseek-chat-v3-0324", label: "DeepSeek V3 0324" },
+    { value: "deepseek/deepseek-chat-v3", label: "DeepSeek V3" },
+    { value: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
+    { value: "deepseek/deepseek-r1", label: "DeepSeek R1" },
+    { value: "deepseek/deepseek-r1-0528", label: "DeepSeek R1 0528" },
+    { value: "deepseek/deepseek-r1-distill-llama-70b", label: "DeepSeek R1 Distill Llama 70B" },
+    { value: "deepseek/deepseek-r1-distill-qwen-32b", label: "DeepSeek R1 Distill Qwen 32B" },
+    { value: "deepseek/deepseek-r1-distill-qwen-14b", label: "DeepSeek R1 Distill Qwen 14B" },
+    { value: "deepseek/deepseek-coder", label: "DeepSeek Coder" },
+    { value: "deepseek/deepseek-prover-v2", label: "DeepSeek Prover V2" },
+    { value: "deepseek/deepseek-v2.5", label: "DeepSeek V2.5" },
+  ]},
   { group: "OpenAI", models: [
     { value: "openai/gpt-5", label: "GPT-5" },
     { value: "openai/gpt-4.1", label: "GPT-4.1" },
@@ -25,35 +38,50 @@ const OPENROUTER_MODELS = [
     { value: "openai/gpt-4.1-nano", label: "GPT-4.1 Nano" },
     { value: "openai/gpt-4o", label: "GPT-4o" },
     { value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
+    { value: "openai/gpt-4o-2024-11-20", label: "GPT-4o (Nov 2024)" },
+    { value: "openai/gpt-4o-mini-2024-07-18", label: "GPT-4o Mini (Jul 2024)" },
     { value: "openai/o3", label: "o3" },
     { value: "openai/o3-mini", label: "o3 Mini" },
     { value: "openai/o4-mini", label: "o4 Mini" },
+    { value: "openai/o1", label: "o1" },
+    { value: "openai/o1-mini", label: "o1 Mini" },
+    { value: "openai/o1-preview", label: "o1 Preview" },
     { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo" },
+    { value: "openai/gpt-4-turbo-preview", label: "GPT-4 Turbo Preview" },
+    { value: "openai/gpt-4", label: "GPT-4" },
+    { value: "openai/gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+    { value: "openai/gpt-3.5-turbo-0125", label: "GPT-3.5 Turbo 0125" },
+    { value: "openai/chatgpt-4o-latest", label: "ChatGPT 4o Latest" },
   ]},
   { group: "Anthropic", models: [
     { value: "anthropic/claude-4-opus", label: "Claude 4 Opus" },
     { value: "anthropic/claude-4-sonnet", label: "Claude 4 Sonnet" },
     { value: "anthropic/claude-3.7-sonnet", label: "Claude 3.7 Sonnet" },
+    { value: "anthropic/claude-3.7-sonnet:thinking", label: "Claude 3.7 Sonnet (Thinking)" },
     { value: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+    { value: "anthropic/claude-3.5-sonnet-20240620", label: "Claude 3.5 Sonnet (Jun 2024)" },
     { value: "anthropic/claude-3.5-haiku", label: "Claude 3.5 Haiku" },
+    { value: "anthropic/claude-3.5-haiku-20241022", label: "Claude 3.5 Haiku (Oct 2024)" },
     { value: "anthropic/claude-3-opus", label: "Claude 3 Opus" },
+    { value: "anthropic/claude-3-sonnet", label: "Claude 3 Sonnet" },
     { value: "anthropic/claude-3-haiku", label: "Claude 3 Haiku" },
   ]},
   { group: "Google", models: [
     { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+    { value: "google/gemini-2.5-pro-preview-05-06", label: "Gemini 2.5 Pro Preview" },
     { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    { value: "google/gemini-2.5-flash-preview", label: "Gemini 2.5 Flash Preview" },
     { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash" },
     { value: "google/gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
+    { value: "google/gemini-2.0-flash-thinking", label: "Gemini 2.0 Flash Thinking" },
     { value: "google/gemini-pro-1.5", label: "Gemini Pro 1.5" },
     { value: "google/gemini-flash-1.5", label: "Gemini Flash 1.5" },
-  ]},
-  { group: "DeepSeek", models: [
-    { value: "deepseek/deepseek-chat-v3", label: "DeepSeek V3" },
-    { value: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
-    { value: "deepseek/deepseek-r1", label: "DeepSeek R1" },
-    { value: "deepseek/deepseek-r1-0528", label: "DeepSeek R1 0528" },
-    { value: "deepseek/deepseek-coder", label: "DeepSeek Coder" },
-    { value: "deepseek/deepseek-prover-v2", label: "DeepSeek Prover V2" },
+    { value: "google/gemini-flash-1.5-8b", label: "Gemini Flash 1.5 8B" },
+    { value: "google/gemma-3-27b-it", label: "Gemma 3 27B" },
+    { value: "google/gemma-3-12b-it", label: "Gemma 3 12B" },
+    { value: "google/gemma-3-4b-it", label: "Gemma 3 4B" },
+    { value: "google/gemma-2-27b-it", label: "Gemma 2 27B" },
+    { value: "google/gemma-2-9b-it", label: "Gemma 2 9B" },
   ]},
   { group: "Meta (Llama)", models: [
     { value: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick" },
@@ -62,47 +90,114 @@ const OPENROUTER_MODELS = [
     { value: "meta-llama/llama-3.1-405b-instruct", label: "Llama 3.1 405B" },
     { value: "meta-llama/llama-3.1-70b-instruct", label: "Llama 3.1 70B" },
     { value: "meta-llama/llama-3.1-8b-instruct", label: "Llama 3.1 8B" },
+    { value: "meta-llama/llama-3-70b-instruct", label: "Llama 3 70B" },
+    { value: "meta-llama/llama-3-8b-instruct", label: "Llama 3 8B" },
+    { value: "meta-llama/llama-guard-3-8b", label: "Llama Guard 3 8B" },
   ]},
   { group: "Mistral", models: [
     { value: "mistralai/mistral-large-2", label: "Mistral Large 2" },
+    { value: "mistralai/mistral-large-2411", label: "Mistral Large 2411" },
     { value: "mistralai/mistral-medium-3", label: "Mistral Medium 3" },
     { value: "mistralai/mistral-small-3.1", label: "Mistral Small 3.1" },
-    { value: "mistralai/codestral-2501", label: "Codestral" },
+    { value: "mistralai/mistral-small-2503", label: "Mistral Small 2503" },
+    { value: "mistralai/codestral-2501", label: "Codestral 2501" },
+    { value: "mistralai/codestral-mamba", label: "Codestral Mamba" },
     { value: "mistralai/mixtral-8x22b-instruct", label: "Mixtral 8x22B" },
     { value: "mistralai/mixtral-8x7b-instruct", label: "Mixtral 8x7B" },
     { value: "mistralai/ministral-8b", label: "Ministral 8B" },
+    { value: "mistralai/ministral-3b", label: "Ministral 3B" },
+    { value: "mistralai/mistral-7b-instruct", label: "Mistral 7B" },
+    { value: "mistralai/pixtral-large-2411", label: "Pixtral Large" },
+    { value: "mistralai/pixtral-12b-2409", label: "Pixtral 12B" },
   ]},
   { group: "xAI (Grok)", models: [
     { value: "x-ai/grok-4", label: "Grok 4" },
     { value: "x-ai/grok-3", label: "Grok 3" },
+    { value: "x-ai/grok-3-fast", label: "Grok 3 Fast" },
     { value: "x-ai/grok-3-mini", label: "Grok 3 Mini" },
+    { value: "x-ai/grok-3-mini-fast", label: "Grok 3 Mini Fast" },
     { value: "x-ai/grok-2", label: "Grok 2" },
+    { value: "x-ai/grok-2-mini", label: "Grok 2 Mini" },
+    { value: "x-ai/grok-2-vision", label: "Grok 2 Vision" },
   ]},
   { group: "Qwen", models: [
     { value: "qwen/qwen-3-235b-a22b", label: "Qwen 3 235B" },
     { value: "qwen/qwen-3-32b", label: "Qwen 3 32B" },
     { value: "qwen/qwen-3-14b", label: "Qwen 3 14B" },
     { value: "qwen/qwen-3-8b", label: "Qwen 3 8B" },
+    { value: "qwen/qwen-3-4b", label: "Qwen 3 4B" },
+    { value: "qwen/qwen-3-1.7b", label: "Qwen 3 1.7B" },
     { value: "qwen/qwen-2.5-coder-32b-instruct", label: "Qwen 2.5 Coder 32B" },
     { value: "qwen/qwen-2.5-72b-instruct", label: "Qwen 2.5 72B" },
+    { value: "qwen/qwen-2.5-32b-instruct", label: "Qwen 2.5 32B" },
+    { value: "qwen/qwen-2.5-7b-instruct", label: "Qwen 2.5 7B" },
     { value: "qwen/qwq-32b", label: "QwQ 32B (Reasoning)" },
+    { value: "qwen/qvq-72b-preview", label: "QVQ 72B Vision (Preview)" },
   ]},
   { group: "Cohere", models: [
     { value: "cohere/command-r-plus", label: "Command R+" },
+    { value: "cohere/command-r-plus-08-2024", label: "Command R+ (Aug 2024)" },
     { value: "cohere/command-r", label: "Command R" },
+    { value: "cohere/command-r-08-2024", label: "Command R (Aug 2024)" },
     { value: "cohere/command-a", label: "Command A" },
   ]},
   { group: "NVIDIA", models: [
     { value: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Nemotron 70B" },
+    { value: "nvidia/llama-3.1-nemotron-ultra-253b-v1", label: "Nemotron Ultra 253B" },
     { value: "nvidia/nemotron-mini-9b-v2", label: "Nemotron Mini 9B" },
   ]},
+  { group: "Microsoft", models: [
+    { value: "microsoft/phi-4", label: "Phi 4" },
+    { value: "microsoft/phi-4-multimodal-instruct", label: "Phi 4 Multimodal" },
+    { value: "microsoft/phi-3.5-mini-128k-instruct", label: "Phi 3.5 Mini 128K" },
+    { value: "microsoft/phi-3-medium-128k-instruct", label: "Phi 3 Medium 128K" },
+    { value: "microsoft/phi-3-mini-128k-instruct", label: "Phi 3 Mini 128K" },
+    { value: "microsoft/mai-ds-r1", label: "MAI DS R1" },
+    { value: "microsoft/wizardlm-2-8x22b", label: "WizardLM 2 8x22B" },
+  ]},
+  { group: "Amazon", models: [
+    { value: "amazon/nova-pro-v1", label: "Nova Pro" },
+    { value: "amazon/nova-lite-v1", label: "Nova Lite" },
+    { value: "amazon/nova-micro-v1", label: "Nova Micro" },
+  ]},
+  { group: "Perplexity", models: [
+    { value: "perplexity/sonar-pro", label: "Sonar Pro" },
+    { value: "perplexity/sonar", label: "Sonar" },
+    { value: "perplexity/sonar-reasoning", label: "Sonar Reasoning" },
+    { value: "perplexity/sonar-reasoning-pro", label: "Sonar Reasoning Pro" },
+    { value: "perplexity/r1-1776", label: "R1 1776" },
+  ]},
+  { group: "AI21", models: [
+    { value: "ai21/jamba-1.5-large", label: "Jamba 1.5 Large" },
+    { value: "ai21/jamba-1.5-mini", label: "Jamba 1.5 Mini" },
+    { value: "ai21/jamba-instruct", label: "Jamba Instruct" },
+  ]},
+  { group: "Databricks", models: [
+    { value: "databricks/dbrx-instruct", label: "DBRX Instruct" },
+  ]},
+  { group: "01.AI (Yi)", models: [
+    { value: "01-ai/yi-large", label: "Yi Large" },
+    { value: "01-ai/yi-large-turbo", label: "Yi Large Turbo" },
+    { value: "01-ai/yi-1.5-34b-chat", label: "Yi 1.5 34B" },
+  ]},
+  { group: "Nous Research", models: [
+    { value: "nousresearch/hermes-3-llama-3.1-405b", label: "Hermes 3 405B" },
+    { value: "nousresearch/hermes-3-llama-3.1-70b", label: "Hermes 3 70B" },
+    { value: "nousresearch/hermes-2-pro-llama-3-8b", label: "Hermes 2 Pro 8B" },
+    { value: "nousresearch/nous-hermes-2-mixtral-8x7b-sft", label: "Hermes 2 Mixtral" },
+  ]},
+  { group: "Inflection", models: [
+    { value: "inflection/inflection-3-pi", label: "Inflection 3 Pi" },
+    { value: "inflection/inflection-3-productivity", label: "Inflection 3 Productivity" },
+  ]},
   { group: "Other", models: [
-    { value: "perplexity/sonar-pro", label: "Perplexity Sonar Pro" },
-    { value: "perplexity/sonar", label: "Perplexity Sonar" },
-    { value: "microsoft/phi-4", label: "Microsoft Phi 4" },
-    { value: "microsoft/mai-ds-r1", label: "Microsoft MAI DS R1" },
-    { value: "amazon/nova-pro-v1", label: "Amazon Nova Pro" },
-    { value: "amazon/nova-lite-v1", label: "Amazon Nova Lite" },
+    { value: "cognitivecomputations/dolphin-mixtral-8x22b", label: "Dolphin Mixtral 8x22B" },
+    { value: "sao10k/l3.3-euryale-70b", label: "Euryale 70B" },
+    { value: "sophosympatheia/rogue-rose-103b-v0.2", label: "Rogue Rose 103B" },
+    { value: "thedrummer/rocinante-12b", label: "Rocinante 12B" },
+    { value: "eva-unit-01/eva-llama-3.33-70b", label: "EVA Llama 70B" },
+    { value: "moonshotai/moonlight-16b-a3b", label: "Moonshot 16B" },
+    { value: "featherless/qwerky-72b", label: "Qwerky 72B" },
   ]},
   { group: "Local / Self-Hosted", models: [
     { value: "ollama", label: "Ollama (Local)" },
@@ -123,13 +218,38 @@ const LLM_PROVIDERS = [
 ];
 
 function LlmModelSelect({ value, onChange, testId }: { value: string; onChange: (val: string) => void; testId: string }) {
+  const [search, setSearch] = useState("");
+  const lowerSearch = search.toLowerCase();
+
+  const allModels = OPENROUTER_MODELS.flatMap(g => g.models);
+  const selectedLabel = allModels.find(m => m.value === value)?.label ?? value;
+
+  const filteredGroups = search
+    ? OPENROUTER_MODELS.map(group => ({
+        ...group,
+        models: group.models.filter(
+          m => m.label.toLowerCase().includes(lowerSearch) || m.value.toLowerCase().includes(lowerSearch)
+        ),
+      })).filter(g => g.models.length > 0)
+    : OPENROUTER_MODELS;
+
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger data-testid={testId}>
-        <SelectValue placeholder="Select a model" />
+        <SelectValue placeholder="Select a model">{selectedLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent className="max-h-80">
-        {OPENROUTER_MODELS.map((group) => (
+        <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+          <Input
+            placeholder="Search models..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 text-sm"
+            data-testid={`${testId}-search`}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        </div>
+        {filteredGroups.map((group) => (
           <SelectGroup key={group.group}>
             <SelectLabel>{group.group}</SelectLabel>
             {group.models.map((model) => (
@@ -139,6 +259,9 @@ function LlmModelSelect({ value, onChange, testId }: { value: string; onChange: 
             ))}
           </SelectGroup>
         ))}
+        {filteredGroups.length === 0 && (
+          <div className="py-4 text-center text-sm text-muted-foreground">No models found</div>
+        )}
       </SelectContent>
     </Select>
   );
@@ -248,7 +371,7 @@ export default function SettingsOpenclaw() {
     gatewayPort: 18789,
     gatewayBind: "127.0.0.1",
     gatewayMode: "local",
-    defaultLlm: "openrouter/deepseek-chat",
+    defaultLlm: "deepseek/deepseek-chat",
     fallbackLlm: "openrouter/auto",
     whatsappEnabled: false,
     whatsappPhone: "",

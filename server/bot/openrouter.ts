@@ -63,7 +63,7 @@ export async function chat(userMessage: string, senderName?: string): Promise<st
   }
 
   const config = await storage.getOpenclawConfig();
-  const primaryModel = config?.defaultLlm || "openrouter/deepseek-chat";
+  const primaryModel = config?.defaultLlm || "deepseek/deepseek-chat";
   const fallbackModel = config?.fallbackLlm || "openrouter/auto";
 
   const systemPrompt = `You are OpenClaw, a helpful AI assistant available via WhatsApp. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are an AI gateway powered by OpenClaw.${senderName ? ` The user's name is ${senderName}.` : ""}`;
