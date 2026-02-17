@@ -87,6 +87,7 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   app.get("/api/auth/me", async (req, res) => {
+    console.log("Auth check - SID:", req.sessionID, "userId:", req.session.userId, "cookie:", !!req.headers.cookie);
     if (!req.session.userId) {
       return res.json({ user: null });
     }
@@ -168,6 +169,8 @@ export async function registerRoutes(
         email?: string;
       };
 
+      console.log("OAuth userInfo received:", JSON.stringify(userInfo));
+
       const user = await storage.upsertUser({
         medinvestId: userInfo.sub,
         medinvestDid: userInfo.did,
@@ -176,8 +179,15 @@ export async function registerRoutes(
         email: userInfo.email || null,
       });
 
+      console.log("User upserted:", user.id, user.username);
+
       req.session.userId = user.id;
-      req.session.save(() => {
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.redirect("/?error=session_failed");
+        }
+        console.log("Session saved successfully. SID:", req.sessionID, "userId:", req.session.userId);
         res.redirect("/");
       });
     } catch (error) {
