@@ -34,11 +34,14 @@ client/src/
 └── App.tsx
 
 server/
-├── index.ts          # Express entry
+├── index.ts          # Express entry (auto-starts WhatsApp bot if enabled)
 ├── routes.ts         # API routes
 ├── storage.ts        # Database storage layer
 ├── db.ts             # Drizzle connection
-└── seed.ts           # Seed data
+├── seed.ts           # Seed data
+└── bot/
+    ├── whatsapp.ts   # WhatsApp bot (Baileys) - QR auth, pairing, message routing
+    └── openrouter.ts # OpenRouter LLM service - primary/fallback model support
 
 shared/
 └── schema.ts         # Drizzle schema + Zod types
@@ -54,6 +57,7 @@ shared/
 - **llmApiKeys**: LLM provider API keys (provider, label, apiKey, baseUrl, active status)
 - **integrations**: External service integrations (name, type, category, enabled, status, config JSON, icon)
 - **users**: MedInvest DID-linked user accounts (medinvestId, medinvestDid, username, displayName, email)
+- **whatsappSessions**: WhatsApp user sessions (phone, displayName, status, pairingCode, approvedAt, lastMessageAt)
 
 ## API Endpoints
 
@@ -91,6 +95,15 @@ shared/
 - `POST /api/integrations` - Create integration
 - `PATCH /api/integrations/:id` - Update integration
 - `DELETE /api/integrations/:id` - Delete integration
+- `GET /api/whatsapp/status` - Get WhatsApp bot connection status
+- `GET /api/whatsapp/qr` - Get QR code for WhatsApp pairing
+- `POST /api/whatsapp/start` - Start the WhatsApp bot
+- `POST /api/whatsapp/stop` - Stop the WhatsApp bot
+- `POST /api/whatsapp/restart` - Restart the WhatsApp bot
+- `GET /api/whatsapp/sessions` - List all WhatsApp user sessions
+- `GET /api/whatsapp/pending` - List pending WhatsApp session approvals
+- `POST /api/whatsapp/approve/:id` - Approve a pending WhatsApp session
+- `DELETE /api/whatsapp/sessions/:id` - Delete a WhatsApp session
 
 ## Sidebar Navigation
 - **Main**: Overview

@@ -135,9 +135,21 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const whatsappSessions = pgTable("whatsapp_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: text("phone").notNull().unique(),
+  displayName: text("display_name"),
+  status: text("status").notNull().default("pending"),
+  pairingCode: text("pairing_code"),
+  approvedAt: timestamp("approved_at"),
+  lastMessageAt: timestamp("last_message_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertIntegrationSchema = createInsertSchema(integrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLlmApiKeySchema = createInsertSchema(llmApiKeys).omit({ id: true, createdAt: true });
+export const insertWhatsappSessionSchema = createInsertSchema(whatsappSessions).omit({ id: true, approvedAt: true, lastMessageAt: true, createdAt: true });
 export type OpenclawConfig = typeof openclawConfig.$inferSelect;
 export type InsertOpenclawConfig = z.infer<typeof insertOpenclawConfigSchema>;
 export type LlmApiKey = typeof llmApiKeys.$inferSelect;
@@ -146,3 +158,5 @@ export type Integration = typeof integrations.$inferSelect;
 export type InsertIntegration = z.infer<typeof insertIntegrationSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type WhatsappSession = typeof whatsappSessions.$inferSelect;
+export type InsertWhatsappSession = z.infer<typeof insertWhatsappSessionSchema>;

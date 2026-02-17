@@ -8,7 +8,8 @@ import {
   type LlmApiKey, type InsertLlmApiKey,
   type Integration, type InsertIntegration,
   type User, type InsertUser,
-  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users,
+  type WhatsappSession, type InsertWhatsappSession,
+  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -57,6 +58,14 @@ export interface IStorage {
   getUserByMedinvestId(medinvestId: string): Promise<User | undefined>;
   upsertUser(data: InsertUser): Promise<User>;
   getUser(id: string): Promise<User | undefined>;
+
+  getWhatsappSessionByPhone(phone: string): Promise<WhatsappSession | undefined>;
+  getWhatsappPendingSessions(): Promise<WhatsappSession[]>;
+  getAllWhatsappSessions(): Promise<WhatsappSession[]>;
+  upsertWhatsappSession(phone: string, data: Partial<InsertWhatsappSession>): Promise<WhatsappSession>;
+  approveWhatsappSession(id: string): Promise<WhatsappSession | undefined>;
+  deleteWhatsappSession(id: string): Promise<void>;
+  updateWhatsappSessionLastMessage(phone: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -291,6 +300,56 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getWhatsappSessionByPhone(phone: string): Promise<WhatsappSession | undefined> {
+    const [session] = await db.select().from(whatsappSessions).where(eq(whatsappSessions.phone, phone));
+    return session;
+  }
+
+  async getWhatsappPendingSessions(): Promise<WhatsappSession[]> {
+    return db.select().from(whatsappSessions).where(eq(whatsappSessions.status, "pending"));
+  }
+
+  async getAllWhatsappSessions(): Promise<WhatsappSession[]> {
+    return db.select().from(whatsappSessions);
+  }
+
+  async upsertWhatsappSession(phone: string, data: Partial<InsertWhatsappSession>): Promise<WhatsappSession> {
+    const existing = await this.getWhatsappSessionByPhone(phone);
+    if (existing) {
+      const [updated] = await db
+        .update(whatsappSessions)
+        .set(data)
+        .where(eq(whatsappSessions.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(whatsappSessions)
+      .values({ phone, ...data } as any)
+      .returning();
+    return created;
+  }
+
+  async approveWhatsappSession(id: string): Promise<WhatsappSession | undefined> {
+    const [updated] = await db
+      .update(whatsappSessions)
+      .set({ status: "approved", approvedAt: new Date() })
+      .where(eq(whatsappSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWhatsappSession(id: string): Promise<void> {
+    await db.delete(whatsappSessions).where(eq(whatsappSessions.id, id));
+  }
+
+  async updateWhatsappSessionLastMessage(phone: string): Promise<void> {
+    await db
+      .update(whatsappSessions)
+      .set({ lastMessageAt: new Date() })
+      .where(eq(whatsappSessions.phone, phone));
   }
 }
 

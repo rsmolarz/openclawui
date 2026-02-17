@@ -9,9 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
-import type { OpenclawConfig, DockerService, LlmApiKey } from "@shared/schema";
+import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession } from "@shared/schema";
 
 const OPENROUTER_MODELS = [
   { group: "Routing", models: [
@@ -157,6 +157,89 @@ export default function SettingsOpenclaw() {
 
   const { data: llmKeys, isLoading: keysLoading } = useQuery<LlmApiKey[]>({
     queryKey: ["/api/llm-api-keys"],
+  });
+
+  interface BotStatus {
+    state: "disconnected" | "connecting" | "qr_ready" | "connected";
+    qrDataUrl: string | null;
+    phone: string | null;
+    error: string | null;
+  }
+
+  const { data: botStatus, isLoading: botStatusLoading } = useQuery<BotStatus>({
+    queryKey: ["/api/whatsapp/status"],
+    refetchInterval: 3000,
+  });
+
+  const { data: whatsappSessions } = useQuery<WhatsappSession[]>({
+    queryKey: ["/api/whatsapp/sessions"],
+    refetchInterval: 5000,
+  });
+
+  const { data: pendingWaSessions } = useQuery<WhatsappSession[]>({
+    queryKey: ["/api/whatsapp/pending"],
+    refetchInterval: 5000,
+  });
+
+  const startBotMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/whatsapp/start");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/status"] });
+      toast({ title: "Bot starting", description: "WhatsApp bot is connecting..." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to start bot.", variant: "destructive" });
+    },
+  });
+
+  const stopBotMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/whatsapp/stop");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/status"] });
+      toast({ title: "Bot stopped", description: "WhatsApp bot disconnected." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to stop bot.", variant: "destructive" });
+    },
+  });
+
+  const restartBotMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/whatsapp/restart");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/status"] });
+      toast({ title: "Bot restarting", description: "WhatsApp bot is reconnecting..." });
+    },
+  });
+
+  const approveWaSessionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/whatsapp/approve/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/pending"] });
+      toast({ title: "Session approved", description: "User can now chat with OpenClaw AI." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to approve session.", variant: "destructive" });
+    },
+  });
+
+  const deleteWaSessionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/whatsapp/sessions/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/pending"] });
+      toast({ title: "Session removed", description: "WhatsApp session deleted." });
+    },
   });
 
   const isLoading = configLoading || dockerLoading || keysLoading;
@@ -564,42 +647,214 @@ export default function SettingsOpenclaw() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              WhatsApp AI Bot
+            </CardTitle>
+            <CardDescription>Manage the WhatsApp AI bot powered by OpenRouter.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={botStatus?.state === "connected" ? "default" : botStatus?.state === "connecting" || botStatus?.state === "qr_ready" ? "secondary" : "destructive"}
+              data-testid="badge-bot-status"
+            >
+              {botStatus?.state === "connected" ? "Connected" :
+               botStatus?.state === "connecting" ? "Connecting..." :
+               botStatus?.state === "qr_ready" ? "QR Ready" : "Disconnected"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            {botStatus?.state === "disconnected" ? (
+              <Button
+                onClick={() => startBotMutation.mutate()}
+                disabled={startBotMutation.isPending}
+                data-testid="button-start-bot"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {startBotMutation.isPending ? "Starting..." : "Start Bot"}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => stopBotMutation.mutate()}
+                  disabled={stopBotMutation.isPending}
+                  data-testid="button-stop-bot"
+                >
+                  <Square className="h-4 w-4 mr-2" />
+                  {stopBotMutation.isPending ? "Stopping..." : "Stop Bot"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => restartBotMutation.mutate()}
+                  disabled={restartBotMutation.isPending}
+                  data-testid="button-restart-bot"
+                >
+                  <RotateCw className="h-4 w-4 mr-2" />
+                  Restart
+                </Button>
+              </>
+            )}
+            {botStatus?.phone && (
+              <div className="flex items-center gap-2 ml-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground" data-testid="text-bot-phone">+{botStatus.phone}</span>
+              </div>
+            )}
+          </div>
+
+          {botStatus?.error && (
+            <div className="rounded-md bg-destructive/10 p-3">
+              <p className="text-sm text-destructive" data-testid="text-bot-error">{botStatus.error}</p>
+            </div>
+          )}
+
+          {botStatus?.state === "qr_ready" && botStatus.qrDataUrl && (
+            <div className="flex flex-col items-center gap-3 p-4 rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground font-medium">Scan this QR code with WhatsApp</p>
+              <img
+                src={botStatus.qrDataUrl}
+                alt="WhatsApp QR Code"
+                className="rounded-md border"
+                style={{ width: 260, height: 260 }}
+                data-testid="img-whatsapp-qr"
+              />
+              <p className="text-xs text-muted-foreground text-center max-w-xs">
+                Open WhatsApp on your phone, go to Settings, then Linked Devices, and scan this QR code.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+            <div>
+              <Label>WhatsApp Bridge</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">Enable the WhatsApp messaging bridge</p>
+            </div>
+            <Switch
+              checked={formValues.whatsappEnabled}
+              onCheckedChange={(checked) => setFormValues((p) => ({ ...p, whatsappEnabled: checked }))}
+              data-testid="switch-whatsapp-enabled"
+            />
+          </div>
+          {formValues.whatsappEnabled && (
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp_phone">WhatsApp Phone Number</Label>
+              <Input
+                id="whatsapp_phone"
+                value={formValues.whatsappPhone}
+                onChange={(e) => setFormValues((p) => ({ ...p, whatsappPhone: e.target.value }))}
+                placeholder="+1 234 567 8900"
+                data-testid="input-whatsapp-phone"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {pendingWaSessions && pendingWaSessions.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              WhatsApp Integration
+              <Clock className="h-4 w-4" />
+              Pending WhatsApp Approvals
             </CardTitle>
-            <CardDescription>Connect WhatsApp messaging to your platform.</CardDescription>
+            <CardDescription>{pendingWaSessions.length} user{pendingWaSessions.length !== 1 ? "s" : ""} waiting for approval.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-              <div>
-                <Label>WhatsApp Bridge</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Enable the WhatsApp messaging bridge</p>
-              </div>
-              <Switch
-                checked={formValues.whatsappEnabled}
-                onCheckedChange={(checked) => setFormValues((p) => ({ ...p, whatsappEnabled: checked }))}
-                data-testid="switch-whatsapp-enabled"
-              />
+          <CardContent>
+            <div className="space-y-3">
+              {pendingWaSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                  data-testid={`row-pending-wa-${session.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium" data-testid={`text-wa-phone-${session.id}`}>+{session.phone}</p>
+                      {session.displayName && (
+                        <span className="text-sm text-muted-foreground">{session.displayName}</span>
+                      )}
+                      <Badge variant="secondary" className="text-xs">Code: {session.pairingCode}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => approveWaSessionMutation.mutate(session.id)}
+                      disabled={approveWaSessionMutation.isPending}
+                      data-testid={`button-approve-wa-${session.id}`}
+                    >
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Approve
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteWaSessionMutation.mutate(session.id)}
+                      data-testid={`button-delete-wa-${session.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
-            {formValues.whatsappEnabled && (
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp_phone">WhatsApp Phone Number</Label>
-                <Input
-                  id="whatsapp_phone"
-                  value={formValues.whatsappPhone}
-                  onChange={(e) => setFormValues((p) => ({ ...p, whatsappPhone: e.target.value }))}
-                  placeholder="+1 234 567 8900"
-                  data-testid="input-whatsapp-phone"
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
+      )}
 
+      {whatsappSessions && whatsappSessions.filter(s => s.status === "approved").length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              Approved WhatsApp Users
+            </CardTitle>
+            <CardDescription>Users with active WhatsApp AI access.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {whatsappSessions.filter(s => s.status === "approved").map((session) => (
+                <div
+                  key={session.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                  data-testid={`row-approved-wa-${session.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium">+{session.phone}</p>
+                      {session.displayName && (
+                        <span className="text-sm text-muted-foreground">{session.displayName}</span>
+                      )}
+                      <Badge variant="default" className="text-xs">Approved</Badge>
+                    </div>
+                    {session.lastMessageAt && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Last message: {new Date(session.lastMessageAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => deleteWaSessionMutation.mutate(session.id)}
+                    data-testid={`button-remove-wa-${session.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+import { whatsappBot } from "./bot/whatsapp";
 
 const bulkUpdateSchema = z.object({
   updates: z.array(z.object({
@@ -361,6 +362,11 @@ export async function registerRoutes(
       const config = await storage.upsertOpenclawConfig(parsed.data);
       if (parsed.data.whatsappEnabled !== undefined) {
         await storage.updateDockerServiceStatus("whatsapp-bridge", parsed.data.whatsappEnabled ? "running" : "stopped");
+        if (parsed.data.whatsappEnabled && !whatsappBot.isConnected()) {
+          whatsappBot.start();
+        } else if (!parsed.data.whatsappEnabled && (whatsappBot.isConnected() || whatsappBot.getStatus().state !== "disconnected")) {
+          await whatsappBot.stop();
+        }
       }
       res.json(config);
     } catch (error) {
@@ -512,6 +518,102 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete integration" });
+    }
+  });
+
+  app.get("/api/whatsapp/status", requireAuth, async (_req, res) => {
+    try {
+      const status = whatsappBot.getStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get WhatsApp status" });
+    }
+  });
+
+  app.get("/api/whatsapp/qr", requireAuth, async (_req, res) => {
+    try {
+      const status = whatsappBot.getStatus();
+      res.json({
+        qrDataUrl: status.qrDataUrl,
+        state: status.state,
+        phone: status.phone,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get QR code" });
+    }
+  });
+
+  app.post("/api/whatsapp/start", requireAuth, async (_req, res) => {
+    try {
+      const config = await storage.getOpenclawConfig();
+      if (!config?.whatsappEnabled) {
+        await storage.upsertOpenclawConfig({ whatsappEnabled: true });
+      }
+      whatsappBot.start();
+      res.json({ success: true, message: "WhatsApp bot starting..." });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to start WhatsApp bot" });
+    }
+  });
+
+  app.post("/api/whatsapp/stop", requireAuth, async (_req, res) => {
+    try {
+      await whatsappBot.stop();
+      res.json({ success: true, message: "WhatsApp bot stopped" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to stop WhatsApp bot" });
+    }
+  });
+
+  app.post("/api/whatsapp/restart", requireAuth, async (_req, res) => {
+    try {
+      await whatsappBot.restart();
+      res.json({ success: true, message: "WhatsApp bot restarting..." });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to restart WhatsApp bot" });
+    }
+  });
+
+  app.get("/api/whatsapp/sessions", requireAuth, async (_req, res) => {
+    try {
+      const sessions = await storage.getAllWhatsappSessions();
+      res.json(sessions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch WhatsApp sessions" });
+    }
+  });
+
+  app.get("/api/whatsapp/pending", requireAuth, async (_req, res) => {
+    try {
+      const pending = await storage.getWhatsappPendingSessions();
+      res.json(pending);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch pending sessions" });
+    }
+  });
+
+  app.post("/api/whatsapp/approve/:id", requireAuth, async (req, res) => {
+    try {
+      const session = await storage.approveWhatsappSession(req.params.id);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      try {
+        await whatsappBot.sendApprovalNotification(session.phone);
+      } catch {
+      }
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve session" });
+    }
+  });
+
+  app.delete("/api/whatsapp/sessions/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWhatsappSession(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete session" });
     }
   });
 
