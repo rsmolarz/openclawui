@@ -9,8 +9,10 @@ import { randomBytes } from "crypto";
 import { storage } from "../storage";
 import { chat } from "./openrouter";
 import { EventEmitter } from "events";
+import * as fs from "fs";
 
 const AUTH_DIR = "./whatsapp-auth";
+const MAX_QR_RETRIES = 3;
 
 export interface BotStatus {
   state: "disconnected" | "connecting" | "qr_ready" | "connected";
@@ -29,14 +31,24 @@ class WhatsAppBot extends EventEmitter {
   };
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private isStarting = false;
+  private qrCycleCount = 0;
 
   getStatus(): BotStatus {
     return { ...this.status };
   }
 
+  hasAuthState(): boolean {
+    try {
+      return fs.existsSync(AUTH_DIR) && fs.readdirSync(AUTH_DIR).length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   async start(): Promise<void> {
     if (this.isStarting) return;
     this.isStarting = true;
+    this.qrCycleCount = 0;
 
     try {
       this.status = { state: "connecting", qrDataUrl: null, phone: null, error: null };
@@ -60,11 +72,28 @@ class WhatsAppBot extends EventEmitter {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
+          this.qrCycleCount++;
+          if (this.qrCycleCount > MAX_QR_RETRIES * 6) {
+            console.log(`[WhatsApp] QR code expired after ${MAX_QR_RETRIES} cycles. Stopping bot. Use dashboard to restart.`);
+            this.status = {
+              state: "disconnected",
+              qrDataUrl: null,
+              phone: null,
+              error: "QR code expired. Open the dashboard to restart and scan the QR code.",
+            };
+            this.emit("status", this.status);
+            this.isStarting = false;
+            if (this.sock) {
+              try { this.sock.end(undefined); } catch {}
+              this.sock = null;
+            }
+            return;
+          }
           try {
             const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
             this.status = { state: "qr_ready", qrDataUrl, phone: null, error: null };
             this.emit("status", this.status);
-            console.log("[WhatsApp] QR code generated - scan with your phone");
+            console.log(`[WhatsApp] QR code generated (${this.qrCycleCount}) - scan with your phone`);
           } catch (err) {
             console.error("[WhatsApp] Failed to generate QR:", err);
           }
@@ -88,10 +117,15 @@ class WhatsAppBot extends EventEmitter {
           this.sock = null;
           this.isStarting = false;
 
-          if (shouldReconnect) {
+          if (shouldReconnect && this.qrCycleCount <= MAX_QR_RETRIES * 6) {
             this.reconnectTimer = setTimeout(() => this.start(), 5000);
+          } else if (this.qrCycleCount > MAX_QR_RETRIES * 6) {
+            console.log("[WhatsApp] Max QR retries reached. Bot stopped.");
+            this.status.error = "QR code expired after max retries. Use dashboard to restart.";
+            this.emit("status", this.status);
           }
         } else if (connection === "open") {
+          this.qrCycleCount = 0;
           const phone = sock.user?.id?.split(":")[0] || sock.user?.id?.split("@")[0] || null;
           this.status = { state: "connected", qrDataUrl: null, phone, error: null };
           this.emit("status", this.status);
@@ -213,6 +247,7 @@ class WhatsAppBot extends EventEmitter {
     this.status = { state: "disconnected", qrDataUrl: null, phone: null, error: null };
     this.emit("status", this.status);
     this.isStarting = false;
+    this.qrCycleCount = 0;
     console.log("[WhatsApp] Bot stopped");
   }
 

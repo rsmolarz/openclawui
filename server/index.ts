@@ -99,9 +99,13 @@ app.use((req, res, next) => {
     try {
       const config = await storage.getOpenclawConfig();
       if (config?.whatsappEnabled) {
-        console.log("[OpenClaw] WhatsApp is enabled, starting bot...");
         const { whatsappBot } = await import("./bot/whatsapp");
-        whatsappBot.start();
+        if (whatsappBot.hasAuthState()) {
+          console.log("[OpenClaw] WhatsApp is enabled and has auth state, starting bot...");
+          whatsappBot.start();
+        } else {
+          console.log("[OpenClaw] WhatsApp is enabled but no phone linked yet. Use dashboard to start and scan QR.");
+        }
       }
     } catch (err) {
       console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);
