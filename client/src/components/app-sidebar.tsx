@@ -12,6 +12,8 @@ import {
   LogOut,
   Layers,
   Zap,
+  FileText,
+  Wand2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -30,6 +32,8 @@ import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
+  { title: "Documentation", url: "/docs", icon: FileText },
+  { title: "Node Setup", url: "/node-setup", icon: Wand2 },
 ];
 
 const settingsItems = [

@@ -23,6 +23,8 @@ import SettingsOpenclaw from "@/pages/settings-openclaw";
 import SettingsIntegrations from "@/pages/settings-integrations";
 import SettingsInstances from "@/pages/settings-instances";
 import SettingsSkills from "@/pages/settings-skills";
+import Documentation from "@/pages/documentation";
+import NodeSetupWizard from "@/pages/node-setup-wizard";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -39,6 +41,8 @@ function Router() {
       <Route path="/settings/integrations" component={SettingsIntegrations} />
       <Route path="/settings/instances" component={SettingsInstances} />
       <Route path="/settings/skills" component={SettingsSkills} />
+      <Route path="/docs" component={Documentation} />
+      <Route path="/node-setup" component={NodeSetupWizard} />
       <Route component={NotFound} />
     </Switch>
   );

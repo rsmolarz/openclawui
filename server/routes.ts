@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema } from "@shared/schema";
+import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 
@@ -438,10 +438,19 @@ export async function registerRoutes(
       if (!instanceId) return res.json({ connected: false, message: "No instance specified" });
       const vps = await storage.getVpsConnection(instanceId);
       if (!vps) {
+        await storage.createVpsConnectionLog({ instanceId, status: "error", message: "No VPS configured" });
         return res.json({ connected: false, message: "No VPS configured" });
       }
       const hasValidConfig = !!(vps.vpsIp && vps.vpsPort && vps.sshUser);
       const updated = await storage.updateVpsConnectionStatus(vps.id, hasValidConfig);
+      const statusMsg = hasValidConfig
+        ? `Connected to ${vps.sshUser}@${vps.vpsIp}:${vps.vpsPort}`
+        : `Connection failed — missing configuration`;
+      await storage.createVpsConnectionLog({
+        instanceId,
+        status: hasValidConfig ? "connected" : "error",
+        message: statusMsg,
+      });
       res.json({ connected: hasValidConfig, vps: updated });
     } catch (error) {
       res.status(500).json({ error: "Failed to check VPS" });
@@ -890,6 +899,163 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to remove skill" });
+    }
+  });
+
+  // ── Documentation Hub ──
+  app.get("/api/docs", requireAuth, async (_req, res) => {
+    try {
+      const allDocs = await storage.getDocs();
+      res.json(allDocs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch docs" });
+    }
+  });
+
+  app.get("/api/docs/:id", requireAuth, async (req, res) => {
+    try {
+      const doc = await storage.getDoc(req.params.id);
+      if (!doc) return res.status(404).json({ error: "Doc not found" });
+      res.json(doc);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch doc" });
+    }
+  });
+
+  app.post("/api/docs", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertDocSchema.parse(req.body);
+      const doc = await storage.createDoc(parsed);
+      res.json(doc);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid doc data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create doc" });
+    }
+  });
+
+  app.patch("/api/docs/:id", requireAuth, async (req, res) => {
+    try {
+      const partial = insertDocSchema.partial().parse(req.body);
+      const doc = await storage.updateDoc(req.params.id, partial);
+      if (!doc) return res.status(404).json({ error: "Doc not found" });
+      res.json(doc);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid doc data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update doc" });
+    }
+  });
+
+  app.delete("/api/docs/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteDoc(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete doc" });
+    }
+  });
+
+  // ── VPS Connection Logs ──
+  app.get("/api/vps/logs", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json([]);
+      const logs = await storage.getVpsConnectionLogs(instanceId);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch VPS logs" });
+    }
+  });
+
+  // ── Node Setup Wizard ──
+  app.get("/api/node-setup", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json([]);
+      const sessions = await storage.getNodeSetupSessions(instanceId);
+      res.json(sessions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch setup sessions" });
+    }
+  });
+
+  app.get("/api/node-setup/:id", requireAuth, async (req, res) => {
+    try {
+      const session = await storage.getNodeSetupSession(req.params.id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch setup session" });
+    }
+  });
+
+  app.post("/api/node-setup", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      const parsed = insertNodeSetupSessionSchema.partial().parse(req.body);
+      const session = await storage.createNodeSetupSession({
+        ...parsed,
+        instanceId: instanceId ?? undefined,
+        os: parsed.os ?? "linux",
+        currentStep: 0,
+        totalSteps: 5,
+        status: "in_progress",
+        completedSteps: [],
+      } as any);
+      res.json(session);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid session data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create setup session" });
+    }
+  });
+
+  app.patch("/api/node-setup/:id", requireAuth, async (req, res) => {
+    try {
+      const partial = insertNodeSetupSessionSchema.partial().parse(req.body);
+      const session = await storage.updateNodeSetupSession(req.params.id, partial);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+      res.json(session);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid session data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update setup session" });
+    }
+  });
+
+  // ── Onboarding Checklist ──
+  app.get("/api/onboarding", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json(null);
+      const checklist = await storage.getOnboardingChecklist(userId, instanceId);
+      res.json(checklist ?? { steps: {}, dismissed: false });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch onboarding" });
+    }
+  });
+
+  app.patch("/api/onboarding", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance" });
+      const { steps, dismissed } = req.body;
+      const checklist = await storage.upsertOnboardingChecklist(userId, instanceId, {
+        ...(steps !== undefined ? { steps } : {}),
+        ...(dismissed !== undefined ? { dismissed } : {}),
+      });
+      res.json(checklist);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update onboarding" });
     }
   });
 

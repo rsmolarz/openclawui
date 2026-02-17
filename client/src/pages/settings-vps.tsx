@@ -8,19 +8,30 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useInstance } from "@/hooks/use-instance";
-import { Save, Wifi, WifiOff, RefreshCw, Server, Terminal } from "lucide-react";
+import { Save, Wifi, WifiOff, RefreshCw, Server, Terminal, Copy, Check, Clock, History } from "lucide-react";
 import { useState, useEffect } from "react";
-import type { VpsConnection } from "@shared/schema";
+import type { VpsConnection, VpsConnectionLog } from "@shared/schema";
 
 export default function SettingsVps() {
   const { toast } = useToast();
   const { selectedInstanceId } = useInstance();
+  const [copiedCmd, setCopiedCmd] = useState(false);
 
   const { data: vps, isLoading } = useQuery<VpsConnection | null>({
     queryKey: ["/api/vps", selectedInstanceId],
     queryFn: async () => {
       const res = await fetch(`/api/vps?instanceId=${selectedInstanceId ?? ""}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch VPS");
+      return res.json();
+    },
+    enabled: !!selectedInstanceId,
+  });
+
+  const { data: connectionLogs } = useQuery<VpsConnectionLog[]>({
+    queryKey: ["/api/vps/logs", selectedInstanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/vps/logs?instanceId=${selectedInstanceId ?? ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch logs");
       return res.json();
     },
     enabled: !!selectedInstanceId,
@@ -64,6 +75,7 @@ export default function SettingsVps() {
     },
     onSuccess: (data: { connected: boolean }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/vps", selectedInstanceId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vps/logs", selectedInstanceId] });
       if (data.connected) {
         toast({ title: "Connected", description: "VPS connection is active." });
       } else {
@@ -74,6 +86,16 @@ export default function SettingsVps() {
       toast({ title: "Error", description: "Connection check failed.", variant: "destructive" });
     },
   });
+
+  const sshCommand = vps
+    ? `ssh ${vps.sshKeyPath ? `-i ${vps.sshKeyPath} ` : ""}${vps.sshUser}@${vps.vpsIp} -p ${vps.vpsPort}`
+    : "";
+
+  const copySshCommand = () => {
+    navigator.clipboard.writeText(sshCommand);
+    setCopiedCmd(true);
+    setTimeout(() => setCopiedCmd(false), 2000);
+  };
 
   if (isLoading) {
     return (
@@ -100,7 +122,7 @@ export default function SettingsVps() {
           VPS Connection
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Manage your VPS server connection and SSH settings.
+          Manage your VPS server connection, SSH settings, and view connection history.
         </p>
       </div>
 
@@ -151,6 +173,35 @@ export default function SettingsVps() {
           </div>
         </CardContent>
       </Card>
+
+      {sshCommand && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Terminal className="h-4 w-4" />
+              Quick SSH Command
+            </CardTitle>
+            <CardDescription>
+              Copy this command to connect to your VPS from any terminal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+              <code className="flex-1 text-sm font-mono break-all" data-testid="text-ssh-command">
+                {sshCommand}
+              </code>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={copySshCommand}
+                data-testid="button-copy-ssh"
+              >
+                {copiedCmd ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -222,6 +273,50 @@ export default function SettingsVps() {
           {saveMutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Connection History
+          </CardTitle>
+          <CardDescription>Recent connection test results.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {connectionLogs && connectionLogs.length > 0 ? (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {connectionLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="flex items-center gap-3 py-2 border-b last:border-0"
+                  data-testid={`row-log-${log.id}`}
+                >
+                  <div className={`h-2 w-2 rounded-full shrink-0 ${
+                    log.status === "connected" ? "bg-green-500" : "bg-red-500"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate" data-testid={`text-log-message-${log.id}`}>
+                      {log.message}
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(log.checkedAt).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center py-8">
+              <History className="h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">No connection tests yet</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Click "Test Connection" above to start tracking.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -11,10 +11,15 @@ import {
   type WhatsappSession, type InsertWhatsappSession,
   type OpenclawInstance, type InsertInstance,
   type Skill, type InsertSkill,
+  type Doc, type InsertDoc,
+  type VpsConnectionLog, type InsertVpsConnectionLog,
+  type NodeSetupSession, type InsertNodeSetupSession,
+  type OnboardingChecklist, type InsertOnboardingChecklist,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
+  docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -82,6 +87,24 @@ export interface IStorage {
   createSkill(data: InsertSkill): Promise<Skill>;
   updateSkill(id: string, data: Partial<InsertSkill>): Promise<Skill | undefined>;
   deleteSkill(id: string): Promise<void>;
+
+  getDocs(): Promise<Doc[]>;
+  getDoc(id: string): Promise<Doc | undefined>;
+  getDocBySlug(slug: string): Promise<Doc | undefined>;
+  createDoc(data: InsertDoc): Promise<Doc>;
+  updateDoc(id: string, data: Partial<InsertDoc>): Promise<Doc | undefined>;
+  deleteDoc(id: string): Promise<void>;
+
+  getVpsConnectionLogs(instanceId: string): Promise<VpsConnectionLog[]>;
+  createVpsConnectionLog(data: InsertVpsConnectionLog): Promise<VpsConnectionLog>;
+
+  getNodeSetupSessions(instanceId: string): Promise<NodeSetupSession[]>;
+  getNodeSetupSession(id: string): Promise<NodeSetupSession | undefined>;
+  createNodeSetupSession(data: InsertNodeSetupSession): Promise<NodeSetupSession>;
+  updateNodeSetupSession(id: string, data: Partial<InsertNodeSetupSession>): Promise<NodeSetupSession | undefined>;
+
+  getOnboardingChecklist(userId: string, instanceId: string): Promise<OnboardingChecklist | undefined>;
+  upsertOnboardingChecklist(userId: string, instanceId: string, data: Partial<InsertOnboardingChecklist>): Promise<OnboardingChecklist>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -447,6 +470,98 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSkill(id: string): Promise<void> {
     await db.delete(skills).where(eq(skills.id, id));
+  }
+
+  async getDocs(): Promise<Doc[]> {
+    return db.select().from(docs).orderBy(desc(docs.updatedAt));
+  }
+
+  async getDoc(id: string): Promise<Doc | undefined> {
+    const [doc] = await db.select().from(docs).where(eq(docs.id, id));
+    return doc;
+  }
+
+  async getDocBySlug(slug: string): Promise<Doc | undefined> {
+    const [doc] = await db.select().from(docs).where(eq(docs.slug, slug));
+    return doc;
+  }
+
+  async createDoc(data: InsertDoc): Promise<Doc> {
+    const [created] = await db.insert(docs).values(data).returning();
+    return created;
+  }
+
+  async updateDoc(id: string, data: Partial<InsertDoc>): Promise<Doc | undefined> {
+    const [updated] = await db
+      .update(docs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(docs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDoc(id: string): Promise<void> {
+    await db.delete(docs).where(eq(docs.id, id));
+  }
+
+  async getVpsConnectionLogs(instanceId: string): Promise<VpsConnectionLog[]> {
+    return db.select().from(vpsConnectionLogs)
+      .where(eq(vpsConnectionLogs.instanceId, instanceId))
+      .orderBy(desc(vpsConnectionLogs.checkedAt))
+      .limit(50);
+  }
+
+  async createVpsConnectionLog(data: InsertVpsConnectionLog): Promise<VpsConnectionLog> {
+    const [created] = await db.insert(vpsConnectionLogs).values(data).returning();
+    return created;
+  }
+
+  async getNodeSetupSessions(instanceId: string): Promise<NodeSetupSession[]> {
+    return db.select().from(nodeSetupSessions)
+      .where(eq(nodeSetupSessions.instanceId, instanceId))
+      .orderBy(desc(nodeSetupSessions.updatedAt));
+  }
+
+  async getNodeSetupSession(id: string): Promise<NodeSetupSession | undefined> {
+    const [session] = await db.select().from(nodeSetupSessions).where(eq(nodeSetupSessions.id, id));
+    return session;
+  }
+
+  async createNodeSetupSession(data: InsertNodeSetupSession): Promise<NodeSetupSession> {
+    const [created] = await db.insert(nodeSetupSessions).values(data).returning();
+    return created;
+  }
+
+  async updateNodeSetupSession(id: string, data: Partial<InsertNodeSetupSession>): Promise<NodeSetupSession | undefined> {
+    const [updated] = await db
+      .update(nodeSetupSessions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(nodeSetupSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getOnboardingChecklist(userId: string, instanceId: string): Promise<OnboardingChecklist | undefined> {
+    const [checklist] = await db.select().from(onboardingChecklist)
+      .where(and(eq(onboardingChecklist.userId, userId), eq(onboardingChecklist.instanceId, instanceId)));
+    return checklist;
+  }
+
+  async upsertOnboardingChecklist(userId: string, instanceId: string, data: Partial<InsertOnboardingChecklist>): Promise<OnboardingChecklist> {
+    const existing = await this.getOnboardingChecklist(userId, instanceId);
+    if (existing) {
+      const [updated] = await db
+        .update(onboardingChecklist)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(onboardingChecklist.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(onboardingChecklist)
+      .values({ userId, instanceId, ...data } as any)
+      .returning();
+    return created;
   }
 }
 

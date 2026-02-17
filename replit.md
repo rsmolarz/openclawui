@@ -3,6 +3,12 @@
 ## Overview
 A professional settings management dashboard for the OpenClaw AI agent gateway platform with multi-user authentication via MedInvest DID OAuth. Supports managing multiple OpenClaw instances simultaneously with instance-specific configurations, VPS connections, and Docker services. Manage general settings, notifications, nodes/computers (via pairing codes), API keys, appearance preferences, VPS connection, Docker services monitoring, OpenClaw configuration (gateway, LLM with primary/fallback models from 70+ OpenRouter options, WhatsApp, Tailscale, node approvals), LLM API key management, and external integrations with full CRUD operations and PostgreSQL persistence.
 
+### UX Enhancement Features (Feb 2026)
+- **Documentation Hub** (`/docs`): Full CRUD for setup guides, troubleshooting, references with markdown content, categories, tags, pinning, search/filter
+- **Node Setup Wizard** (`/node-setup`): 5-step guided installation with OS-specific commands (Linux/RHEL/macOS/Windows), copy buttons, session persistence
+- **VPS Connection Logs**: Connection test history with status tracking, quick SSH command builder with one-click copy
+- **Quick Start Onboarding**: 5-step checklist on Overview page with progress bar, per-user/instance persistence, dismissible
+
 ## Architecture
 - **Frontend**: React + TypeScript with Vite, Shadcn UI components, wouter routing, TanStack Query
 - **Backend**: Express.js REST API with PostgreSQL (Drizzle ORM)
@@ -30,7 +36,9 @@ client/src/
 │   ├── settings-openclaw.tsx         # OpenClaw config, Docker, nodes (instance-scoped)
 │   ├── settings-instances.tsx        # Instance management (CRUD)
 │   ├── settings-skills.tsx           # Skills management (install/enable/remove)
-│   └── settings-integrations.tsx     # External integrations management
+│   ├── settings-integrations.tsx     # External integrations management
+│   ├── documentation.tsx             # Documentation Hub (CRUD, markdown, categories, tags, pin)
+│   └── node-setup-wizard.tsx         # Guided node installation wizard (5 steps, OS-specific)
 ├── hooks/
 │   ├── use-auth.ts           # Auth hook (useAuth) for session state
 │   ├── use-instance.ts       # Instance context hook (useInstance)
@@ -106,6 +114,26 @@ shared/
 - `PATCH /api/skills/:id` - Update skill (enable/disable)
 - `DELETE /api/skills/:id` - Remove/uninstall a skill
 
+### Documentation Hub (protected)
+- `GET /api/docs` - List all documents
+- `GET /api/docs/:id` - Get single document
+- `POST /api/docs` - Create document
+- `PATCH /api/docs/:id` - Update document
+- `DELETE /api/docs/:id` - Delete document
+
+### Node Setup Wizard (protected, instance-scoped)
+- `GET /api/node-setup` - List setup sessions
+- `GET /api/node-setup/:id` - Get single session
+- `POST /api/node-setup` - Create new setup session
+- `PATCH /api/node-setup/:id` - Update session progress
+
+### VPS Connection Logs (protected, instance-scoped)
+- `GET /api/vps/logs` - Get connection test history
+
+### Onboarding Checklist (protected, instance+user-scoped)
+- `GET /api/onboarding` - Get onboarding state
+- `PATCH /api/onboarding` - Update onboarding steps/dismissed
+
 ### Global Protected Routes
 - `GET /api/settings` - List all settings
 - `PATCH /api/settings/bulk` - Bulk update settings
@@ -136,7 +164,7 @@ shared/
 - `DELETE /api/whatsapp/sessions/:id` - Delete a WhatsApp session
 
 ## Sidebar Navigation
-- **Main**: Overview
+- **Main**: Overview, Documentation, Node Setup
 - **Settings**: General, Notifications, Nodes, API Keys, Appearance
 - **Infrastructure**: Instances, VPS Connection, OpenClaw Config, Skills, Integrations
 
