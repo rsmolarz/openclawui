@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema } from "@shared/schema";
 import { z } from "zod";
-import { randomBytes } from "crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { whatsappBot } from "./bot/whatsapp";
 
 const bulkUpdateSchema = z.object({
@@ -41,6 +41,7 @@ const MEDINVEST_BASE_URL = process.env.MEDINVEST_BASE_URL || "https://did-login.
 const MEDINVEST_CLIENT_ID = process.env.MEDINVEST_CLIENT_ID || "";
 const MEDINVEST_CLIENT_SECRET = process.env.MEDINVEST_CLIENT_SECRET || "";
 const APP_BASE_URL = process.env.APP_BASE_URL || "";
+const STATE_SECRET = process.env.SESSION_SECRET || "openclaw-dev-session-secret";
 
 function getRedirectUri(req: Request): string {
   if (APP_BASE_URL) {
@@ -49,6 +50,28 @@ function getRedirectUri(req: Request): string {
   const protocol = req.headers["x-forwarded-proto"] || req.protocol;
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   return `${protocol}://${host}/api/auth/medinvest/callback`;
+}
+
+function createSignedState(): string {
+  const nonce = randomBytes(16).toString("hex");
+  const timestamp = Date.now().toString();
+  const payload = `${nonce}.${timestamp}`;
+  const signature = createHmac("sha256", STATE_SECRET).update(payload).digest("hex");
+  return `${payload}.${signature}`;
+}
+
+function verifySignedState(state: string): boolean {
+  const parts = state.split(".");
+  if (parts.length !== 3) return false;
+  const [nonce, timestamp, signature] = parts;
+  const age = Date.now() - parseInt(timestamp, 10);
+  if (isNaN(age) || age > 10 * 60 * 1000 || age < 0) return false;
+  const expectedSig = createHmac("sha256", STATE_SECRET).update(`${nonce}.${timestamp}`).digest("hex");
+  try {
+    return timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSig, "hex"));
+  } catch {
+    return false;
+  }
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -79,9 +102,7 @@ export async function registerRoutes(
     if (!MEDINVEST_CLIENT_ID || !MEDINVEST_CLIENT_SECRET) {
       return res.status(503).json({ error: "OAuth not configured. Missing client credentials." });
     }
-    const state = randomBytes(32).toString("hex");
-    req.session.oauthState = state;
-
+    const state = createSignedState();
     const redirectUri = getRedirectUri(req);
 
     const params = new URLSearchParams({
@@ -92,9 +113,7 @@ export async function registerRoutes(
       state,
     });
 
-    req.session.save(() => {
-      res.redirect(`${MEDINVEST_BASE_URL}/oauth/authorize?${params.toString()}`);
-    });
+    res.redirect(`${MEDINVEST_BASE_URL}/oauth/authorize?${params.toString()}`);
   });
 
   app.get("/api/auth/medinvest/callback", async (req, res) => {
@@ -106,12 +125,10 @@ export async function registerRoutes(
         return res.redirect(`/?error=${error}`);
       }
 
-      if (!code || !state || state !== req.session.oauthState) {
-        console.error("OAuth state mismatch - code:", !!code, "state:", !!state, "match:", state === req.session.oauthState);
+      if (!code || !state || typeof state !== "string" || !verifySignedState(state)) {
+        console.error("OAuth state verification failed - code:", !!code, "state:", !!state, "valid:", typeof state === "string" && verifySignedState(state as string));
         return res.redirect("/?error=invalid_state");
       }
-
-      delete req.session.oauthState;
 
       const redirectUri = getRedirectUri(req);
 

@@ -10,7 +10,6 @@ import { whatsappBot } from "./bot/whatsapp";
 declare module "express-session" {
   interface SessionData {
     userId: string;
-    oauthState: string;
   }
 }
 
