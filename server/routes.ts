@@ -261,7 +261,7 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const updated = await storage.updateMachine(req.params.id, parsed.data);
+      const updated = await storage.updateMachine(req.params.id as string, parsed.data);
       if (!updated) {
         return res.status(404).json({ error: "Node not found" });
       }
@@ -273,7 +273,7 @@ export async function registerRoutes(
 
   app.delete("/api/machines/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteMachine(req.params.id);
+      await storage.deleteMachine(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete machine" });
@@ -304,7 +304,7 @@ export async function registerRoutes(
 
   app.patch("/api/api-keys/:id", requireAuth, async (req, res) => {
     try {
-      const updated = await storage.updateApiKey(req.params.id, req.body);
+      const updated = await storage.updateApiKey(req.params.id as string, req.body);
       if (!updated) {
         return res.status(404).json({ error: "API key not found" });
       }
@@ -316,7 +316,7 @@ export async function registerRoutes(
 
   app.delete("/api/api-keys/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteApiKey(req.params.id);
+      await storage.deleteApiKey(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete API key" });
@@ -491,7 +491,7 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const updated = await storage.updateLlmApiKey(req.params.id, parsed.data);
+      const updated = await storage.updateLlmApiKey(req.params.id as string, parsed.data);
       if (!updated) {
         return res.status(404).json({ error: "LLM API key not found" });
       }
@@ -503,7 +503,7 @@ export async function registerRoutes(
 
   app.delete("/api/llm-api-keys/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteLlmApiKey(req.params.id);
+      await storage.deleteLlmApiKey(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete LLM API key" });
@@ -539,7 +539,7 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const updated = await storage.updateIntegration(req.params.id, parsed.data);
+      const updated = await storage.updateIntegration(req.params.id as string, parsed.data);
       if (!updated) {
         return res.status(404).json({ error: "Integration not found" });
       }
@@ -551,7 +551,7 @@ export async function registerRoutes(
 
   app.delete("/api/integrations/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteIntegration(req.params.id);
+      await storage.deleteIntegration(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete integration" });
@@ -665,7 +665,7 @@ export async function registerRoutes(
 
   app.post("/api/whatsapp/approve/:id", requireAuth, async (req, res) => {
     try {
-      const session = await storage.approveWhatsappSession(req.params.id);
+      const session = await storage.approveWhatsappSession(req.params.id as string);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
       }
@@ -683,7 +683,7 @@ export async function registerRoutes(
 
   app.delete("/api/whatsapp/sessions/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteWhatsappSession(req.params.id);
+      await storage.deleteWhatsappSession(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete session" });
