@@ -29,6 +29,7 @@ client/src/
 │   ├── settings-vps.tsx              # VPS connection management (instance-scoped)
 │   ├── settings-openclaw.tsx         # OpenClaw config, Docker, nodes (instance-scoped)
 │   ├── settings-instances.tsx        # Instance management (CRUD)
+│   ├── settings-skills.tsx           # Skills management (install/enable/remove)
 │   └── settings-integrations.tsx     # External integrations management
 ├── hooks/
 │   ├── use-auth.ts           # Auth hook (useAuth) for session state
@@ -60,6 +61,7 @@ shared/
 - Seed logic: Creates "Default Instance" on startup, backfills instanceId on existing config/VPS/docker rows
 
 ## Data Models
+- **skills**: Agent skills/capabilities (skillId, name, description, category, version, enabled, status, icon, config JSON)
 - **openclawInstances**: Instance registry with name, description, status (online/offline/maintenance), baseUrl, apiKey
 - **settings**: Key-value settings with categories (general, notifications, appearance)
 - **machines**: OpenClaw nodes/computers with hostname, IP address, OS, pairing code, display name, status (pending/paired/connected/disconnected)
@@ -97,6 +99,13 @@ shared/
 - `GET /api/nodes/pending` - Get pending node approvals
 - `POST /api/nodes/approve` - Approve a pending node
 
+### Skills Management (protected)
+- `GET /api/skills` - List installed skills
+- `GET /api/skills/catalog` - Browse available skills catalog (marks installed ones)
+- `POST /api/skills` - Install a skill
+- `PATCH /api/skills/:id` - Update skill (enable/disable)
+- `DELETE /api/skills/:id` - Remove/uninstall a skill
+
 ### Global Protected Routes
 - `GET /api/settings` - List all settings
 - `PATCH /api/settings/bulk` - Bulk update settings
@@ -129,7 +138,7 @@ shared/
 ## Sidebar Navigation
 - **Main**: Overview
 - **Settings**: General, Notifications, Nodes, API Keys, Appearance
-- **Infrastructure**: VPS Connection, OpenClaw Config, Instances, Integrations
+- **Infrastructure**: Instances, VPS Connection, OpenClaw Config, Skills, Integrations
 
 ## Integration Categories
 - **messaging**: WhatsApp, Telegram, Discord, Slack

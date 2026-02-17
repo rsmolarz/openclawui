@@ -163,6 +163,25 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const skills = pgTable("skills", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  skillId: text("skill_id").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("general"),
+  version: text("version").notNull().default("1.0.0"),
+  enabled: boolean("enabled").notNull().default(true),
+  status: text("status").notNull().default("active"),
+  icon: text("icon"),
+  config: jsonb("config"),
+  installedAt: timestamp("installed_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSkillSchema = createInsertSchema(skills).omit({ id: true, installedAt: true, updatedAt: true });
+export type Skill = typeof skills.$inferSelect;
+export type InsertSkill = z.infer<typeof insertSkillSchema>;
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertIntegrationSchema = createInsertSchema(integrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLlmApiKeySchema = createInsertSchema(llmApiKeys).omit({ id: true, createdAt: true });

@@ -11,6 +11,7 @@ import {
   Plug,
   LogOut,
   Layers,
+  Zap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -43,6 +44,7 @@ const infraItems = [
   { title: "Instances", url: "/settings/instances", icon: Layers },
   { title: "VPS Connection", url: "/settings/vps", icon: Server },
   { title: "OpenClaw Config", url: "/settings/openclaw", icon: Cog },
+  { title: "Skills", url: "/settings/skills", icon: Zap },
   { title: "Integrations", url: "/settings/integrations", icon: Plug },
 ];
 

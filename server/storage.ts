@@ -10,7 +10,8 @@ import {
   type User, type InsertUser,
   type WhatsappSession, type InsertWhatsappSession,
   type OpenclawInstance, type InsertInstance,
-  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances,
+  type Skill, type InsertSkill,
+  settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -74,6 +75,13 @@ export interface IStorage {
   approveWhatsappSession(id: string): Promise<WhatsappSession | undefined>;
   deleteWhatsappSession(id: string): Promise<void>;
   updateWhatsappSessionLastMessage(phone: string): Promise<void>;
+
+  getSkills(): Promise<Skill[]>;
+  getSkill(id: string): Promise<Skill | undefined>;
+  getSkillBySkillId(skillId: string): Promise<Skill | undefined>;
+  createSkill(data: InsertSkill): Promise<Skill>;
+  updateSkill(id: string, data: Partial<InsertSkill>): Promise<Skill | undefined>;
+  deleteSkill(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -407,6 +415,38 @@ export class DatabaseStorage implements IStorage {
       .update(whatsappSessions)
       .set({ lastMessageAt: new Date() })
       .where(eq(whatsappSessions.phone, phone));
+  }
+
+  async getSkills(): Promise<Skill[]> {
+    return db.select().from(skills);
+  }
+
+  async getSkill(id: string): Promise<Skill | undefined> {
+    const [skill] = await db.select().from(skills).where(eq(skills.id, id));
+    return skill;
+  }
+
+  async getSkillBySkillId(skillId: string): Promise<Skill | undefined> {
+    const [skill] = await db.select().from(skills).where(eq(skills.skillId, skillId));
+    return skill;
+  }
+
+  async createSkill(data: InsertSkill): Promise<Skill> {
+    const [created] = await db.insert(skills).values(data).returning();
+    return created;
+  }
+
+  async updateSkill(id: string, data: Partial<InsertSkill>): Promise<Skill | undefined> {
+    const [updated] = await db
+      .update(skills)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(skills.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSkill(id: string): Promise<void> {
+    await db.delete(skills).where(eq(skills.id, id));
   }
 }
 
