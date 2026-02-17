@@ -96,14 +96,18 @@ app.use((req, res, next) => {
   await seed();
   await registerRoutes(httpServer, app);
 
-  try {
-    const config = await storage.getOpenclawConfig();
-    if (config?.whatsappEnabled) {
-      console.log("[OpenClaw] WhatsApp is enabled, starting bot...");
-      whatsappBot.start();
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const config = await storage.getOpenclawConfig();
+      if (config?.whatsappEnabled) {
+        console.log("[OpenClaw] WhatsApp is enabled, starting bot...");
+        whatsappBot.start();
+      }
+    } catch (err) {
+      console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);
     }
-  } catch (err) {
-    console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);
+  } else {
+    console.log("[OpenClaw] Production mode - WhatsApp bot runs on your OpenClaw server");
   }
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

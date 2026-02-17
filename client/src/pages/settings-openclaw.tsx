@@ -283,10 +283,12 @@ export default function SettingsOpenclaw() {
   });
 
   interface BotStatus {
-    state: "disconnected" | "connecting" | "qr_ready" | "connected";
+    state: "disconnected" | "connecting" | "qr_ready" | "connected" | "external";
     qrDataUrl: string | null;
     phone: string | null;
     error: string | null;
+    runtime?: "local" | "external";
+    enabled?: boolean;
   }
 
   const { data: botStatus, isLoading: botStatusLoading } = useQuery<BotStatus>({
@@ -895,26 +897,46 @@ export default function SettingsOpenclaw() {
             <CardDescription>Manage the WhatsApp AI bot powered by OpenRouter.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
+            {botStatus?.runtime === "external" && (
+              <Badge variant="outline" data-testid="badge-bot-runtime">
+                External Service
+              </Badge>
+            )}
             <Badge
-              variant={botStatus?.state === "connected" ? "default" : botStatus?.state === "connecting" || botStatus?.state === "qr_ready" ? "secondary" : "destructive"}
+              variant={
+                botStatus?.state === "connected" ? "default" :
+                botStatus?.state === "external" && botStatus?.enabled ? "default" :
+                botStatus?.state === "connecting" || botStatus?.state === "qr_ready" ? "secondary" :
+                "destructive"
+              }
               data-testid="badge-bot-status"
             >
               {botStatus?.state === "connected" ? "Connected" :
+               botStatus?.state === "external" && botStatus?.enabled ? "Enabled" :
+               botStatus?.state === "external" && !botStatus?.enabled ? "Disabled" :
                botStatus?.state === "connecting" ? "Connecting..." :
                botStatus?.state === "qr_ready" ? "QR Ready" : "Disconnected"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {botStatus?.runtime === "external" && (
+            <div className="rounded-md bg-muted/50 p-3">
+              <p className="text-sm text-muted-foreground" data-testid="text-bot-external-info">
+                The WhatsApp bot runs on your OpenClaw server. Use the controls below to enable/disable it. Changes will take effect when your server syncs.
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 flex-wrap">
-            {botStatus?.state === "disconnected" || !botStatus ? (
+            {botStatus?.state === "disconnected" || (botStatus?.state === "external" && !botStatus?.enabled) || !botStatus ? (
               <Button
                 onClick={() => startBotMutation.mutate()}
                 disabled={startBotMutation.isPending}
                 data-testid="button-start-bot"
               >
                 <Play className="h-4 w-4 mr-2" />
-                {startBotMutation.isPending ? "Starting..." : "Start Bot"}
+                {startBotMutation.isPending ? "Starting..." : botStatus?.runtime === "external" ? "Enable Bot" : "Start Bot"}
               </Button>
             ) : (
               <>
@@ -925,17 +947,19 @@ export default function SettingsOpenclaw() {
                   data-testid="button-stop-bot"
                 >
                   <Square className="h-4 w-4 mr-2" />
-                  {stopBotMutation.isPending ? "Stopping..." : "Stop Bot"}
+                  {stopBotMutation.isPending ? "Stopping..." : botStatus?.runtime === "external" ? "Disable Bot" : "Stop Bot"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => restartBotMutation.mutate()}
-                  disabled={restartBotMutation.isPending}
-                  data-testid="button-restart-bot"
-                >
-                  <RotateCw className="h-4 w-4 mr-2" />
-                  Restart
-                </Button>
+                {botStatus?.runtime !== "external" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => restartBotMutation.mutate()}
+                    disabled={restartBotMutation.isPending}
+                    data-testid="button-restart-bot"
+                  >
+                    <RotateCw className="h-4 w-4 mr-2" />
+                    Restart
+                  </Button>
+                )}
               </>
             )}
             {botStatus?.phone && (

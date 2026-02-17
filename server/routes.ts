@@ -548,10 +548,24 @@ export async function registerRoutes(
     }
   });
 
+  const isProductionRuntime = process.env.NODE_ENV === "production";
+
   app.get("/api/whatsapp/status", requireAuth, async (_req, res) => {
     try {
-      const status = whatsappBot.getStatus();
-      res.json(status);
+      if (isProductionRuntime) {
+        const config = await storage.getOpenclawConfig();
+        res.json({
+          state: "external",
+          qrDataUrl: null,
+          phone: config?.whatsappPhone || null,
+          error: null,
+          runtime: "external",
+          enabled: config?.whatsappEnabled ?? false,
+        });
+      } else {
+        const status = whatsappBot.getStatus();
+        res.json({ ...status, runtime: "local", enabled: true });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to get WhatsApp status" });
     }
@@ -559,6 +573,9 @@ export async function registerRoutes(
 
   app.get("/api/whatsapp/qr", requireAuth, async (_req, res) => {
     try {
+      if (isProductionRuntime) {
+        return res.json({ qrDataUrl: null, state: "external", phone: null });
+      }
       const status = whatsappBot.getStatus();
       res.json({
         qrDataUrl: status.qrDataUrl,
@@ -572,6 +589,13 @@ export async function registerRoutes(
 
   app.post("/api/whatsapp/start", requireAuth, async (_req, res) => {
     try {
+      if (isProductionRuntime) {
+        const config = await storage.getOpenclawConfig();
+        if (!config?.whatsappEnabled) {
+          await storage.upsertOpenclawConfig({ whatsappEnabled: true });
+        }
+        return res.json({ success: true, message: "WhatsApp enabled. Bot will start on your OpenClaw server." });
+      }
       const config = await storage.getOpenclawConfig();
       if (!config?.whatsappEnabled) {
         await storage.upsertOpenclawConfig({ whatsappEnabled: true });
@@ -585,6 +609,10 @@ export async function registerRoutes(
 
   app.post("/api/whatsapp/stop", requireAuth, async (_req, res) => {
     try {
+      if (isProductionRuntime) {
+        await storage.upsertOpenclawConfig({ whatsappEnabled: false });
+        return res.json({ success: true, message: "WhatsApp disabled. Bot will stop on your OpenClaw server." });
+      }
       await whatsappBot.stop();
       res.json({ success: true, message: "WhatsApp bot stopped" });
     } catch (error) {
@@ -594,6 +622,9 @@ export async function registerRoutes(
 
   app.post("/api/whatsapp/restart", requireAuth, async (_req, res) => {
     try {
+      if (isProductionRuntime) {
+        return res.json({ success: true, message: "Restart signal sent. Bot will restart on your OpenClaw server." });
+      }
       await whatsappBot.restart();
       res.json({ success: true, message: "WhatsApp bot restarting..." });
     } catch (error) {
