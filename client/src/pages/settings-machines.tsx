@@ -109,23 +109,48 @@ function NodeCard({
           </div>
         </div>
 
-        {machine.pairingCode && machine.status === "pending" && (
-          <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-dashed p-2">
-            <div className="flex items-center gap-2 min-w-0">
+        {machine.status === "pending" && (
+          <div className="mt-3 rounded-md border border-dashed p-3 space-y-3" data-testid={`pending-steps-${machine.id}`}>
+            <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-xs text-muted-foreground">Pairing Code:</span>
-              <code className="text-sm font-mono font-bold tracking-wider" data-testid={`text-pairing-code-${machine.id}`}>
-                {machine.pairingCode}
-              </code>
+              <span className="text-sm font-semibold">Waiting for pairing</span>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => onCopyCode(machine.pairingCode!)}
-              data-testid={`button-copy-code-${machine.id}`}
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
+
+            {machine.pairingCode && (
+              <div className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs text-muted-foreground">Pairing Code:</span>
+                  <code className="text-sm font-mono font-bold tracking-wider" data-testid={`text-pairing-code-${machine.id}`}>
+                    {machine.pairingCode}
+                  </code>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onCopyCode(machine.pairingCode!)}
+                  data-testid={`button-copy-code-${machine.id}`}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
+            <div className="space-y-2 pl-1" data-testid={`text-pending-instructions-${machine.id}`}>
+              <p className="text-xs font-semibold text-muted-foreground">To get this node connected:</p>
+              <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal pl-4">
+                <li>Install the <strong>OpenClaw agent</strong> on <strong>{machine.displayName || machine.name}</strong> {machine.os ? `(${machine.os})` : ""} — see the <strong>Node Setup</strong> page for step-by-step instructions</li>
+                <li>Open the OpenClaw agent and go to <strong>Settings &gt; Network &gt; Pair with Gateway</strong></li>
+                <li>Enter the pairing code <strong>{machine.pairingCode || "shown above"}</strong> and confirm</li>
+                <li>Once paired, the status will automatically change to <strong>connected</strong></li>
+              </ol>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-md bg-muted/30 p-2">
+              <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                Make sure the node's computer is powered on and connected to the internet. If using Tailscale, ensure it's running on both this gateway and the node.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
