@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Clock, Copy, RefreshCw, HelpCircle, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Clock, Copy, RefreshCw, HelpCircle, ChevronDown, ChevronUp, Info, ExternalLink, Terminal } from "lucide-react";
 import { useState } from "react";
+import { Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -135,26 +136,112 @@ function NodeCard({
               </div>
             )}
 
-            <div className="space-y-2 pl-1" data-testid={`text-pending-instructions-${machine.id}`}>
-              <p className="text-xs font-semibold text-muted-foreground">To get this node connected:</p>
-              <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal pl-4">
-                <li>Install the <strong>OpenClaw agent</strong> on <strong>{machine.displayName || machine.name}</strong> {machine.os ? `(${machine.os})` : ""} — see the <strong>Node Setup</strong> page for step-by-step instructions</li>
-                <li>Open the OpenClaw agent and go to <strong>Settings &gt; Network &gt; Pair with Gateway</strong></li>
-                <li>Enter the pairing code <strong>{machine.pairingCode || "shown above"}</strong> and confirm</li>
-                <li>Once paired, the status will automatically change to <strong>connected</strong></li>
-              </ol>
-            </div>
-
-            <div className="flex items-start gap-2 rounded-md bg-muted/30 p-2">
-              <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                Make sure the node's computer is powered on and connected to the internet. If using Tailscale, ensure it's running on both this gateway and the node.
-              </p>
-            </div>
+            <PendingNodeSteps machine={machine} onCopyText={onCopyCode} />
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function InstallCommand({ label, command, onCopy }: { label: string; command: string; onCopy: (text: string) => void }) {
+  return (
+    <div className="rounded-md bg-muted/50 p-2 space-y-1">
+      <p className="text-xs font-semibold">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <code className="text-xs font-mono break-all">{command}</code>
+        <Button size="icon" variant="ghost" onClick={() => onCopy(command)} className="shrink-0">
+          <Copy className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyText: (text: string) => void }) {
+  const [showInstall, setShowInstall] = useState(false);
+  const os = (machine.os || "").toLowerCase();
+
+  const linuxInstall = "curl -fsSL https://get.openclaw.ai | sudo bash";
+  const rhelInstall = "curl -fsSL https://get.openclaw.ai | sudo bash";
+  const macInstall = "brew install openclaw/tap/openclaw-agent";
+  const winInstall = "iwr -useb https://get.openclaw.ai/install.ps1 | iex";
+
+  return (
+    <div className="space-y-3" data-testid={`text-pending-instructions-${machine.id}`}>
+      <p className="text-xs font-semibold text-muted-foreground">To get this node connected:</p>
+
+      <div className="space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">1</span>
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">
+              <strong>Install the OpenClaw agent</strong> on <strong>{machine.displayName || machine.name}</strong>
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInstall(!showInstall)}
+              data-testid={`button-show-install-${machine.id}`}
+            >
+              <Terminal className="h-3.5 w-3.5 mr-1.5" />
+              {showInstall ? "Hide install commands" : "Show install commands"}
+            </Button>
+
+            {showInstall && (
+              <div className="space-y-2 mt-2">
+                {(!os || os === "linux") && (
+                  <InstallCommand label="Linux (Ubuntu / Debian)" command={linuxInstall} onCopy={onCopyText} />
+                )}
+                {(!os || os === "linux") && (
+                  <InstallCommand label="Linux (RHEL / CentOS / Fedora)" command={rhelInstall} onCopy={onCopyText} />
+                )}
+                {(!os || os === "macos") && (
+                  <InstallCommand label="macOS (Homebrew)" command={macInstall} onCopy={onCopyText} />
+                )}
+                {(!os || os === "windows") && (
+                  <InstallCommand label="Windows (PowerShell as Admin)" command={winInstall} onCopy={onCopyText} />
+                )}
+                <div className="flex items-center gap-1 pt-1">
+                  <Link href="/node-setup" className="text-xs text-primary underline-offset-4 hover:underline inline-flex items-center gap-1" data-testid={`link-node-setup-${machine.id}`}>
+                    Full step-by-step guide
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">2</span>
+          <p className="text-xs text-muted-foreground">
+            Open the OpenClaw agent on the node and go to <strong>Settings &gt; Network &gt; Pair with Gateway</strong>
+          </p>
+        </div>
+
+        <div className="flex items-start gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">3</span>
+          <p className="text-xs text-muted-foreground">
+            Enter the pairing code <strong>{machine.pairingCode || "shown above"}</strong> and confirm
+          </p>
+        </div>
+
+        <div className="flex items-start gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">4</span>
+          <p className="text-xs text-muted-foreground">
+            Once paired, the status will automatically change to <strong>connected</strong>
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-md bg-muted/30 p-2">
+        <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+        <p className="text-xs text-muted-foreground">
+          Make sure the node's computer is powered on and connected to the internet. If using Tailscale, ensure it's running on both this gateway and the node.
+        </p>
+      </div>
+    </div>
   );
 }
 
