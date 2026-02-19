@@ -164,7 +164,7 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
 
   const linuxInstall = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
   const macInstall = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
-  const winInstall = "wsl --install  # then inside Ubuntu: curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
+  const winInstall = "wsl --install   # restart, open Ubuntu, then run the Linux command above";
 
   const nodeRunCmd = `openclaw node run --host <gateway-ip> --port 18789 --display-name "${machine.displayName || machine.name || "My Node"}"`;
   const nodeInstallCmd = `openclaw node install --host <gateway-ip> --port 18789 --display-name "${machine.displayName || machine.name || "My Node"}"`;
