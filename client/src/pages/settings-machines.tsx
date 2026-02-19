@@ -167,6 +167,8 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
   const macInstall = "npm install -g openclaw";
   const winInstall = "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force; npm install -g openclaw";
 
+  const pairCmd = `openclaw pair --code ${machine.pairingCode || "<your-pairing-code>"}`;
+
   return (
     <div className="space-y-3" data-testid={`text-pending-instructions-${machine.id}`}>
       <p className="text-xs font-semibold text-muted-foreground">To get this node connected:</p>
@@ -215,20 +217,23 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
 
         <div className="flex items-start gap-2">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">2</span>
-          <p className="text-xs text-muted-foreground">
-            Open the OpenClaw agent on the node and go to <strong>Settings &gt; Network &gt; Pair with Gateway</strong>
-          </p>
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">
+              <strong>Run the pairing command</strong> on the node's terminal
+            </p>
+            <div className="rounded-md bg-muted/50 p-2">
+              <div className="flex items-center justify-between gap-2">
+                <code className="text-xs font-mono break-all" data-testid={`text-pair-cmd-${machine.id}`}>{pairCmd}</code>
+                <Button size="icon" variant="ghost" onClick={() => onCopyText(pairCmd)} className="shrink-0" data-testid={`button-copy-pair-${machine.id}`}>
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-start gap-2">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">3</span>
-          <p className="text-xs text-muted-foreground">
-            Enter the pairing code <strong>{machine.pairingCode || "shown above"}</strong> and confirm
-          </p>
-        </div>
-
-        <div className="flex items-start gap-2">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">4</span>
           <p className="text-xs text-muted-foreground">
             Once paired, the status will automatically change to <strong>connected</strong>
           </p>
@@ -330,16 +335,15 @@ function SetupInstructions() {
             <div className="rounded-md border p-4 space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
-                Use the Pairing Code on Your Computer
+                Pair Using the Command Line
               </h4>
               <p className="text-sm text-muted-foreground pl-8">
                 After registering, a <strong>6-character pairing code</strong> will appear on the node card below. To complete the connection:
               </p>
               <ol className="text-sm text-muted-foreground pl-12 list-decimal space-y-1">
                 <li>Copy the pairing code (click the copy button next to it)</li>
-                <li>On the target computer, open the <strong>OpenClaw agent application</strong></li>
-                <li>Go to <strong>Settings &gt; Network &gt; Pair with Gateway</strong></li>
-                <li>Enter the pairing code and confirm</li>
+                <li>On the target computer, open a <strong>terminal</strong> (Command Prompt, PowerShell, or Terminal)</li>
+                <li>Run: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">openclaw pair --code YOUR_CODE</code></li>
                 <li>The node status will change from <strong>"pending"</strong> to <strong>"connected"</strong> once paired</li>
               </ol>
             </div>
