@@ -287,84 +287,121 @@ function SetupInstructions() {
 
         {expanded && (
           <div className="mt-4 space-y-4">
+            <div className="rounded-md border border-dashed p-3 flex items-start gap-2">
+              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                <strong>Important:</strong> Before adding nodes, you need a running gateway. If you haven't set one up yet, use the{" "}
+                <Link href="/node-setup" className="text-primary underline-offset-4 hover:underline inline-flex items-center gap-0.5">
+                  Node Setup Wizard <ExternalLink className="h-3 w-3" />
+                </Link>{" "}
+                for a full step-by-step guide.
+              </p>
+            </div>
+
             <div className="rounded-md border p-4 space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-                Find Your Computer's IP Address
+                Install the OpenClaw CLI on the Node Machine
               </h4>
-              <p className="text-sm text-muted-foreground pl-8">
-                You need the <strong>IPv4 address</strong> of the computer you want to add. This is the local network address assigned to your machine.
-              </p>
               <div className="pl-8 space-y-2">
-                <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold">Windows:</p>
-                  <p className="text-xs text-muted-foreground">
-                    Go to <strong>Settings &gt; Network &amp; Internet &gt; Wi-Fi</strong> (or Ethernet), click your connection name, and scroll down to find <strong>"IPv4 address"</strong>.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Or open Command Prompt and type: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ipconfig</code> — look for <strong>"IPv4 Address"</strong> under your active adapter.
-                  </p>
-                </div>
-                <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold">macOS:</p>
-                  <p className="text-xs text-muted-foreground">
-                    Go to <strong>System Settings &gt; Network</strong>, select your connection, and find the <strong>IP address</strong>.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Or open Terminal and type: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ifconfig | grep "inet "</code>
-                  </p>
-                </div>
-                <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold">Linux:</p>
-                  <p className="text-xs text-muted-foreground">
-                    Open a terminal and type: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ip addr show</code> or <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">hostname -I</code>
-                  </p>
-                </div>
-              </div>
-              <div className="pl-8 flex items-start gap-2 rounded-md border border-dashed p-3">
-                <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                <p className="text-xs text-muted-foreground">
-                  The IPv4 address typically looks like <strong>192.168.x.x</strong> or <strong>10.x.x.x</strong>. Do <em>not</em> use the IPv6 address (the longer one with colons). If your computer has both Wi-Fi and Ethernet, use the address for whichever connection is active.
+                <p className="text-sm text-muted-foreground">
+                  On the machine you want to connect as a node, install the CLI with the <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">--no-onboard</code> flag (this skips gateway setup — nodes only need the CLI):
                 </p>
+                <div className="rounded-md bg-muted/50 p-3 space-y-2">
+                  <p className="text-xs font-semibold">Linux / macOS / WSL2:</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="text-xs font-mono break-all">curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard</code>
+                  </div>
+                </div>
+                <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
+                  <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Windows users:</strong> You must use WSL2 (Windows Subsystem for Linux). PowerShell's <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">curl</code> does not support Linux flags like <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">-fsSL</code>. Run <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">wsl --install</code> first if needed, then run the install command above inside WSL2.
+                  </p>
+                </div>
               </div>
             </div>
 
             <div className="rounded-md border p-4 space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-                Register the Node Here
+                Set the Gateway Token on the Node
               </h4>
-              <p className="text-sm text-muted-foreground pl-8">
-                Click the <strong>"Register Node"</strong> button above and fill in:
-              </p>
-              <ul className="text-sm text-muted-foreground pl-12 list-disc space-y-1">
-                <li><strong>Node Name</strong> — A unique identifier (e.g., <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">office-pc-01</code>)</li>
-                <li><strong>IP Address</strong> — The IPv4 address you found in Step 1</li>
-                <li><strong>Operating System</strong> — Windows, Linux, or macOS</li>
-                <li>A <strong>Pairing Code</strong> is automatically generated for you</li>
-              </ul>
+              <div className="pl-8 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  The node needs your gateway's authentication token to connect. Find this token in your gateway machine's config file at <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">~/.openclaw/openclaw.json</code> under <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">gateway.auth.token</code> (it's a 48-character hex string auto-generated during gateway install).
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  You can also find it in the <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link> page under Gateway Settings.
+                </p>
+                <div className="rounded-md bg-muted/50 p-3 space-y-1">
+                  <p className="text-xs font-semibold">Set the token on the node machine:</p>
+                  <code className="text-xs font-mono break-all">export OPENCLAW_GATEWAY_TOKEN="your-48-char-hex-token-here"</code>
+                </div>
+              </div>
             </div>
 
             <div className="rounded-md border p-4 space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+                Register the Node in This Dashboard
+              </h4>
+              <div className="pl-8 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Click the <strong>"Register Node"</strong> button above and fill in:
+                </p>
+                <ul className="text-sm text-muted-foreground pl-4 list-disc space-y-1">
+                  <li><strong>Node Name</strong> — A unique identifier (e.g., <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">office-pc-01</code>)</li>
+                  <li><strong>Display Name</strong> — A friendly label (e.g., "Office Desktop")</li>
+                  <li><strong>IP Address</strong> — The node machine's IP (use <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">hostname -I</code> on Linux or <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ipconfig</code> on Windows to find it)</li>
+                  <li><strong>Operating System</strong> — Windows, Linux, or macOS</li>
+                  <li>A <strong>Pairing Code</strong> is automatically generated for you</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="rounded-md border p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
                 Connect the Node to Your Gateway
               </h4>
-              <p className="text-sm text-muted-foreground pl-8">
-                On the node machine, install the CLI and connect it to your primary gateway:
-              </p>
-              <ol className="text-sm text-muted-foreground pl-12 list-decimal space-y-1">
-                <li>Install the CLI: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard</code></li>
-                <li>Set the gateway token: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">export OPENCLAW_GATEWAY_TOKEN="&lt;your-token&gt;"</code></li>
-                <li>Start the node: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">openclaw node run --host &lt;gateway-ip&gt; --port 18789 --display-name "My Node"</code></li>
-                <li>Come back here and click <strong>Approve</strong> — the status will change to <strong>"paired"</strong></li>
-              </ol>
+              <div className="pl-8 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  On the node machine, run the following command (replace <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">&lt;gateway-ip&gt;</code> with your gateway's IP address):
+                </p>
+                <div className="rounded-md bg-muted/50 p-3 space-y-2">
+                  <p className="text-xs font-semibold">Test first (foreground mode):</p>
+                  <code className="text-xs font-mono break-all">openclaw node run --host &lt;gateway-ip&gt; --port 18789 --display-name "My Node"</code>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3 space-y-2">
+                  <p className="text-xs font-semibold">Then install as a background service:</p>
+                  <code className="text-xs font-mono break-all">openclaw node install --host &lt;gateway-ip&gt; --port 18789 --display-name "My Node"</code>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Using <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">node run</code> first lets you verify the connection works before installing as a service.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-md border p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
+                Approve the Node
+              </h4>
+              <div className="pl-8 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Once the node connects to the gateway, come back to this page. The node will appear with <strong>"pending"</strong> status — click <strong>Approve</strong> and the status will change to <strong>"paired"</strong>.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  You can also approve pending nodes on the <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link> page under Node Approvals.
+                </p>
+              </div>
             </div>
 
             <div className="rounded-md border border-dashed p-3 flex items-start gap-2">
               <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                <strong>Tip:</strong> If you're using Tailscale, you can also use the Tailscale IP address (usually <strong>100.x.x.x</strong>) instead of the local network IP. This allows nodes to connect even across different networks.
+                <strong>Tip:</strong> If you're using Tailscale, you can use the Tailscale IP address (usually <strong>100.x.x.x</strong>) instead of the local network IP. This allows nodes to connect across different networks without port forwarding.
               </p>
             </div>
           </div>
