@@ -1,0 +1,70 @@
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir '\\wsl.localhost\Ubuntu\home\administrator\.local\node_modules\openclaw\node_modules\@smithy'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: '\\\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw\\node_modules\\@smithy'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\UNC\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw\\node_modules\\@aws-sdk',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir '\\wsl.localhost\Ubuntu\home\administrator\.local\node_modules\openclaw\node_modules\@aws-sdk\token-providers\node_modules\@aws-sdk\nested-clients\dist-types\ts3.4\submodules\sts'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: '\\\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw\\node_modules\\@aws-sdk\\token-providers\\node_modules\\@aws-sdk\\nested-clients\\dist-types\\ts3.4\\submodules\\sts'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '\\\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir '\\wsl.localhost\Ubuntu\home\administrator\.local\node_modules\openclaw\node_modules\@aws-sdk\nested-clients\node_modules'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: '\\\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw\\node_modules\\@aws-sdk\\nested-clients\\node_modules'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\UNC\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir '\\wsl.localhost\Ubuntu\home\administrator\.local\node_modules\openclaw\node_modules\@aws-sdk\token-providers\node_modules\@aws-sdk\nested-clients\dist-types'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: '\\\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw\\node_modules\\@aws-sdk\\token-providers\\node_modules\\@aws-sdk\\nested-clients\\dist-types'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\UNC\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw\\node_modules',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir '\\wsl.localhost\Ubuntu\home\administrator\.local\node_modules\openclaw\node_modules\@aws-sdk\token-providers\node_modules\@aws-sdk\nested-clients'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: '\\\\wsl.localhost\\Ubuntu\\home\\administrator\\.local\\node_modules\\openclaw\\node_modules\\@aws-sdk\\token-providers\\node_modules\\@aws-sdk\\nested-clients'
+npm warn cleanup     }
+npm warn cleanup   ]
+npm warn cleanup ]
+npm error code 1
+npm error path \\wsl.localhost\Ubuntu\home\administrator\.local\node_modules\openclaw\node_modules\@whiskeysockets\baileys
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c node ./engine-requirements.js
+npm error '\\wsl.localhost\Ubuntu\home\administrator\.local\node_modules\openclaw\node_modules\@whiskeysockets\baileys'
+npm error CMD.EXE was started with the above path as the current directory.
+npm error UNC paths are not supported.  Defaulting to Windows directory.
+npm error node:internal/modules/cjs/loader:1458
+npm error   throw err;
+npm error   ^
+npm error
+npm error Error: Cannot find module 'C:\Windows\engine-requirements.js'
+npm error     at Module._resolveFilename (node:internal/modules/cjs/loader:1455:15)
+npm error     at defaultResolveImpl (node:internal/modules/cjs/loader:1065:19)
+npm error     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1070:22)
+npm error     at Module._load (node:internal/modules/cjs/loader:1241:25)
+npm error     at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+npm error     at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+npm error     at node:internal/main/run_main_module:33:47 {
+npm error   code: 'MODULE_NOT_FOUND',
+npm error   requireStack: []
+npm error }
+npm error
+npm error Node.js v25.6.1
+npm error A complete log of this run can be found in: C:\Users\administrator\AppData\Local\npm-cache\_logs\2026-02-19T20_44_46_228Z-debug-0.log
+administrator@VIENT4:~$
