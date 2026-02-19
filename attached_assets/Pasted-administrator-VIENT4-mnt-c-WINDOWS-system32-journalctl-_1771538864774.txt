@@ -1,0 +1,54 @@
+administrator@VIENT4:/mnt/c/WINDOWS/system32$ journalctl --user -u openclaw-gateway --no-pager -n 50
+Feb 19 18:05:57 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 4.185s CPU time.
+Feb 19 18:06:02 VIENT4 systemd[548]: openclaw-gateway.service: Scheduled restart job, restart counter is at 41.
+Feb 19 18:06:02 VIENT4 systemd[548]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.19-2).
+Feb 19 18:06:04 VIENT4 node[464085]: 2026-02-19T18:06:04.836-04:00 Gateway start blocked: set gateway.mode=local (current: unset) or pass --allow-unconfigured.
+Feb 19 18:06:04 VIENT4 node[464085]: 2026-02-19T18:06:04.842-04:00 Config write audit: /home/administrator/.openclaw/logs/config-audit.jsonl
+Feb 19 18:06:04 VIENT4 systemd[548]: openclaw-gateway.service: Main process exited, code=exited, status=1/FAILURE
+Feb 19 18:06:04 VIENT4 systemd[548]: openclaw-gateway.service: Failed with result 'exit-code'.
+Feb 19 18:06:04 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 3.612s CPU time.
+Feb 19 18:06:10 VIENT4 systemd[548]: openclaw-gateway.service: Scheduled restart job, restart counter is at 42.
+Feb 19 18:06:10 VIENT4 systemd[548]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.19-2).
+Feb 19 18:06:13 VIENT4 node[464099]: 2026-02-19T18:06:13.845-04:00 Gateway start blocked: set gateway.mode=local (current: unset) or pass --allow-unconfigured.
+Feb 19 18:06:13 VIENT4 node[464099]: 2026-02-19T18:06:13.856-04:00 Config write audit: /home/administrator/.openclaw/logs/config-audit.jsonl
+Feb 19 18:06:13 VIENT4 systemd[548]: openclaw-gateway.service: Main process exited, code=exited, status=1/FAILURE
+Feb 19 18:06:13 VIENT4 systemd[548]: openclaw-gateway.service: Failed with result 'exit-code'.
+Feb 19 18:06:13 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 5.069s CPU time.
+Feb 19 18:06:19 VIENT4 systemd[548]: openclaw-gateway.service: Scheduled restart job, restart counter is at 43.
+Feb 19 18:06:19 VIENT4 systemd[548]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.19-2).
+Feb 19 18:06:23 VIENT4 node[464111]: 2026-02-19T18:06:23.476-04:00 Gateway start blocked: set gateway.mode=local (current: unset) or pass --allow-unconfigured.
+Feb 19 18:06:23 VIENT4 node[464111]: 2026-02-19T18:06:23.482-04:00 Config write audit: /home/administrator/.openclaw/logs/config-audit.jsonl
+Feb 19 18:06:23 VIENT4 systemd[548]: openclaw-gateway.service: Main process exited, code=exited, status=1/FAILURE
+Feb 19 18:06:23 VIENT4 systemd[548]: openclaw-gateway.service: Failed with result 'exit-code'.
+Feb 19 18:06:23 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 5.830s CPU time.
+Feb 19 18:06:28 VIENT4 systemd[548]: openclaw-gateway.service: Scheduled restart job, restart counter is at 44.
+Feb 19 18:06:28 VIENT4 systemd[548]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.19-2).
+Feb 19 18:06:31 VIENT4 node[464123]: 2026-02-19T18:06:31.783-04:00 Gateway start blocked: set gateway.mode=local (current: unset) or pass --allow-unconfigured.
+Feb 19 18:06:31 VIENT4 node[464123]: 2026-02-19T18:06:31.791-04:00 Config write audit: /home/administrator/.openclaw/logs/config-audit.jsonl
+Feb 19 18:06:31 VIENT4 systemd[548]: openclaw-gateway.service: Main process exited, code=exited, status=1/FAILURE
+Feb 19 18:06:31 VIENT4 systemd[548]: openclaw-gateway.service: Failed with result 'exit-code'.
+Feb 19 18:06:31 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 4.454s CPU time.
+Feb 19 18:06:36 VIENT4 systemd[548]: openclaw-gateway.service: Scheduled restart job, restart counter is at 45.
+Feb 19 18:06:36 VIENT4 systemd[548]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.19-2).
+Feb 19 18:06:40 VIENT4 node[464137]: 2026-02-19T18:06:40.155-04:00 Gateway start blocked: set gateway.mode=local (current: unset) or pass --allow-unconfigured.
+Feb 19 18:06:40 VIENT4 node[464137]: 2026-02-19T18:06:40.167-04:00 Config write audit: /home/administrator/.openclaw/logs/config-audit.jsonl
+Feb 19 18:06:40 VIENT4 systemd[548]: openclaw-gateway.service: Main process exited, code=exited, status=1/FAILURE
+Feb 19 18:06:40 VIENT4 systemd[548]: openclaw-gateway.service: Failed with result 'exit-code'.
+Feb 19 18:06:40 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 4.744s CPU time.
+Feb 19 18:06:45 VIENT4 systemd[548]: openclaw-gateway.service: Scheduled restart job, restart counter is at 46.
+Feb 19 18:06:45 VIENT4 systemd[548]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.19-2).
+Feb 19 18:06:49 VIENT4 node[464151]: 2026-02-19T18:06:49.732-04:00 Gateway start blocked: set gateway.mode=local (current: unset) or pass --allow-unconfigured.
+Feb 19 18:06:49 VIENT4 node[464151]: 2026-02-19T18:06:49.747-04:00 Config write audit: /home/administrator/.openclaw/logs/config-audit.jsonl
+Feb 19 18:06:49 VIENT4 systemd[548]: openclaw-gateway.service: Main process exited, code=exited, status=1/FAILURE
+Feb 19 18:06:49 VIENT4 systemd[548]: openclaw-gateway.service: Failed with result 'exit-code'.
+Feb 19 18:06:49 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 6.120s CPU time.
+Feb 19 18:06:54 VIENT4 systemd[548]: openclaw-gateway.service: Scheduled restart job, restart counter is at 47.
+Feb 19 18:06:54 VIENT4 systemd[548]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.19-2).
+Feb 19 18:06:59 VIENT4 node[464165]: 2026-02-19T18:06:59.894-04:00 Gateway start blocked: set gateway.mode=local (current: unset) or pass --allow-unconfigured.
+Feb 19 18:06:59 VIENT4 node[464165]: 2026-02-19T18:06:59.904-04:00 Config write audit: /home/administrator/.openclaw/logs/config-audit.jsonl
+Feb 19 18:06:59 VIENT4 systemd[548]: openclaw-gateway.service: Main process exited, code=exited, status=1/FAILURE
+Feb 19 18:06:59 VIENT4 systemd[548]: openclaw-gateway.service: Failed with result 'exit-code'.
+Feb 19 18:06:59 VIENT4 systemd[548]: openclaw-gateway.service: Consumed 6.974s CPU time.
+administrator@VIENT4:/mnt/c/WINDOWS/system32$
+
+
