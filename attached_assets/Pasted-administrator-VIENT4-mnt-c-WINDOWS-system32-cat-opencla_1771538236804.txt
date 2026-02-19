@@ -1,0 +1,69 @@
+administrator@VIENT4:/mnt/c/WINDOWS/system32$ cat ~/.openclaw/openclaw.json | grep -A2 '"token"'
+cat: /home/administrator/.openclaw/openclaw.json: No such file or directory
+administrator@VIENT4:/mnt/c/WINDOWS/system32$ openclaw status
+
+🦞 OpenClaw 2026.2.19-2 (45d9b20) — Because texting yourself reminders is so 2024.
+
+│
+◇
+│
+◇
+OpenClaw status
+
+Overview
+┌─────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Item            │ Value                                                                                             │
+├─────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Dashboard       │ http://127.0.0.1:18789/                                                                           │
+│ OS              │ linux 6.6.87.2-microsoft-standard-WSL2 (x64) · node 22.22.0                                       │
+│ Tailscale       │ off                                                                                               │
+│ Channel         │ stable (default)                                                                                  │
+│ Update          │ pnpm · npm latest 2026.2.19-2                                                                     │
+│ Gateway         │ local · ws://127.0.0.1:18789 (local loopback) · unreachable (connect failed: connect              │
+│                 │ ECONNREFUSED 127.0.0.1:18789)                                                                     │
+│ Gateway service │ systemd not installed                                                                             │
+│ Node service    │ systemd not installed                                                                             │
+│ Agents          │ 1 · no bootstraps · sessions 0 · default main active unknown                                      │
+│ Memory          │ 0 files · 0 chunks · dirty · sources memory · plugin memory-core · vector unknown · fts ready ·   │
+│                 │ cache on (0)                                                                                      │
+│ Probes          │ skipped (use --deep)                                                                              │
+│ Events          │ none                                                                                              │
+│ Heartbeat       │ 30m (main)                                                                                        │
+│ Sessions        │ 0 active · default claude-opus-4-6 (200k ctx) · ~/.openclaw/agents/main/sessions/sessions.json    │
+└─────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Security audit
+Summary: 2 critical · 1 warn · 1 info
+  CRITICAL Gateway auth missing on loopback
+    gateway.bind is loopback but no gateway auth secret is configured. If the Control UI is exposed through a reverse proxy, unauthenticated access is possible.
+    Fix: Set gateway.auth (token recommended) or keep the Control UI local-only.
+  CRITICAL Browser control has no auth
+    Browser control HTTP routes are enabled but no gateway.auth token/password is configured. Any local process (or SSRF to loopback) can call browser control endp…
+    Fix: Set gateway.auth.token (recommended) or gateway.auth.password so browser control HTTP routes require authentication. Restarting the gateway will auto-generate gateway.auth.token when browser control is enabled.
+  WARN Reverse proxy headers are not trusted
+    gateway.bind is loopback and gateway.trustedProxies is empty. If you expose the Control UI through a reverse proxy, configure trusted proxies so local-client c…
+    Fix: Set gateway.trustedProxies to your proxy IPs or keep the Control UI local-only.
+Full report: openclaw security audit
+Deep probe: openclaw security audit --deep
+
+Channels
+┌──────────┬─────────┬────────┬───────────────────────────────────────────────────────────────────────────────────────┐
+│ Channel  │ Enabled │ State  │ Detail                                                                                │
+├──────────┼─────────┼────────┼───────────────────────────────────────────────────────────────────────────────────────┤
+└──────────┴─────────┴────────┴───────────────────────────────────────────────────────────────────────────────────────┘
+
+Sessions
+┌────────────────────────────────────────────────────────────────────┬──────┬─────────┬──────────────┬────────────────┐
+│ Key                                                                │ Kind │ Age     │ Model        │ Tokens         │
+├────────────────────────────────────────────────────────────────────┼──────┼─────────┼──────────────┼────────────────┤
+│ no sessions yet                                                    │      │         │              │                │
+└────────────────────────────────────────────────────────────────────┴──────┴─────────┴──────────────┴────────────────┘
+
+FAQ: https://docs.openclaw.ai/faq
+Troubleshooting: https://docs.openclaw.ai/troubleshooting
+
+Next steps:
+  Need to share?      openclaw status --all
+  Need to debug live? openclaw logs --follow
+  Fix reachability first: openclaw gateway probe
+administrator@VIENT4:/mnt/c/WINDOWS/system32$
