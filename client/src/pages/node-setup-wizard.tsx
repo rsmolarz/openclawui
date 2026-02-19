@@ -31,122 +31,117 @@ interface SetupStep {
 
 const SETUP_STEPS: SetupStep[] = [
   {
-    title: "Install Prerequisites",
-    description: "Install Node.js and npm on your machine.",
+    title: "Install OpenClaw",
+    description: "Run the official installer script. It handles Node.js detection, installation, and onboarding all in one step.",
     icon: Download,
     commands: {
       linux: [
-        "sudo apt update && sudo apt install -y curl",
-        "curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -",
-        "sudo apt install -y nodejs",
-        "node --version && npm --version",
+        "curl -fsSL https://openclaw.ai/install.sh | bash",
       ],
       "linux-rhel": [
-        "sudo yum install -y curl",
-        "curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -",
-        "sudo yum install -y nodejs",
-        "node --version && npm --version",
+        "curl -fsSL https://openclaw.ai/install.sh | bash",
       ],
       macos: [
-        "brew install node",
-        "node --version && npm --version",
+        "curl -fsSL https://openclaw.ai/install.sh | bash",
       ],
       windows: [
-        "winget install OpenJS.NodeJS.LTS",
-        "# Close and reopen PowerShell after installation",
-        "node --version; npm --version",
+        "# Option 1: PowerShell installer",
+        "iwr -useb https://openclaw.ai/install.ps1 | iex",
+        "",
+        "# Option 2 (recommended): Use WSL2 for best results",
+        "wsl --install",
+        "# After restart, open Ubuntu from Start Menu and run:",
+        "curl -fsSL https://openclaw.ai/install.sh | bash",
       ],
     },
-    tip: "You need Node.js 18 or later. If you already have Node.js installed, skip this step.",
+    tip: "The installer handles everything — it installs Node.js 22 if needed, installs OpenClaw, and starts the onboarding wizard. Requires Node.js 22+.",
   },
   {
-    title: "Install OpenClaw",
-    description: "Install the OpenClaw agent globally using npm.",
+    title: "Run Onboarding",
+    description: "If the installer didn't start onboarding automatically, run it manually.",
     icon: Terminal,
     commands: {
       linux: [
-        "sudo npm install -g openclaw",
-        "openclaw --version",
+        "openclaw onboard --install-daemon",
       ],
       "linux-rhel": [
-        "sudo npm install -g openclaw",
-        "openclaw --version",
+        "openclaw onboard --install-daemon",
       ],
       macos: [
-        "npm install -g openclaw",
-        "openclaw --version",
+        "openclaw onboard --install-daemon",
       ],
       windows: [
-        "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
-        "npm install -g openclaw",
-        "openclaw --version",
+        "# In WSL2 Ubuntu terminal:",
+        "openclaw onboard --install-daemon",
       ],
     },
-    tip: "On Linux, use sudo for global installs. On Windows, run PowerShell as Administrator.",
+    tip: "The onboarding wizard walks you through setup, authentication, and channel configuration. It also installs the background daemon so OpenClaw stays running.",
   },
   {
-    title: "Configure Connection",
-    description: "Initialize OpenClaw and connect it to your gateway instance.",
-    icon: Wifi,
-    commands: {
-      linux: [
-        "openclaw init",
-        "openclaw config set gateway-url https://your-instance-ip:18789",
-        "openclaw config set pairing-code <your-pairing-code>",
-      ],
-      "linux-rhel": [
-        "openclaw init",
-        "openclaw config set gateway-url https://your-instance-ip:18789",
-        "openclaw config set pairing-code <your-pairing-code>",
-      ],
-      macos: [
-        "openclaw init",
-        "openclaw config set gateway-url https://your-instance-ip:18789",
-        "openclaw config set pairing-code <your-pairing-code>",
-      ],
-      windows: [
-        "openclaw init",
-        "openclaw config set gateway-url https://your-instance-ip:18789",
-        "openclaw config set pairing-code <your-pairing-code>",
-      ],
-    },
-    tip: "Replace 'your-instance-ip' with your server's IP address and the pairing code from the Nodes page.",
-  },
-  {
-    title: "Start the Agent",
-    description: "Launch the OpenClaw agent and verify it connects successfully.",
+    title: "Start the Gateway",
+    description: "Start the OpenClaw gateway and verify it's running.",
     icon: Cpu,
     commands: {
       linux: [
-        "openclaw start",
+        "openclaw gateway",
         "openclaw status",
       ],
       "linux-rhel": [
-        "openclaw start",
+        "openclaw gateway",
         "openclaw status",
       ],
       macos: [
-        "openclaw start",
+        "openclaw gateway",
         "openclaw status",
       ],
       windows: [
-        "openclaw start",
+        "# In WSL2 Ubuntu terminal:",
+        "openclaw gateway",
         "openclaw status",
       ],
     },
-    tip: "You should see 'Connected to gateway' in the status output. Use 'openclaw logs' to troubleshoot.",
+    tip: "If you installed the daemon in the previous step, the gateway may already be running. Use 'openclaw status' to check.",
   },
   {
-    title: "Approve Node",
-    description: "Go to the Nodes page in the dashboard and approve the new node that appears.",
+    title: "Verify Health",
+    description: "Make sure everything is working correctly.",
     icon: Shield,
     commands: {
-      linux: ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Approve' on your new node"],
-      "linux-rhel": ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Approve' on your new node"],
-      macos: ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Approve' on your new node"],
-      windows: ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Approve' on your new node"],
+      linux: [
+        "openclaw doctor",
+        "openclaw status",
+        "openclaw dashboard",
+      ],
+      "linux-rhel": [
+        "openclaw doctor",
+        "openclaw status",
+        "openclaw dashboard",
+      ],
+      macos: [
+        "openclaw doctor",
+        "openclaw status",
+        "openclaw dashboard",
+      ],
+      windows: [
+        "# In WSL2 Ubuntu terminal:",
+        "openclaw doctor",
+        "openclaw status",
+        "openclaw dashboard",
+      ],
     },
-    tip: "Once approved, the node status will change to 'connected' within a few seconds.",
+    tip: "'openclaw doctor' checks for config issues. 'openclaw dashboard' opens the built-in browser UI.",
+  },
+  {
+    title: "Connect to This Dashboard",
+    description: "Register the node here and approve it.",
+    icon: Wifi,
+    commands: {
+      linux: ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Register Node' and enter your machine details", "# The node will appear as 'pending' — click 'Approve'"],
+      "linux-rhel": ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Register Node' and enter your machine details", "# The node will appear as 'pending' — click 'Approve'"],
+      macos: ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Register Node' and enter your machine details", "# The node will appear as 'pending' — click 'Approve'"],
+      windows: ["# Navigate to Dashboard > Settings > Nodes", "# Click 'Register Node' and enter your machine details", "# The node will appear as 'pending' — click 'Approve'"],
+    },
+    tip: "Once approved, the node status will change to 'connected'. You can manage all your nodes from the Nodes page.",
   },
 ];
 

@@ -162,12 +162,12 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
   const [showInstall, setShowInstall] = useState(false);
   const os = (machine.os || "").toLowerCase();
 
-  const linuxInstall = "sudo npm install -g openclaw";
-  const rhelInstall = "sudo npm install -g openclaw";
-  const macInstall = "npm install -g openclaw";
-  const winInstall = "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force; npm install -g openclaw";
+  const linuxInstall = "curl -fsSL https://openclaw.ai/install.sh | bash";
+  const rhelInstall = "curl -fsSL https://openclaw.ai/install.sh | bash";
+  const macInstall = "curl -fsSL https://openclaw.ai/install.sh | bash";
+  const winInstall = "iwr -useb https://openclaw.ai/install.ps1 | iex";
 
-  const pairCmd = `openclaw pair --code ${machine.pairingCode || "<your-pairing-code>"}`;
+  const onboardCmd = "openclaw onboard --install-daemon";
 
   return (
     <div className="space-y-3" data-testid={`text-pending-instructions-${machine.id}`}>
@@ -193,16 +193,20 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
             {showInstall && (
               <div className="space-y-2 mt-2">
                 {(!os || os === "linux") && (
-                  <InstallCommand label="Linux (Ubuntu / Debian)" command={linuxInstall} onCopy={onCopyText} />
-                )}
-                {(!os || os === "linux") && (
-                  <InstallCommand label="Linux (RHEL / CentOS / Fedora)" command={rhelInstall} onCopy={onCopyText} />
+                  <InstallCommand label="Linux / WSL2" command={linuxInstall} onCopy={onCopyText} />
                 )}
                 {(!os || os === "macos") && (
-                  <InstallCommand label="macOS (Homebrew)" command={macInstall} onCopy={onCopyText} />
+                  <InstallCommand label="macOS" command={macInstall} onCopy={onCopyText} />
                 )}
                 {(!os || os === "windows") && (
-                  <InstallCommand label="Windows (PowerShell as Admin)" command={winInstall} onCopy={onCopyText} />
+                  <InstallCommand label="Windows (PowerShell)" command={winInstall} onCopy={onCopyText} />
+                )}
+                {(!os || os === "windows") && (
+                  <div className="rounded-md bg-muted/30 p-2">
+                    <p className="text-xs text-muted-foreground">
+                      For best results on Windows, use <strong>WSL2</strong>: run <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">wsl --install</code> first, then use the Linux command inside Ubuntu.
+                    </p>
+                  </div>
                 )}
                 <div className="flex items-center gap-1 pt-1">
                   <Link href="/node-setup" className="text-xs text-primary underline-offset-4 hover:underline inline-flex items-center gap-1" data-testid={`link-node-setup-${machine.id}`}>
@@ -219,12 +223,12 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">2</span>
           <div className="space-y-1.5 flex-1 min-w-0">
             <p className="text-xs text-muted-foreground">
-              <strong>Run the pairing command</strong> on the node's terminal
+              <strong>Run the onboarding wizard</strong> on the node's terminal
             </p>
             <div className="rounded-md bg-muted/50 p-2">
               <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid={`text-pair-cmd-${machine.id}`}>{pairCmd}</code>
-                <Button size="icon" variant="ghost" onClick={() => onCopyText(pairCmd)} className="shrink-0" data-testid={`button-copy-pair-${machine.id}`}>
+                <code className="text-xs font-mono break-all" data-testid={`text-onboard-cmd-${machine.id}`}>{onboardCmd}</code>
+                <Button size="icon" variant="ghost" onClick={() => onCopyText(onboardCmd)} className="shrink-0" data-testid={`button-copy-onboard-${machine.id}`}>
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
@@ -235,7 +239,7 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
         <div className="flex items-start gap-2">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">3</span>
           <p className="text-xs text-muted-foreground">
-            Once paired, the status will automatically change to <strong>connected</strong>
+            Once setup is complete, come back here and click <strong>Approve</strong> — the status will change to <strong>connected</strong>
           </p>
         </div>
       </div>
@@ -341,10 +345,10 @@ function SetupInstructions() {
                 After registering, a <strong>6-character pairing code</strong> will appear on the node card below. To complete the connection:
               </p>
               <ol className="text-sm text-muted-foreground pl-12 list-decimal space-y-1">
-                <li>Copy the pairing code (click the copy button next to it)</li>
-                <li>On the target computer, open a <strong>terminal</strong> (Command Prompt, PowerShell, or Terminal)</li>
-                <li>Run: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">openclaw pair --code YOUR_CODE</code></li>
-                <li>The node status will change from <strong>"pending"</strong> to <strong>"connected"</strong> once paired</li>
+                <li>On the target computer, run the install script to set up OpenClaw</li>
+                <li>Run: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">openclaw onboard --install-daemon</code> to complete setup</li>
+                <li>Come back to this dashboard and click <strong>Approve</strong> on the pending node</li>
+                <li>The node status will change from <strong>"pending"</strong> to <strong>"connected"</strong></li>
               </ol>
             </div>
 
