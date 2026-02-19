@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Clock, Copy, RefreshCw, HelpCircle, ChevronDown, ChevronUp, Info, ExternalLink, Terminal } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -21,15 +21,6 @@ import { z } from "zod";
 const nodeFormSchema = insertMachineSchema.extend({
   name: z.string().min(1, "Node name is required"),
 });
-
-function generatePairingCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
 
 function getStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
@@ -44,11 +35,9 @@ function getStatusVariant(status: string): "default" | "secondary" | "destructiv
 function NodeCard({
   machine,
   onDelete,
-  onCopyCode,
 }: {
   machine: Machine;
   onDelete: (id: string) => void;
-  onCopyCode: (code: string) => void;
 }) {
   return (
     <Card data-testid={`card-node-${machine.id}`}>
@@ -109,303 +98,103 @@ function NodeCard({
             </p>
           </div>
         </div>
-
-        {machine.status === "pending" && (
-          <div className="mt-3 rounded-md border border-dashed p-3 space-y-3" data-testid={`pending-steps-${machine.id}`}>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-sm font-semibold">Waiting for pairing</span>
-            </div>
-
-            {machine.pairingCode && (
-              <div className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs text-muted-foreground">Pairing Code:</span>
-                  <code className="text-sm font-mono font-bold tracking-wider" data-testid={`text-pairing-code-${machine.id}`}>
-                    {machine.pairingCode}
-                  </code>
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => onCopyCode(machine.pairingCode!)}
-                  data-testid={`button-copy-code-${machine.id}`}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
-
-            <PendingNodeSteps machine={machine} onCopyText={onCopyCode} />
-          </div>
-        )}
       </CardContent>
     </Card>
   );
 }
 
-function InstallCommand({ label, command, onCopy }: { label: string; command: string; onCopy: (text: string) => void }) {
-  return (
-    <div className="rounded-md bg-muted/50 p-2 space-y-1">
-      <p className="text-xs font-semibold">{label}</p>
-      <div className="flex items-center justify-between gap-2">
-        <code className="text-xs font-mono break-all">{command}</code>
-        <Button size="icon" variant="ghost" onClick={() => onCopy(command)} className="shrink-0">
-          <Copy className="h-3 w-3" />
-        </Button>
-      </div>
-    </div>
-  );
-}
+function QuickStartGuide() {
+  const { toast } = useToast();
+  const installCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
+  const nodeRunCmd = "openclaw node run --host <gateway-ip> --port 18789";
 
-function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyText: (text: string) => void }) {
-  const [showInstall, setShowInstall] = useState(false);
-  const os = (machine.os || "").toLowerCase();
-
-  const linuxInstall = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
-  const macInstall = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
-  const winInstall = "wsl --install   # restart, open Ubuntu, then run the Linux command above";
-
-  const nodeRunCmd = `openclaw node run --host <gateway-ip> --port 18789 --display-name "${machine.displayName || machine.name || "My Node"}"`;
-  const nodeInstallCmd = `openclaw node install --host <gateway-ip> --port 18789 --display-name "${machine.displayName || machine.name || "My Node"}"`;
+  const copyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied", description: "Command copied to clipboard." });
+  };
 
   return (
-    <div className="space-y-3" data-testid={`text-pending-instructions-${machine.id}`}>
-      <p className="text-xs font-semibold text-muted-foreground">To get this node connected:</p>
-
-      <div className="space-y-2">
-        <div className="flex items-start gap-2">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">1</span>
-          <div className="space-y-1.5 flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">
-              <strong>Install the OpenClaw CLI</strong> on <strong>{machine.displayName || machine.name}</strong> (no gateway setup needed)
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowInstall(!showInstall)}
-              data-testid={`button-show-install-${machine.id}`}
-            >
-              <Terminal className="h-3.5 w-3.5 mr-1.5" />
-              {showInstall ? "Hide install commands" : "Show install commands"}
-            </Button>
-
-            {showInstall && (
-              <div className="space-y-2 mt-2">
-                {(!os || os === "linux") && (
-                  <InstallCommand label="Linux / WSL2" command={linuxInstall} onCopy={onCopyText} />
-                )}
-                {(!os || os === "macos") && (
-                  <InstallCommand label="macOS" command={macInstall} onCopy={onCopyText} />
-                )}
-                {(!os || os === "windows") && (
-                  <InstallCommand label="Windows (via WSL2)" command={winInstall} onCopy={onCopyText} />
-                )}
-                <div className="rounded-md bg-muted/30 p-2">
-                  <p className="text-xs text-muted-foreground">
-                    Use <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">--no-onboard</code> to skip the full gateway setup. Nodes only need the CLI installed — they connect to your existing gateway.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 pt-1">
-                  <Link href="/node-setup" className="text-xs text-primary underline-offset-4 hover:underline inline-flex items-center gap-1" data-testid={`link-node-setup-${machine.id}`}>
-                    Full step-by-step guide
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
+    <Card data-testid="card-quick-start">
+      <CardContent className="pt-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Terminal className="h-5 w-5 text-muted-foreground shrink-0" />
+          <h3 className="text-sm font-semibold">Connect a Node in 3 Steps</h3>
         </div>
 
-        <div className="flex items-start gap-2">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">2</span>
-          <div className="space-y-1.5 flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">
-              <strong>Connect the node</strong> to your primary gateway (replace <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">&lt;gateway-ip&gt;</code> with your gateway's IP)
-            </p>
-            <div className="rounded-md bg-muted/50 p-2 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid={`text-node-run-cmd-${machine.id}`}>{nodeRunCmd}</code>
-                <Button size="icon" variant="ghost" onClick={() => onCopyText(nodeRunCmd)} className="shrink-0" data-testid={`button-copy-node-run-${machine.id}`}>
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <p className="text-sm text-muted-foreground">
+                <strong>Install the CLI</strong> on the machine you want to connect:
+              </p>
+              <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                <code className="text-xs font-mono break-all" data-testid="text-install-cmd">{installCmd}</code>
+                <Button size="icon" variant="ghost" onClick={() => copyText(installCmd)} className="shrink-0" data-testid="button-copy-install">
                   <Copy className="h-3 w-3" />
                 </Button>
+              </div>
+              <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
+                <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  <strong>Windows:</strong> Run this inside WSL2, not PowerShell. Install WSL2 first with <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">wsl --install</code> if needed.
+                </p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Or install as a background service:
-            </p>
-            <div className="rounded-md bg-muted/50 p-2">
-              <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid={`text-node-install-cmd-${machine.id}`}>{nodeInstallCmd}</code>
-                <Button size="icon" variant="ghost" onClick={() => onCopyText(nodeInstallCmd)} className="shrink-0" data-testid={`button-copy-node-install-${machine.id}`}>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <p className="text-sm text-muted-foreground">
+                <strong>Set your gateway token</strong> and connect the node:
+              </p>
+              <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                <code className="text-xs font-mono break-all" data-testid="text-export-cmd">export OPENCLAW_GATEWAY_TOKEN="your-token"</code>
+                <Button size="icon" variant="ghost" onClick={() => copyText('export OPENCLAW_GATEWAY_TOKEN=""')} className="shrink-0" data-testid="button-copy-export">
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
+              <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                <code className="text-xs font-mono break-all" data-testid="text-node-run-cmd">{nodeRunCmd}</code>
+                <Button size="icon" variant="ghost" onClick={() => copyText(nodeRunCmd)} className="shrink-0" data-testid="button-copy-node-run">
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Find your token in{" "}
+                <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link>{" "}
+                or in <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">~/.openclaw/openclaw.json</code> on the gateway machine.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <p className="text-sm text-muted-foreground">
+                <strong>Approve the node</strong> from the native dashboard — it will appear as pending automatically.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Open your{" "}
+                <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">
+                  native dashboard
+                </Link>{" "}
+                to approve pending nodes.
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-start gap-2">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">3</span>
+        <div className="rounded-md border border-dashed p-2.5 flex items-start gap-2">
+          <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground">
-            Once the node connects, click <strong>Approve</strong> on this page — the status will change to <strong>paired</strong>
+            Need the full walkthrough? Check the{" "}
+            <Link href="/node-setup" className="text-primary underline-offset-4 hover:underline inline-flex items-center gap-0.5">
+              Node Setup Wizard <ExternalLink className="h-3 w-3" />
+            </Link>
           </p>
         </div>
-      </div>
-
-      <div className="flex items-start gap-2 rounded-md bg-muted/30 p-2">
-        <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-        <p className="text-xs text-muted-foreground">
-          You may need to set <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">OPENCLAW_GATEWAY_TOKEN</code> on the node machine first. Find the token in your primary gateway's config at <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">~/.openclaw/openclaw.json</code>.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function SetupInstructions() {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <Card data-testid="card-setup-instructions">
-      <CardContent className="pt-5 pb-4">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center justify-between gap-2 w-full text-left hover-elevate rounded-md p-1 -m-1"
-          data-testid="button-toggle-instructions"
-        >
-          <div className="flex items-center gap-2">
-            <HelpCircle className="h-5 w-5 text-muted-foreground shrink-0" />
-            <span className="text-sm font-semibold">How to Add a Node to Your OpenClaw Network</span>
-          </div>
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-          )}
-        </button>
-
-        {expanded && (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-md border border-dashed p-3 flex items-start gap-2">
-              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                <strong>Important:</strong> Before adding nodes, you need a running gateway. If you haven't set one up yet, use the{" "}
-                <Link href="/node-setup" className="text-primary underline-offset-4 hover:underline inline-flex items-center gap-0.5">
-                  Node Setup Wizard <ExternalLink className="h-3 w-3" />
-                </Link>{" "}
-                for a full step-by-step guide.
-              </p>
-            </div>
-
-            <div className="rounded-md border p-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-                Install the OpenClaw CLI on the Node Machine
-              </h4>
-              <div className="pl-8 space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  On the machine you want to connect as a node, install the CLI with the <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">--no-onboard</code> flag (this skips gateway setup — nodes only need the CLI):
-                </p>
-                <div className="rounded-md bg-muted/50 p-3 space-y-2">
-                  <p className="text-xs font-semibold">Linux / macOS / WSL2:</p>
-                  <div className="flex items-center justify-between gap-2">
-                    <code className="text-xs font-mono break-all">curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard</code>
-                  </div>
-                </div>
-                <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
-                  <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                  <p className="text-xs text-muted-foreground">
-                    <strong>Windows users:</strong> You must use WSL2 (Windows Subsystem for Linux). PowerShell's <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">curl</code> does not support Linux flags like <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">-fsSL</code>. Run <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">wsl --install</code> first if needed, then run the install command above inside WSL2.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-md border p-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-                Set the Gateway Token on the Node
-              </h4>
-              <div className="pl-8 space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  The node needs your gateway's authentication token to connect. Find this token in your gateway machine's config file at <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">~/.openclaw/openclaw.json</code> under <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">gateway.auth.token</code> (it's a 48-character hex string auto-generated during gateway install).
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  You can also find it in the <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link> page under Gateway Settings.
-                </p>
-                <div className="rounded-md bg-muted/50 p-3 space-y-1">
-                  <p className="text-xs font-semibold">Set the token on the node machine:</p>
-                  <code className="text-xs font-mono break-all">export OPENCLAW_GATEWAY_TOKEN="your-48-char-hex-token-here"</code>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-md border p-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
-                Register the Node in This Dashboard
-              </h4>
-              <div className="pl-8 space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Click the <strong>"Register Node"</strong> button above and fill in:
-                </p>
-                <ul className="text-sm text-muted-foreground pl-4 list-disc space-y-1">
-                  <li><strong>Node Name</strong> — A unique identifier (e.g., <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">office-pc-01</code>)</li>
-                  <li><strong>Display Name</strong> — A friendly label (e.g., "Office Desktop")</li>
-                  <li><strong>IP Address</strong> — The node machine's IP (use <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">hostname -I</code> on Linux or <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">ipconfig</code> on Windows to find it)</li>
-                  <li><strong>Operating System</strong> — Windows, Linux, or macOS</li>
-                  <li>A <strong>Pairing Code</strong> is automatically generated for you</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="rounded-md border p-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
-                Connect the Node to Your Gateway
-              </h4>
-              <div className="pl-8 space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  On the node machine, run the following command (replace <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">&lt;gateway-ip&gt;</code> with your gateway's IP address):
-                </p>
-                <div className="rounded-md bg-muted/50 p-3 space-y-2">
-                  <p className="text-xs font-semibold">Test first (foreground mode):</p>
-                  <code className="text-xs font-mono break-all">openclaw node run --host &lt;gateway-ip&gt; --port 18789 --display-name "My Node"</code>
-                </div>
-                <div className="rounded-md bg-muted/50 p-3 space-y-2">
-                  <p className="text-xs font-semibold">Then install as a background service:</p>
-                  <code className="text-xs font-mono break-all">openclaw node install --host &lt;gateway-ip&gt; --port 18789 --display-name "My Node"</code>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Using <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">node run</code> first lets you verify the connection works before installing as a service.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-md border p-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
-                Approve the Node
-              </h4>
-              <div className="pl-8 space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Once the node connects to the gateway, come back to this page. The node will appear with <strong>"pending"</strong> status — click <strong>Approve</strong> and the status will change to <strong>"paired"</strong>.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  You can also approve pending nodes on the <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link> page under Node Approvals.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-md border border-dashed p-3 flex items-start gap-2">
-              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                <strong>Tip:</strong> If you're using Tailscale, you can use the Tailscale IP address (usually <strong>100.x.x.x</strong>) instead of the local network IP. This allows nodes to connect across different networks without port forwarding.
-              </p>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -428,7 +217,6 @@ export default function SettingsMachines() {
       os: "",
       location: "",
       status: "pending",
-      pairingCode: generatePairingCode(),
       displayName: "",
     },
   });
@@ -439,7 +227,7 @@ export default function SettingsMachines() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
-      toast({ title: "Node registered", description: "New node has been registered with a pairing code." });
+      toast({ title: "Node added", description: "Node has been added to your inventory." });
       setDialogOpen(false);
       form.reset({
         name: "",
@@ -448,12 +236,11 @@ export default function SettingsMachines() {
         os: "",
         location: "",
         status: "pending",
-        pairingCode: generatePairingCode(),
         displayName: "",
       });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to register node.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to add node.", variant: "destructive" });
     },
   });
 
@@ -463,7 +250,7 @@ export default function SettingsMachines() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
-      toast({ title: "Node removed", description: "Node has been deregistered." });
+      toast({ title: "Node removed", description: "Node has been removed." });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to remove node.", variant: "destructive" });
@@ -472,15 +259,6 @@ export default function SettingsMachines() {
 
   const onSubmit = (data: InsertMachine) => {
     createMutation.mutate(data);
-  };
-
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    toast({ title: "Copied", description: "Pairing code copied to clipboard." });
-  };
-
-  const handleRegeneratePairingCode = () => {
-    form.setValue("pairingCode", generatePairingCode());
   };
 
   if (isLoading) {
@@ -509,23 +287,23 @@ export default function SettingsMachines() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
-            Node Management
+            Nodes
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Register and manage computers connected to your OpenClaw network.
+            Track computers connected to your OpenClaw network.
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-node">
               <Plus className="h-4 w-4 mr-2" />
-              Register Node
+              Add Node
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Register New Node</DialogTitle>
-              <DialogDescription>Add a new computer to the OpenClaw network. Use the pairing code on the device to complete setup.</DialogDescription>
+              <DialogTitle>Add Node</DialogTitle>
+              <DialogDescription>Track a computer in your OpenClaw network. The actual connection is handled through the CLI.</DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -549,26 +327,13 @@ export default function SettingsMachines() {
                     <FormItem>
                       <FormLabel>Display Name (optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. John's Workstation" {...field} value={field.value ?? ""} data-testid="input-display-name" />
+                        <Input placeholder="e.g. Office Desktop" {...field} value={field.value ?? ""} data-testid="input-display-name" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="hostname"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Hostname (optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g. node-01.local" {...field} value={field.value ?? ""} data-testid="input-hostname" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={form.control}
                     name="ipAddress"
@@ -582,8 +347,6 @@ export default function SettingsMachines() {
                       </FormItem>
                     )}
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="os"
@@ -598,46 +361,18 @@ export default function SettingsMachines() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="linux">Linux</SelectItem>
-                            <SelectItem value="windows">Windows</SelectItem>
+                            <SelectItem value="windows">Windows (WSL2)</SelectItem>
                             <SelectItem value="macos">macOS</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="location"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Location (optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g. Server Room A" {...field} value={field.value ?? ""} data-testid="input-location" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div>
-                  <FormLabel>Pairing Code</FormLabel>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <div className="flex-1 rounded-md border bg-muted/50 px-3 py-2">
-                      <code className="text-lg font-mono font-bold tracking-widest" data-testid="text-generated-pairing-code">
-                        {form.watch("pairingCode")}
-                      </code>
-                    </div>
-                    <Button type="button" size="icon" variant="outline" onClick={handleRegeneratePairingCode} data-testid="button-regenerate-code">
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Enter this code on the device to pair it with this node.</p>
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-node">
-                    {createMutation.isPending ? "Registering..." : "Register Node"}
+                    {createMutation.isPending ? "Adding..." : "Add Node"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -646,7 +381,7 @@ export default function SettingsMachines() {
         </Dialog>
       </div>
 
-      <SetupInstructions />
+      <QuickStartGuide />
 
       {machines && machines.length > 0 ? (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
@@ -655,7 +390,6 @@ export default function SettingsMachines() {
               key={machine.id}
               machine={machine}
               onDelete={(id) => deleteMutation.mutate(id)}
-              onCopyCode={handleCopyCode}
             />
           ))}
         </div>
@@ -663,9 +397,9 @@ export default function SettingsMachines() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Monitor className="h-12 w-12 text-muted-foreground mb-3" />
-            <h3 className="text-sm font-semibold mb-1">No nodes registered</h3>
+            <h3 className="text-sm font-semibold mb-1">No nodes tracked yet</h3>
             <p className="text-xs text-muted-foreground text-center max-w-xs">
-              Register your first node to connect a computer to the OpenClaw network.
+              Connect a node using the steps above, then add it here to keep track.
             </p>
           </CardContent>
         </Card>
