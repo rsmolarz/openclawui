@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -17,6 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertMachineSchema } from "@shared/schema";
 import type { Machine, InsertMachine } from "@shared/schema";
+import { useInstance } from "@/hooks/use-instance";
 import { z } from "zod";
 
 const nodeFormSchema = insertMachineSchema.extend({
@@ -232,9 +234,42 @@ function QuickStartGuide() {
 export default function SettingsMachines() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { selectedInstanceId } = useInstance();
 
   const { data: machines, isLoading } = useQuery<Machine[]>({
     queryKey: ["/api/machines"],
+  });
+
+  const { data: probeResult } = useQuery<{ reachable: boolean; error?: string; serverUrl?: string }>({
+    queryKey: ["/api/gateway/probe", selectedInstanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/gateway/probe?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) return { reachable: false, error: "Request failed" };
+      return resp.json();
+    },
+    enabled: !!selectedInstanceId,
+    refetchInterval: 30000,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await apiRequest("POST", `/api/gateway/sync?instanceId=${selectedInstanceId || ""}`, {});
+      return resp.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
+      toast({
+        title: "Synced from gateway",
+        description: `Found ${data.total} node(s): ${data.created} added, ${data.updated} updated.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Sync failed",
+        description: error?.message || "Could not reach the gateway. Check your server URL and gateway token.",
+        variant: "destructive",
+      });
+    },
   });
 
   const form = useForm<InsertMachine>({
@@ -335,7 +370,36 @@ export default function SettingsMachines() {
             Track computers connected to your OpenClaw network.
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending || !probeResult?.reachable}
+                data-testid="button-sync-gateway"
+              >
+                {syncMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Sync from Gateway
+                {probeResult?.reachable && (
+                  <CheckCircle2 className="h-3.5 w-3.5 ml-1.5 text-green-500" />
+                )}
+                {probeResult && !probeResult.reachable && (
+                  <AlertCircle className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {probeResult?.reachable
+                ? `Connected to gateway at ${probeResult.serverUrl}`
+                : probeResult?.error || "Gateway not reachable. Configure Server URL and Gateway Token in settings."}
+            </TooltipContent>
+          </Tooltip>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-node">
               <Plus className="h-4 w-4 mr-2" />
@@ -421,6 +485,7 @@ export default function SettingsMachines() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <QuickStartGuide />

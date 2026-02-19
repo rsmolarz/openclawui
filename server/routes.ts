@@ -395,6 +395,143 @@ export async function registerRoutes(
     }
   });
 
+  // Gateway proxy: test if gateway is reachable
+  app.get("/api/gateway/probe", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const instance = await storage.getInstance(instanceId);
+      if (!instance?.serverUrl) return res.json({ reachable: false, error: "No server URL configured for this instance" });
+      const config = await storage.getOpenclawConfig(instanceId);
+      const token = config?.gatewayToken;
+      const url = new URL("/api/health", instance.serverUrl);
+      if (token) url.searchParams.set("token", token);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const resp = await fetch(url.toString(), { signal: controller.signal });
+        clearTimeout(timeout);
+        return res.json({ reachable: resp.ok, status: resp.status, serverUrl: instance.serverUrl });
+      } catch (fetchErr: any) {
+        clearTimeout(timeout);
+        return res.json({ reachable: false, error: fetchErr.message || "Connection failed" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to probe gateway" });
+    }
+  });
+
+  // Gateway proxy: sync nodes from native dashboard
+  app.post("/api/gateway/sync", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const instance = await storage.getInstance(instanceId);
+      if (!instance?.serverUrl) return res.status(400).json({ error: "No server URL configured. Set it in Instance settings." });
+      const config = await storage.getOpenclawConfig(instanceId);
+      const token = config?.gatewayToken;
+      if (!token) return res.status(400).json({ error: "No gateway token configured. Set it in OpenClaw Config." });
+
+      // Try known gateway API endpoints for fetching sessions/nodes
+      const endpoints = ["/api/sessions", "/api/nodes", "/api/v1/sessions", "/api/v1/nodes"];
+      let gatewayNodes: any[] = [];
+      let successEndpoint = "";
+
+      for (const ep of endpoints) {
+        try {
+          const url = new URL(ep, instance.serverUrl);
+          url.searchParams.set("token", token);
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          const resp = await fetch(url.toString(), { signal: controller.signal });
+          clearTimeout(timeout);
+          if (resp.ok) {
+            const data = await resp.json();
+            // Handle both array and object { sessions: [...] } or { nodes: [...] } responses
+            if (Array.isArray(data)) {
+              gatewayNodes = data;
+            } else if (data.sessions) {
+              gatewayNodes = Array.isArray(data.sessions) ? data.sessions : [];
+            } else if (data.nodes) {
+              gatewayNodes = Array.isArray(data.nodes) ? data.nodes : [];
+            } else if (data.peers) {
+              gatewayNodes = Array.isArray(data.peers) ? data.peers : [];
+            } else if (data.data && Array.isArray(data.data)) {
+              gatewayNodes = data.data;
+            }
+            successEndpoint = ep;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (!successEndpoint) {
+        return res.status(502).json({
+          error: "Could not fetch nodes from gateway. The gateway may not expose a compatible API, or the token may be incorrect.",
+          tried: endpoints,
+        });
+      }
+
+      // Sync gateway nodes into our machines table
+      const existingMachines = await storage.getMachines();
+      let created = 0;
+      let updated = 0;
+
+      for (const gNode of gatewayNodes) {
+        const nodeName = gNode.name || gNode.displayName || gNode.hostname || gNode.id || "Unknown Node";
+        const nodeId = gNode.id || gNode.nodeId || gNode.peer_id || "";
+        const status = (gNode.connected || gNode.status === "connected" || gNode.online) ? "connected" : "disconnected";
+        const hostname = gNode.hostname || gNode.host || "";
+        const ipAddress = gNode.ip || gNode.ipAddress || gNode.address || "";
+        const os = gNode.os || gNode.platform || "";
+        const capabilities = Array.isArray(gNode.capabilities) ? gNode.capabilities.join(", ") : (gNode.capabilities || "");
+
+        // Match by hostname or name
+        const existing = existingMachines.find(
+          (m) => (m.hostname && m.hostname === hostname) || (m.name && m.name === nodeName) || (m.displayName && m.displayName === nodeName)
+        );
+
+        if (existing) {
+          await storage.updateMachine(existing.id, {
+            status,
+            ...(hostname && { hostname }),
+            ...(ipAddress && { ipAddress }),
+            ...(os && { os }),
+            ...(capabilities && { location: capabilities }),
+          });
+          updated++;
+        } else {
+          await storage.createMachine({
+            name: nodeName,
+            displayName: nodeName,
+            hostname,
+            ipAddress,
+            os,
+            status,
+            location: capabilities || undefined,
+          });
+          created++;
+        }
+      }
+
+      res.json({
+        success: true,
+        endpoint: successEndpoint,
+        total: gatewayNodes.length,
+        created,
+        updated,
+        nodes: gatewayNodes.map((n: any) => ({
+          name: n.name || n.displayName || n.hostname || n.id,
+          status: (n.connected || n.status === "connected" || n.online) ? "connected" : "disconnected",
+        })),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to sync from gateway: " + (error.message || "Unknown error") });
+    }
+  });
+
   app.get("/api/api-keys", requireAuth, async (_req, res) => {
     try {
       const keys = await storage.getApiKeys();

@@ -117,6 +117,10 @@ shared/
 - `GET /api/nodes/pending` - Get pending node approvals
 - `POST /api/nodes/approve` - Approve a pending node
 
+### Gateway Sync (protected, instance-scoped)
+- `GET /api/gateway/probe` - Test if gateway is reachable via instance serverUrl (polls every 30s)
+- `POST /api/gateway/sync` - Fetch nodes from native gateway API and sync into machines table (auto-discovers API endpoints)
+
 ### Skills Management (protected)
 - `GET /api/skills` - List installed skills
 - `GET /api/skills/catalog` - Browse available skills catalog (marks installed ones)
