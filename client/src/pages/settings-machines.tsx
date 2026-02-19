@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -32,12 +33,20 @@ function getStatusVariant(status: string): "default" | "secondary" | "destructiv
   }
 }
 
+const STATUS_OPTIONS = [
+  { value: "connected", label: "Connected", icon: Wifi },
+  { value: "pending", label: "Pending", icon: Clock },
+  { value: "disconnected", label: "Disconnected", icon: WifiOff },
+] as const;
+
 function NodeCard({
   machine,
   onDelete,
+  onStatusChange,
 }: {
   machine: Machine;
   onDelete: (id: string) => void;
+  onStatusChange: (id: string, status: string) => void;
 }) {
   return (
     <Card data-testid={`card-node-${machine.id}`}>
@@ -57,14 +66,34 @@ function NodeCard({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Badge
-              variant={getStatusVariant(machine.status)}
-              data-testid={`badge-node-status-${machine.id}`}
-            >
-              {machine.status === "connected" && <Wifi className="h-3 w-3 mr-1" />}
-              {machine.status === "disconnected" && <WifiOff className="h-3 w-3 mr-1" />}
-              {machine.status}
-            </Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="inline-flex items-center gap-1 cursor-pointer" data-testid={`button-status-${machine.id}`}>
+                  <Badge
+                    variant={getStatusVariant(machine.status)}
+                    data-testid={`badge-node-status-${machine.id}`}
+                  >
+                    {machine.status === "connected" && <Wifi className="h-3 w-3 mr-1" />}
+                    {machine.status === "pending" && <Clock className="h-3 w-3 mr-1" />}
+                    {machine.status === "disconnected" && <WifiOff className="h-3 w-3 mr-1" />}
+                    {machine.status}
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </Badge>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {STATUS_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => onStatusChange(machine.id, opt.value)}
+                    data-testid={`menu-status-${opt.value}-${machine.id}`}
+                  >
+                    <opt.icon className="h-4 w-4 mr-2" />
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               size="icon"
               variant="ghost"
@@ -244,6 +273,19 @@ export default function SettingsMachines() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      await apiRequest("PATCH", `/api/machines/${id}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
+      toast({ title: "Status updated", description: "Node status has been updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/machines/${id}`);
@@ -390,6 +432,7 @@ export default function SettingsMachines() {
               key={machine.id}
               machine={machine}
               onDelete={(id) => deleteMutation.mutate(id)}
+              onStatusChange={(id, status) => updateMutation.mutate({ id, status })}
             />
           ))}
         </div>
