@@ -165,7 +165,7 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
   const linuxInstall = "sudo npm install -g openclaw";
   const rhelInstall = "sudo npm install -g openclaw";
   const macInstall = "npm install -g openclaw";
-  const winInstall = "npm install -g openclaw";
+  const winInstall = "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force; npm install -g openclaw";
 
   return (
     <div className="space-y-3" data-testid={`text-pending-instructions-${machine.id}`}>

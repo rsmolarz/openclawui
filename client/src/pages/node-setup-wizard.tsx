@@ -77,6 +77,7 @@ const SETUP_STEPS: SetupStep[] = [
         "openclaw --version",
       ],
       windows: [
+        "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
         "npm install -g openclaw",
         "openclaw --version",
       ],
