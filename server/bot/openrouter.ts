@@ -62,7 +62,9 @@ export async function chat(userMessage: string, senderName?: string): Promise<st
     return "OpenClaw is not configured yet. The admin needs to set up an OpenRouter API key.";
   }
 
-  const config = await storage.getOpenclawConfig();
+  const instances = await storage.getInstances();
+  const firstInstance = instances[0];
+  const config = firstInstance ? await storage.getOpenclawConfig(String(firstInstance.id)) : undefined;
   const primaryModel = config?.defaultLlm || "deepseek/deepseek-chat";
   const fallbackModel = config?.fallbackLlm || "openrouter/auto";
 
