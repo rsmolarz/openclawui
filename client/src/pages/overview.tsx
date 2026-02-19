@@ -23,25 +23,25 @@ const ONBOARDING_STEPS = [
   {
     key: "create_instance",
     label: "Create an Instance",
-    description: "Set up your first OpenClaw instance to manage.",
+    description: "Register your OpenClaw gateway server so this dashboard can manage it.",
     href: "/settings/instances",
+  },
+  {
+    key: "setup_node",
+    label: "Install OpenClaw",
+    description: "Follow the setup wizard to install the CLI, configure gateway mode, and start the service.",
+    href: "/node-setup",
   },
   {
     key: "configure_vps",
     label: "Connect Your VPS",
-    description: "Add your server's SSH details so OpenClaw can manage it.",
+    description: "Add your server's SSH details for remote management.",
     href: "/settings/vps",
-  },
-  {
-    key: "setup_node",
-    label: "Install a Node",
-    description: "Use the setup wizard to install an agent on your server.",
-    href: "/node-setup",
   },
   {
     key: "configure_openclaw",
     label: "Configure OpenClaw",
-    description: "Set your gateway, LLM provider, and other settings.",
+    description: "Set your gateway token, LLM provider, and other settings.",
     href: "/settings/openclaw",
   },
   {

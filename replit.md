@@ -5,7 +5,17 @@ A professional settings management dashboard for the OpenClaw AI agent gateway p
 
 ### UX Enhancement Features (Feb 2026)
 - **Documentation Hub** (`/docs`): Full CRUD for setup guides, troubleshooting, references with markdown content, categories, tags, pinning, search/filter
-- **Node Setup Wizard** (`/node-setup`): 5-step guided node installation (not full gateway). Uses `--no-onboard` flag to install CLI only (`curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard`). Nodes connect to existing gateway via `openclaw node run --host <gateway-ip> --port 18789`. Requires gateway token (`OPENCLAW_GATEWAY_TOKEN`). Approval via `openclaw nodes approve` or dashboard. Windows users should use WSL2.
+- **Node Setup Wizard** (`/node-setup`): 5-step guided setup covering full gateway lifecycle:
+  1. Install CLI with `--no-onboard` flag
+  2. Configure gateway mode (`openclaw config set gateway.mode local`)
+  3. Install & start gateway service (`openclaw gateway install` + `restart` + `probe`)
+  4. Get auto-generated gateway token from `~/.openclaw/openclaw.json`
+  5. Optionally connect additional nodes and approve them
+  - Windows users MUST use WSL2 — PowerShell `curl` doesn't support Linux flags like `-fsSL`
+  - Gateway token is auto-generated during `gateway install`, 48-char hex string
+  - Native dashboard accessed at `http://localhost:18789/?token=YOUR_TOKEN`
+  - Remote access via SSH tunnel: `ssh -N -L 18789:127.0.0.1:18789 user@server`
+- **Native Dashboard Integration**: OpenClaw Config page shows "Open Dashboard" button when instance has a server URL. Builds authenticated URL with gateway token for one-click access.
 - **VPS Connection Logs**: Connection test history with status tracking, quick SSH command builder with one-click copy
 - **Quick Start Onboarding**: 5-step checklist on Overview page with progress bar, per-user/instance persistence, dismissible
 

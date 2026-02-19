@@ -9,10 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
-import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession } from "@shared/schema";
+import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
 
 const OPENROUTER_MODELS = [
   { group: "Routing", models: [
@@ -272,6 +272,12 @@ export default function SettingsOpenclaw() {
   const { toast } = useToast();
   const { selectedInstanceId } = useInstance();
 
+  const { data: instances } = useQuery<OpenclawInstance[]>({
+    queryKey: ["/api/instances"],
+  });
+
+  const currentInstance = instances?.find((i) => i.id === selectedInstanceId);
+
   const { data: config, isLoading: configLoading } = useQuery<OpenclawConfig | null>({
     queryKey: ["/api/openclaw/config", selectedInstanceId],
     queryFn: async () => {
@@ -387,12 +393,14 @@ export default function SettingsOpenclaw() {
     gatewayPort: 18789,
     gatewayBind: "127.0.0.1",
     gatewayMode: "local",
+    gatewayToken: "",
     defaultLlm: "deepseek/deepseek-chat",
     fallbackLlm: "openrouter/auto",
     whatsappEnabled: false,
     whatsappPhone: "",
     tailscaleEnabled: false,
   });
+  const [showToken, setShowToken] = useState(false);
 
   const [newKey, setNewKey] = useState({ provider: "OpenRouter", label: "", apiKey: "", baseUrl: "" });
   const [showAddKey, setShowAddKey] = useState(false);
@@ -404,6 +412,7 @@ export default function SettingsOpenclaw() {
         gatewayPort: config.gatewayPort,
         gatewayBind: config.gatewayBind,
         gatewayMode: config.gatewayMode,
+        gatewayToken: config.gatewayToken ?? "",
         defaultLlm: config.defaultLlm,
         fallbackLlm: config.fallbackLlm,
         whatsappEnabled: config.whatsappEnabled,
@@ -415,7 +424,8 @@ export default function SettingsOpenclaw() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formValues) => {
-      await apiRequest("POST", `/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, data);
+      const payload = { ...data, gatewayToken: data.gatewayToken || null };
+      await apiRequest("POST", `/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config", selectedInstanceId] });
@@ -578,6 +588,96 @@ export default function SettingsOpenclaw() {
         </Card>
       </div>
 
+      {currentInstance?.serverUrl && (
+        <Card data-testid="card-native-dashboard">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ExternalLink className="h-4 w-4" />
+                Native OpenClaw Dashboard
+              </CardTitle>
+              <CardDescription>
+                Access the built-in OpenClaw dashboard running on your gateway server.
+              </CardDescription>
+            </div>
+            <Button
+              variant="default"
+              onClick={() => {
+                try {
+                  const url = new URL(currentInstance.serverUrl!);
+                  if (config?.gatewayToken) {
+                    url.searchParams.set("token", config.gatewayToken);
+                  }
+                  window.open(url.toString(), "_blank");
+                } catch {
+                  window.open(currentInstance.serverUrl!, "_blank");
+                }
+              }}
+              data-testid="button-open-native-dashboard"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open Dashboard
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-muted-foreground min-w-24">Server URL:</span>
+                <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate" data-testid="text-server-url">
+                  {currentInstance.serverUrl}
+                </code>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    navigator.clipboard.writeText(currentInstance.serverUrl!);
+                    toast({ title: "Copied", description: "Server URL copied to clipboard." });
+                  }}
+                  data-testid="button-copy-server-url"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+              {config?.gatewayToken && (
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-muted-foreground min-w-24">Dashboard URL:</span>
+                  <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate" data-testid="text-dashboard-url">
+                    {(() => {
+                      try {
+                        const u = new URL(currentInstance.serverUrl!);
+                        return `${u.origin}${u.pathname}?token=****${config.gatewayToken.slice(-8)}`;
+                      } catch { return `${currentInstance.serverUrl}?token=****${config.gatewayToken.slice(-8)}`; }
+                    })()}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      try {
+                        const u = new URL(currentInstance.serverUrl!);
+                        u.searchParams.set("token", config.gatewayToken!);
+                        navigator.clipboard.writeText(u.toString());
+                      } catch {
+                        navigator.clipboard.writeText(`${currentInstance.serverUrl}?token=${config.gatewayToken}`);
+                      }
+                      toast({ title: "Copied", description: "Full dashboard URL with token copied." });
+                    }}
+                    data-testid="button-copy-dashboard-url"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+              {!config?.gatewayToken && (
+                <p className="text-xs text-muted-foreground">
+                  Add your gateway token below to enable one-click authenticated access.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -620,6 +720,46 @@ export default function SettingsOpenclaw() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="gateway_token">Gateway Token</Label>
+            <div className="flex gap-2">
+              <Input
+                id="gateway_token"
+                type={showToken ? "text" : "password"}
+                value={formValues.gatewayToken}
+                onChange={(e) => setFormValues((p) => ({ ...p, gatewayToken: e.target.value }))}
+                placeholder="Paste your gateway token from ~/.openclaw/openclaw.json"
+                data-testid="input-gateway-token"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                type="button"
+                onClick={() => setShowToken(!showToken)}
+                data-testid="button-toggle-token-visibility"
+              >
+                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+              {formValues.gatewayToken && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(formValues.gatewayToken);
+                    toast({ title: "Copied", description: "Gateway token copied." });
+                  }}
+                  data-testid="button-copy-gateway-token"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Found in ~/.openclaw/openclaw.json under gateway.auth.token. Used to access the native dashboard and authenticate nodes.
+            </p>
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2">
