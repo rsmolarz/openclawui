@@ -162,10 +162,10 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
   const [showInstall, setShowInstall] = useState(false);
   const os = (machine.os || "").toLowerCase();
 
-  const linuxInstall = "curl -fsSL https://get.openclaw.ai | sudo bash";
-  const rhelInstall = "curl -fsSL https://get.openclaw.ai | sudo bash";
-  const macInstall = "brew install openclaw/tap/openclaw-agent";
-  const winInstall = "iwr -useb https://get.openclaw.ai/install.ps1 | iex";
+  const linuxInstall = "sudo npm install -g openclaw";
+  const rhelInstall = "sudo npm install -g openclaw";
+  const macInstall = "npm install -g openclaw";
+  const winInstall = "npm install -g openclaw";
 
   return (
     <div className="space-y-3" data-testid={`text-pending-instructions-${machine.id}`}>
