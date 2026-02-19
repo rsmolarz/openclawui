@@ -162,12 +162,12 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
   const [showInstall, setShowInstall] = useState(false);
   const os = (machine.os || "").toLowerCase();
 
-  const linuxInstall = "curl -fsSL https://openclaw.ai/install.sh | bash";
-  const rhelInstall = "curl -fsSL https://openclaw.ai/install.sh | bash";
-  const macInstall = "curl -fsSL https://openclaw.ai/install.sh | bash";
-  const winInstall = "iwr -useb https://openclaw.ai/install.ps1 | iex";
+  const linuxInstall = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
+  const macInstall = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
+  const winInstall = "wsl --install  # then inside Ubuntu: curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
 
-  const onboardCmd = "openclaw onboard --install-daemon";
+  const nodeRunCmd = `openclaw node run --host <gateway-ip> --port 18789 --display-name "${machine.displayName || machine.name || "My Node"}"`;
+  const nodeInstallCmd = `openclaw node install --host <gateway-ip> --port 18789 --display-name "${machine.displayName || machine.name || "My Node"}"`;
 
   return (
     <div className="space-y-3" data-testid={`text-pending-instructions-${machine.id}`}>
@@ -178,7 +178,7 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">1</span>
           <div className="space-y-1.5 flex-1 min-w-0">
             <p className="text-xs text-muted-foreground">
-              <strong>Install the OpenClaw agent</strong> on <strong>{machine.displayName || machine.name}</strong>
+              <strong>Install the OpenClaw CLI</strong> on <strong>{machine.displayName || machine.name}</strong> (no gateway setup needed)
             </p>
             <Button
               variant="outline"
@@ -199,15 +199,13 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
                   <InstallCommand label="macOS" command={macInstall} onCopy={onCopyText} />
                 )}
                 {(!os || os === "windows") && (
-                  <InstallCommand label="Windows (PowerShell)" command={winInstall} onCopy={onCopyText} />
+                  <InstallCommand label="Windows (via WSL2)" command={winInstall} onCopy={onCopyText} />
                 )}
-                {(!os || os === "windows") && (
-                  <div className="rounded-md bg-muted/30 p-2">
-                    <p className="text-xs text-muted-foreground">
-                      For best results on Windows, use <strong>WSL2</strong>: run <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">wsl --install</code> first, then use the Linux command inside Ubuntu.
-                    </p>
-                  </div>
-                )}
+                <div className="rounded-md bg-muted/30 p-2">
+                  <p className="text-xs text-muted-foreground">
+                    Use <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">--no-onboard</code> to skip the full gateway setup. Nodes only need the CLI installed — they connect to your existing gateway.
+                  </p>
+                </div>
                 <div className="flex items-center gap-1 pt-1">
                   <Link href="/node-setup" className="text-xs text-primary underline-offset-4 hover:underline inline-flex items-center gap-1" data-testid={`link-node-setup-${machine.id}`}>
                     Full step-by-step guide
@@ -223,12 +221,23 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">2</span>
           <div className="space-y-1.5 flex-1 min-w-0">
             <p className="text-xs text-muted-foreground">
-              <strong>Run the onboarding wizard</strong> on the node's terminal
+              <strong>Connect the node</strong> to your primary gateway (replace <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">&lt;gateway-ip&gt;</code> with your gateway's IP)
+            </p>
+            <div className="rounded-md bg-muted/50 p-2 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <code className="text-xs font-mono break-all" data-testid={`text-node-run-cmd-${machine.id}`}>{nodeRunCmd}</code>
+                <Button size="icon" variant="ghost" onClick={() => onCopyText(nodeRunCmd)} className="shrink-0" data-testid={`button-copy-node-run-${machine.id}`}>
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Or install as a background service:
             </p>
             <div className="rounded-md bg-muted/50 p-2">
               <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid={`text-onboard-cmd-${machine.id}`}>{onboardCmd}</code>
-                <Button size="icon" variant="ghost" onClick={() => onCopyText(onboardCmd)} className="shrink-0" data-testid={`button-copy-onboard-${machine.id}`}>
+                <code className="text-xs font-mono break-all" data-testid={`text-node-install-cmd-${machine.id}`}>{nodeInstallCmd}</code>
+                <Button size="icon" variant="ghost" onClick={() => onCopyText(nodeInstallCmd)} className="shrink-0" data-testid={`button-copy-node-install-${machine.id}`}>
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
@@ -239,7 +248,7 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
         <div className="flex items-start gap-2">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold mt-0.5">3</span>
           <p className="text-xs text-muted-foreground">
-            Once setup is complete, come back here and click <strong>Approve</strong> — the status will change to <strong>connected</strong>
+            Once the node connects, click <strong>Approve</strong> on this page — the status will change to <strong>paired</strong>
           </p>
         </div>
       </div>
@@ -247,7 +256,7 @@ function PendingNodeSteps({ machine, onCopyText }: { machine: Machine; onCopyTex
       <div className="flex items-start gap-2 rounded-md bg-muted/30 p-2">
         <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
         <p className="text-xs text-muted-foreground">
-          Make sure the node's computer is powered on and connected to the internet. If using Tailscale, ensure it's running on both this gateway and the node.
+          You may need to set <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">OPENCLAW_GATEWAY_TOKEN</code> on the node machine first. Find the token in your primary gateway's config at <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">~/.openclaw/openclaw.json</code>.
         </p>
       </div>
     </div>
@@ -339,16 +348,16 @@ function SetupInstructions() {
             <div className="rounded-md border p-4 space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
-                Pair Using the Command Line
+                Connect the Node to Your Gateway
               </h4>
               <p className="text-sm text-muted-foreground pl-8">
-                After registering, a <strong>6-character pairing code</strong> will appear on the node card below. To complete the connection:
+                On the node machine, install the CLI and connect it to your primary gateway:
               </p>
               <ol className="text-sm text-muted-foreground pl-12 list-decimal space-y-1">
-                <li>On the target computer, run the install script to set up OpenClaw</li>
-                <li>Run: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">openclaw onboard --install-daemon</code> to complete setup</li>
-                <li>Come back to this dashboard and click <strong>Approve</strong> on the pending node</li>
-                <li>The node status will change from <strong>"pending"</strong> to <strong>"connected"</strong></li>
+                <li>Install the CLI: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard</code></li>
+                <li>Set the gateway token: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">export OPENCLAW_GATEWAY_TOKEN="&lt;your-token&gt;"</code></li>
+                <li>Start the node: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">openclaw node run --host &lt;gateway-ip&gt; --port 18789 --display-name "My Node"</code></li>
+                <li>Come back here and click <strong>Approve</strong> — the status will change to <strong>"paired"</strong></li>
               </ol>
             </div>
 

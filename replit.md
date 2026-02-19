@@ -5,7 +5,7 @@ A professional settings management dashboard for the OpenClaw AI agent gateway p
 
 ### UX Enhancement Features (Feb 2026)
 - **Documentation Hub** (`/docs`): Full CRUD for setup guides, troubleshooting, references with markdown content, categories, tags, pinning, search/filter
-- **Node Setup Wizard** (`/node-setup`): 5-step guided installation with OS-specific commands (Linux/RHEL/macOS/Windows via WSL2), copy buttons, session persistence. Uses official OpenClaw installer script (`curl -fsSL https://openclaw.ai/install.sh | bash` or `iwr -useb https://openclaw.ai/install.ps1 | iex`), requires Node.js 22+, `openclaw onboard --install-daemon`, `openclaw gateway`. Windows users should use WSL2 for best results.
+- **Node Setup Wizard** (`/node-setup`): 5-step guided node installation (not full gateway). Uses `--no-onboard` flag to install CLI only (`curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard`). Nodes connect to existing gateway via `openclaw node run --host <gateway-ip> --port 18789`. Requires gateway token (`OPENCLAW_GATEWAY_TOKEN`). Approval via `openclaw nodes approve` or dashboard. Windows users should use WSL2.
 - **VPS Connection Logs**: Connection test history with status tracking, quick SSH command builder with one-click copy
 - **Quick Start Onboarding**: 5-step checklist on Overview page with progress bar, per-user/instance persistence, dismissible
 
