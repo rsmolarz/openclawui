@@ -42,6 +42,7 @@ export const openclawInstances = pgTable("openclaw_instances", {
   name: text("name").notNull(),
   description: text("description"),
   serverUrl: text("server_url"),
+  apiKey: text("api_key"),
   status: text("status").notNull().default("offline"),
   isDefault: boolean("is_default").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -79,15 +79,35 @@ function verifySignedState(state: string): boolean {
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: "Not authenticated" });
+  if (req.session.userId) {
+    return next();
   }
-  next();
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      storage.getInstanceByApiKey(token).then(instance => {
+        if (instance) {
+          (req as any).apiTokenInstanceId = instance.id;
+          return next();
+        }
+        return res.status(401).json({ error: "Invalid API token" });
+      }).catch(() => {
+        return res.status(401).json({ error: "Authentication failed" });
+      });
+      return;
+    }
+  }
+
+  return res.status(401).json({ error: "Not authenticated. Provide a session cookie or Bearer token (instance API key) in the Authorization header." });
 }
 
 async function resolveInstanceId(req: Request): Promise<string | null> {
   const instanceId = (req.query.instanceId as string) || (req.body?.instanceId as string);
   if (instanceId) return instanceId;
+  const tokenInstanceId = (req as any).apiTokenInstanceId;
+  if (tokenInstanceId) return tokenInstanceId;
   const defaultInstance = await storage.getDefaultInstance();
   return defaultInstance?.id ?? null;
 }
@@ -253,7 +273,8 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const instance = await storage.createInstance(parsed.data);
+      const dataWithKey = { ...parsed.data, apiKey: randomBytes(32).toString("hex") };
+      const instance = await storage.createInstance(dataWithKey);
       res.status(201).json(instance);
     } catch (error) {
       res.status(500).json({ error: "Failed to create instance" });
@@ -262,12 +283,23 @@ export async function registerRoutes(
 
   app.patch("/api/instances/:id", requireAuth, async (req, res) => {
     try {
-      const updateSchema = insertInstanceSchema.partial();
-      const parsed = updateSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.message });
+      const { regenerateApiKey, ...rest } = req.body;
+      const updateData: any = {};
+
+      if (Object.keys(rest).length > 0) {
+        const updateSchema = insertInstanceSchema.partial();
+        const parsed = updateSchema.safeParse(rest);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error.message });
+        }
+        Object.assign(updateData, parsed.data);
       }
-      const updated = await storage.updateInstance(req.params.id as string, parsed.data);
+
+      if (regenerateApiKey) {
+        updateData.apiKey = randomBytes(32).toString("hex");
+      }
+
+      const updated = await storage.updateInstance(req.params.id as string, updateData);
       if (!updated) {
         return res.status(404).json({ error: "Instance not found" });
       }

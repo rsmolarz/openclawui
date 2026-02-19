@@ -43,6 +43,7 @@ export interface IStorage {
   getInstances(): Promise<OpenclawInstance[]>;
   getInstance(id: string): Promise<OpenclawInstance | undefined>;
   getDefaultInstance(): Promise<OpenclawInstance | undefined>;
+  getInstanceByApiKey(apiKey: string): Promise<OpenclawInstance | undefined>;
   createInstance(data: InsertInstance): Promise<OpenclawInstance>;
   updateInstance(id: string, data: Partial<InsertInstance>): Promise<OpenclawInstance | undefined>;
   deleteInstance(id: string): Promise<void>;
@@ -208,6 +209,11 @@ export class DatabaseStorage implements IStorage {
 
   async getDefaultInstance(): Promise<OpenclawInstance | undefined> {
     const [instance] = await db.select().from(openclawInstances).where(eq(openclawInstances.isDefault, true));
+    return instance;
+  }
+
+  async getInstanceByApiKey(apiKey: string): Promise<OpenclawInstance | undefined> {
+    const [instance] = await db.select().from(openclawInstances).where(eq(openclawInstances.apiKey, apiKey));
     return instance;
   }
 

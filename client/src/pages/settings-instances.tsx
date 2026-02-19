@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Server, Star } from "lucide-react";
+import { Plus, Pencil, Trash2, Server, Star, Key, Copy, RefreshCw, Eye, EyeOff } from "lucide-react";
 import type { OpenclawInstance } from "@shared/schema";
 
 export default function SettingsInstances() {
@@ -34,6 +34,7 @@ export default function SettingsInstances() {
   const [formDescription, setFormDescription] = useState("");
   const [formServerUrl, setFormServerUrl] = useState("");
   const [formStatus, setFormStatus] = useState("offline");
+  const [visibleKeyId, setVisibleKeyId] = useState<string | null>(null);
 
   const { data: instances = [], isLoading } = useQuery<OpenclawInstance[]>({
     queryKey: ["/api/instances"],
@@ -66,6 +67,20 @@ export default function SettingsInstances() {
     },
     onError: () => {
       toast({ title: "Failed to update instance", variant: "destructive" });
+    },
+  });
+
+  const regenerateKeyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("PATCH", `/api/instances/${id}`, { regenerateApiKey: true });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/instances"] });
+      toast({ title: "API key regenerated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to regenerate API key", variant: "destructive" });
     },
   });
 
@@ -209,6 +224,64 @@ export default function SettingsInstances() {
                   </Button>
                 </div>
               </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Key className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground flex-shrink-0">API Key:</span>
+                  {inst.apiKey ? (
+                    <>
+                      <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded select-all" data-testid={`text-api-key-${inst.id}`}>
+                        {visibleKeyId === inst.id ? inst.apiKey : `${inst.apiKey.slice(0, 8)}${"•".repeat(24)}`}
+                      </code>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setVisibleKeyId(visibleKeyId === inst.id ? null : inst.id)}
+                        data-testid={`button-toggle-key-${inst.id}`}
+                      >
+                        {visibleKeyId === inst.id ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          navigator.clipboard.writeText(inst.apiKey!);
+                          toast({ title: "API key copied to clipboard" });
+                        }}
+                        data-testid={`button-copy-key-${inst.id}`}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => regenerateKeyMutation.mutate(inst.id)}
+                        disabled={regenerateKeyMutation.isPending}
+                        data-testid={`button-regenerate-key-${inst.id}`}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">Not set</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => regenerateKeyMutation.mutate(inst.id)}
+                        disabled={regenerateKeyMutation.isPending}
+                        data-testid={`button-generate-key-${inst.id}`}
+                      >
+                        Generate Key
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Use this API key in your OpenClaw server's config to connect it to this dashboard.
+                  Set it as the <code className="bg-muted px-1 rounded">Authorization: Bearer &lt;key&gt;</code> header.
+                </p>
+              </CardContent>
             </Card>
           ))}
         </div>
