@@ -22,6 +22,7 @@ const openclawConfigUpdateSchema = z.object({
   gatewayBind: z.string().optional(),
   gatewayMode: z.string().optional(),
   gatewayToken: z.string().nullable().optional(),
+  gatewayPassword: z.string().nullable().optional(),
   defaultLlm: z.string().optional(),
   fallbackLlm: z.string().optional(),
   llmApiKey: z.string().nullable().optional(),
