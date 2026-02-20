@@ -237,7 +237,7 @@ export async function registerRoutes(
     });
   });
 
-  app.get("/whatsapp-pair", async (_req, res) => {
+  app.get("/api/whatsapp-pair", async (_req, res) => {
     res.setHeader("Content-Type", "text/html");
     res.send(`<!DOCTYPE html>
 <html><head><title>WhatsApp Pairing</title>
