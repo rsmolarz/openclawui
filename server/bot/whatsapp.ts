@@ -46,6 +46,17 @@ class WhatsAppBot extends EventEmitter {
     }
   }
 
+  private clearAuthState(): void {
+    try {
+      if (fs.existsSync(AUTH_DIR)) {
+        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+        console.log("[WhatsApp] Auth state cleared");
+      }
+    } catch (err) {
+      console.error("[WhatsApp] Failed to clear auth state:", err);
+    }
+  }
+
   async start(): Promise<void> {
     if (this.isStarting) return;
     this.isStarting = true;
@@ -102,28 +113,42 @@ class WhatsAppBot extends EventEmitter {
 
         if (connection === "close") {
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-          console.log(`[WhatsApp] Connection closed. Status: ${statusCode}. Reconnect: ${shouldReconnect}`);
+          console.log(`[WhatsApp] Connection closed. Status: ${statusCode}. LoggedOut: ${isLoggedOut}`);
 
-          this.status = {
-            state: "disconnected",
-            qrDataUrl: null,
-            phone: null,
-            error: statusCode === DisconnectReason.loggedOut
-              ? "Logged out from WhatsApp. Please re-scan QR code."
-              : `Connection closed (${statusCode})`,
-          };
-          this.emit("status", this.status);
           this.sock = null;
           this.isStarting = false;
 
-          if (shouldReconnect && this.qrCycleCount <= MAX_QR_RETRIES * 6) {
-            this.reconnectTimer = setTimeout(() => this.start(), 5000);
+          if (isLoggedOut) {
+            console.log("[WhatsApp] Logged out — clearing auth state and restarting for fresh QR...");
+            this.clearAuthState();
+            this.status = {
+              state: "disconnected",
+              qrDataUrl: null,
+              phone: null,
+              error: "Logged out from WhatsApp. Generating new QR code...",
+            };
+            this.emit("status", this.status);
+            this.reconnectTimer = setTimeout(() => this.start(), 3000);
           } else if (this.qrCycleCount > MAX_QR_RETRIES * 6) {
             console.log("[WhatsApp] Max QR retries reached. Bot stopped.");
-            this.status.error = "QR code expired after max retries. Use dashboard to restart.";
+            this.status = {
+              state: "disconnected",
+              qrDataUrl: null,
+              phone: null,
+              error: "QR code expired after max retries. Use dashboard to restart.",
+            };
             this.emit("status", this.status);
+          } else {
+            this.status = {
+              state: "disconnected",
+              qrDataUrl: null,
+              phone: null,
+              error: `Connection closed (${statusCode})`,
+            };
+            this.emit("status", this.status);
+            this.reconnectTimer = setTimeout(() => this.start(), 5000);
           }
         } else if (connection === "open") {
           this.qrCycleCount = 0;
