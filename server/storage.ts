@@ -73,6 +73,7 @@ export interface IStorage {
   getUserByMedinvestId(medinvestId: string): Promise<User | undefined>;
   upsertUser(data: InsertUser): Promise<User>;
   getUser(id: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
 
   getWhatsappSessionByPhone(phone: string): Promise<WhatsappSession | undefined>;
   getWhatsappPendingSessions(): Promise<WhatsappSession[]>;
@@ -394,6 +395,10 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
   }
 
   async getWhatsappSessionByPhone(phone: string): Promise<WhatsappSession | undefined> {
