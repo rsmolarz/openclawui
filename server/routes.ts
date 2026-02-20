@@ -237,6 +237,34 @@ export async function registerRoutes(
     });
   });
 
+  app.get("/whatsapp-pair", async (_req, res) => {
+    res.setHeader("Content-Type", "text/html");
+    res.send(`<!DOCTYPE html>
+<html><head><title>WhatsApp Pairing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111;color:#fff}
+.qr{margin:20px;padding:20px;background:#fff;border-radius:16px}
+.qr img{max-width:300px;display:block}
+.status{margin:10px;padding:8px 16px;border-radius:8px;font-size:14px}
+.connected{background:#22c55e;color:#fff}
+.waiting{background:#f59e0b;color:#000}
+.error{background:#ef4444;color:#fff}
+h1{margin-bottom:0}p{color:#999;margin-top:8px}
+button{margin:16px;padding:10px 24px;background:#3b82f6;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:16px}
+button:hover{background:#2563eb}</style></head>
+<body><h1>OpenClaw WhatsApp</h1><p>Scan the QR code with WhatsApp on your phone</p>
+<div id="content"><p>Loading...</p></div>
+<button onclick="restart()">Restart Bot</button>
+<script>
+async function poll(){try{const r=await fetch('/api/whatsapp/qr');const d=await r.json();const el=document.getElementById('content');
+if(d.state==='connected'){el.innerHTML='<div class="status connected">Connected as '+d.phone+'</div>';return}
+if(d.state==='qr_ready'&&d.qrDataUrl){el.innerHTML='<div class="qr"><img src="'+d.qrDataUrl+'" alt="QR"></div><div class="status waiting">Waiting for scan...</div>'}
+else{el.innerHTML='<div class="status waiting">'+d.state+'</div>'}}catch(e){document.getElementById('content').innerHTML='<div class="status error">Error loading</div>'}
+setTimeout(poll,3000)}poll();
+async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'});document.getElementById('content').innerHTML='<p>Restarting...</p>';setTimeout(poll,5000)}catch(e){alert('Failed')}}
+</script></body></html>`);
+  });
+
   app.get("/api/instances", requireAuth, async (_req, res) => {
     try {
       const instances = await storage.getInstances();
@@ -837,7 +865,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/whatsapp/status", requireAuth, async (req, res) => {
+  app.get("/api/whatsapp/status", async (req, res) => {
     try {
       const bot = await getWhatsappBot();
       const status = bot.getStatus();
@@ -849,7 +877,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/whatsapp/qr", requireAuth, async (_req, res) => {
+  app.get("/api/whatsapp/qr", async (_req, res) => {
     try {
       const bot = await getWhatsappBot();
       const status = bot.getStatus();
@@ -863,7 +891,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/whatsapp/start", requireAuth, async (req, res) => {
+  app.post("/api/whatsapp/start", async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
       if (instanceId) {
@@ -894,7 +922,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/whatsapp/restart", requireAuth, async (_req, res) => {
+  app.post("/api/whatsapp/restart", async (_req, res) => {
     try {
       const bot = await getWhatsappBot();
       await bot.restart();

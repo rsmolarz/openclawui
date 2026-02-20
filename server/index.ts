@@ -117,10 +117,10 @@ app.use((req, res, next) => {
       const { whatsappBot } = await import("./bot/whatsapp");
       if (whatsappBot.hasAuthState()) {
         console.log("[OpenClaw] WhatsApp is enabled and has auth state, reconnecting bot...");
-        whatsappBot.start();
       } else {
-        console.log("[OpenClaw] WhatsApp is enabled but not yet paired. Start the bot from the dashboard to scan the QR code.");
+        console.log("[OpenClaw] WhatsApp is enabled, starting bot for QR pairing...");
       }
+      whatsappBot.start();
     }
   } catch (err) {
     console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);

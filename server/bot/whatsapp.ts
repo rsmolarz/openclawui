@@ -237,12 +237,29 @@ class WhatsAppBot extends EventEmitter {
         await this.sendTyping(jid);
 
         const startTime = Date.now();
-        const response = await chat(text, pushName || session.displayName || undefined);
-        const elapsed = Date.now() - startTime;
-        console.log(`[WhatsApp] AI response generated in ${elapsed}ms (${response.length} chars) for ${phone}`);
+        try {
+          const timeoutMs = 90000;
+          const response = await Promise.race([
+            chat(text, pushName || session.displayName || undefined),
+            new Promise<string>((_, reject) =>
+              setTimeout(() => reject(new Error("AI response timed out after 90s")), timeoutMs)
+            ),
+          ]);
+          const elapsed = Date.now() - startTime;
+          console.log(`[WhatsApp] AI response generated in ${elapsed}ms (${response.length} chars) for ${phone}`);
 
-        await this.sendMessage(jid, response);
-        console.log(`[WhatsApp] Reply sent to ${phone}`);
+          if (response && response.trim()) {
+            await this.sendMessage(jid, response);
+            console.log(`[WhatsApp] Reply sent to ${phone}`);
+          } else {
+            console.error(`[WhatsApp] Empty response from AI for ${phone}`);
+            await this.sendMessage(jid, "I couldn't generate a response. Please try again.");
+          }
+        } catch (chatError) {
+          const elapsed = Date.now() - startTime;
+          console.error(`[WhatsApp] AI chat failed after ${elapsed}ms for ${phone}:`, chatError);
+          await this.sendMessage(jid, "Sorry, I'm having trouble right now. Please try again in a moment.");
+        }
       }
     } catch (error) {
       console.error(`[WhatsApp] Error handling message from ${phone}:`, error);
