@@ -451,18 +451,25 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       if (!instance?.serverUrl) return res.json({ reachable: false, error: "No server URL configured for this instance" });
       const config = await storage.getOpenclawConfig(instanceId);
       const token = config?.gatewayToken || instance.apiKey;
-      const url = new URL("/api/health", instance.serverUrl);
-      if (token) url.searchParams.set("token", token);
+
+      const endpoints = ["/api/health", "/"];
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      try {
-        const resp = await fetch(url.toString(), { signal: controller.signal });
-        clearTimeout(timeout);
-        return res.json({ reachable: resp.ok, status: resp.status, serverUrl: instance.serverUrl });
-      } catch (fetchErr: any) {
-        clearTimeout(timeout);
-        return res.json({ reachable: false, error: fetchErr.message || "Connection failed" });
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      for (const endpoint of endpoints) {
+        try {
+          const url = new URL(endpoint, instance.serverUrl);
+          if (token) url.searchParams.set("token", token);
+          const resp = await fetch(url.toString(), { signal: controller.signal });
+          if (resp.ok || resp.status < 500) {
+            clearTimeout(timeout);
+            return res.json({ reachable: true, status: resp.status, serverUrl: instance.serverUrl, endpoint });
+          }
+        } catch {}
       }
+
+      clearTimeout(timeout);
+      return res.json({ reachable: false, error: "Gateway not responding on any endpoint" });
     } catch (error) {
       res.status(500).json({ error: "Failed to probe gateway" });
     }
