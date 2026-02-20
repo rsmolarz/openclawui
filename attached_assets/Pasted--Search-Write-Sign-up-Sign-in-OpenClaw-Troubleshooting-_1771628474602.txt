@@ -1,0 +1,208 @@
+
+Search
+Write
+Sign up
+
+Sign in
+
+
+
+OpenClaw Troubleshooting: Fix no response issue
+DevAIProg
+DevAIProg
+
+Follow
+3 min read
+·
+Feb 9, 2026
+
+
+
+WebChat is active, but the bot returns null/empty responses or the connection terminates with a 1006 abnormal closure. This indicates a Provider Registration Failure, not a network error.
+
+Press enter or click to view image in full size
+
+Diagnostic:
+Before attempting a fix, you must confirm that the workspace is failing to recognize the provider.
+Run the JSON status check:
+
+(Bash)
+openclaw models status --json
+
+Press enter or click to view image in full size
+
+providersWith0Auth
+Critical Failure Indicators:
+-Look for “status”: “missing”
+-Look for “missingProvidersInUse”: [“anthropic”]
+If either of these appear, the Gateway is “blind” to your API and will remain silent until re-initialized.
+
+
+“status”: “missing”
+Non-Interactive Onboarding
+When a provider is listed as “missing”, the internal configuration file is out of sync. Use this command to force-register the provider and bind your API key directly to the workspace.
+
+Get DevAIProg’s stories in your inbox
+Join Medium for free to get updates from this writer.
+
+Enter your email
+Subscribe
+Execute the repair command:
+(Bash). “openclaw onboard --non-interactive --accept-risk --mode local--auth-choice apiKey --anthropic-api-key “YOUR_API_KEY” --gateway-port 18789 --gateway-bind loopback”
+Replace “YOUR_API_KEY” with your live secret key. This command bypasses the standard setup UI to write the configuration directly to ~/.openclaw/openclaw.json.
+
+Permanent API Key Injection
+To ensure your API key survives terminal resets and system reboots, you must add it to your shell’s environment configuration.
+1. Open your shell profile:
+
+(Bash) nano ~/.zshrc (Use ~/.bashrc if you are on a standard Linux distribution instead of macOS/Zsh).
+2. Inject the variable: Scroll to the bottom and add: export ANTHROPIC_API_KEY=sk-ant-your-key-here
+3. Commit the changes: Press Ctrl+O, Enter, then Ctrl+X.
+4. Refresh the environment: (Bash) source ~/.zshrc
+
+Execution: Launch the Gateway
+With the provider registered and the key persistent, initiate the service:
+(Bash) “openclaw gateway run”
+Verification of Success:
+-[gateway] agent model: anthropic/claude-3–5-sonnet (Model is found).
+-[gateway] listening on ws://127.0.0.1:18789 (Connection is live).
+
+Press enter or click to view image in full size
+
+Example of proper output
+One-Time Setup: Enter Once, Never Again
+The “Silent Bot” issue usually happens because users enter their API key during a temporary session rather than hard-coding it into the OpenClaw environment.
+By following Step 2 (Onboarding) and Step 3 (Shell Export) together, you achieve a “Set and Forget” configuration. The onboarding command hard-codes the provider link into the OpenClaw app logic, while the shell export ensures the operating system always provides the key to that link.
+From this point forward, you only need one command to start your bot:
+(Bash) “openclaw gateway run”
+No more re-entering keys, no more onboarding screens, and no more silent responses.
+
+Openclaw
+AI
+Troubleshoot
+Problem
+Aibot
+
+
+DevAIProg
+Written by DevAIProg
+0 followers
+·
+1 following
+programmer and ai enthusiast
+
+
+Follow
+No responses yet
+
+Write a response
+
+What are your thoughts?
+
+Cancel
+Respond
+Recommended from Medium
+Why the Smartest People in Tech Are Quietly Panicking Right Now
+Activated Thinker
+In
+
+Activated Thinker
+
+by
+
+Shane Collins
+
+Why the Smartest People in Tech Are Quietly Panicking Right Now
+The water is rising fast, and your free version of ChatGPT is hiding the terrifying, exhilarating truth
+
+Feb 13
+7.9K
+356
+The only guide combining Hetzner’s VPS with Tailscale’s zero-trust architecture, validated through production use including honest assessment of OpenClaw’s current limitations.
+Reza Rezvani
+Reza Rezvani
+
+I Deployed OpenClaw With Zero Public Ports. Here is the Tailscale Setup That Actually Works
+60-Minute DIY Guide: Secure OpenClaw Production Setup on Hetzner Cloud + Docker + Tailsclae
+
+Feb 6
+50
+3
+6 brain images
+Write A Catalyst
+In
+
+Write A Catalyst
+
+by
+
+Dr. Patricia Schmidt
+
+As a Neuroscientist, I Quit These 5 Morning Habits That Destroy Your Brain
+Most people do #1 within 10 minutes of waking (and it sabotages your entire day)
+
+Jan 14
+31K
+559
+I Cancelled My ~$200/mo Claude API Subscription, Again.
+Towards AI
+In
+
+Towards AI
+
+by
+
+Adham Khaled
+
+I Cancelled My ~$200/mo Claude API Subscription, Again.
+Kimi K2.5 didn’t just lower the price. It destroyed the business model of “renting intelligence.”
+
+Feb 8
+1.7K
+52
+Anthropic Just Released Claude Code Course (And I Earned My Certificate)
+AI Software Engineer
+In
+
+AI Software Engineer
+
+by
+
+Joe Njenga
+
+Anthropic Just Released Claude Code Course (And I Earned My Certificate)
+Anthropic just launched their Claude Code in Action course, and I’ve just passed — how about you?
+
+Jan 21
+2.8K
+37
+The Complete OpenClaw Architecture That Actually Scales — Memory, Cron Jobs, Dashboard, and the…
+Phil | Rentier Digital Automation
+Phil | Rentier Digital Automation
+
+The Complete OpenClaw Architecture That Actually Scales — Memory, Cron Jobs, Dashboard, and the…
+90% of OpenClaw setups die the same death. Not from security breaches (although, yeah, we’ll get to that). Not from API costs. They die…
+
+Feb 13
+73
+1
+See more recommendations
+Help
+
+Status
+
+About
+
+Careers
+
+Press
+
+Blog
+
+Privacy
+
+Rules
+
+Terms
+
+Text to speech

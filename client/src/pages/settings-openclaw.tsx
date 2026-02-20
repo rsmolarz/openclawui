@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
@@ -404,6 +404,37 @@ export default function SettingsOpenclaw() {
     },
   });
 
+  interface DeployStep {
+    title: string;
+    description: string;
+    command: string;
+    ssh: string | null;
+  }
+  interface DeployCommands {
+    commands: Record<string, DeployStep>;
+    hasRealKey: boolean;
+    config: {
+      provider: string;
+      model: string;
+      gatewayPort: number;
+      gatewayBind: string;
+      gatewayMode: string;
+      gatewayToken: string;
+      sshHost: string;
+      sshUser: string;
+      sshPort: number;
+      envVar: string;
+    };
+  }
+
+  const { data: deployCommands } = useQuery<DeployCommands>({
+    queryKey: [`/api/openclaw/deploy-commands?instanceId=${selectedInstanceId ?? ""}`],
+    enabled: !!selectedInstanceId,
+  });
+
+  const [showDeployCommands, setShowDeployCommands] = useState(false);
+  const [useSSH, setUseSSH] = useState(true);
+
   const isLoading = configLoading || dockerLoading || keysLoading;
 
   const [formValues, setFormValues] = useState({
@@ -697,6 +728,117 @@ export default function SettingsOpenclaw() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Terminal className="h-4 w-4" />
+                Push Config to Server
+              </CardTitle>
+              <CardDescription>
+                Hardcode your settings on the VPS so they survive reboots. Based on your saved configuration.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeployCommands(!showDeployCommands)}
+              data-testid="button-toggle-deploy-commands"
+            >
+              {showDeployCommands ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+              {showDeployCommands ? "Hide Commands" : "Show Commands"}
+            </Button>
+          </div>
+        </CardHeader>
+        {showDeployCommands && deployCommands && (
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <label className="text-sm text-muted-foreground">Command format:</label>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={useSSH ? "default" : "outline"}
+                  onClick={() => setUseSSH(true)}
+                  data-testid="button-ssh-mode"
+                >
+                  SSH (Remote)
+                </Button>
+                <Button
+                  size="sm"
+                  variant={!useSSH ? "default" : "outline"}
+                  onClick={() => setUseSSH(false)}
+                  data-testid="button-local-mode"
+                >
+                  Local (On Server)
+                </Button>
+              </div>
+              {deployCommands.config.sshHost && useSSH && (
+                <span className="text-xs text-muted-foreground">
+                  Target: {deployCommands.config.sshUser}@{deployCommands.config.sshHost}
+                </span>
+              )}
+            </div>
+
+            <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3 mb-3">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                <Wrench className="h-4 w-4" />
+                Why settings reset on your server
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                The OpenClaw gateway on your VPS stores its config in <code className="bg-muted px-1 rounded">~/.openclaw/openclaw.json</code>. If the API key is only entered during a temporary session, it gets lost on reboot. The commands below hardcode the key into both the config file and your shell profile so it persists permanently.
+              </p>
+            </div>
+
+            <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3 mb-3">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                Important: Replace YOUR_API_KEY with your actual {deployCommands.config.provider} API key before running.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                The commands use a placeholder for security. Your key should be set as the environment variable <code className="bg-muted px-1 rounded">{deployCommands.config.envVar}</code> on the server.
+                {deployCommands.hasRealKey && " You have an LLM API key saved in the dashboard — copy it from the LLM API Keys section below."}
+              </p>
+            </div>
+
+            {Object.entries(deployCommands.commands).map(([key, step]) => (
+              <div key={key} className="rounded-md border p-3 space-y-2" data-testid={`deploy-step-${key}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{step.title}</p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      const cmd = useSSH && step.ssh ? step.ssh : step.command;
+                      navigator.clipboard.writeText(cmd);
+                      toast({ title: "Copied", description: "Command copied to clipboard." });
+                    }}
+                    data-testid={`button-copy-${key}`}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">{step.description}</p>
+                <pre className="bg-muted p-2 rounded text-xs overflow-x-auto select-all font-mono whitespace-pre-wrap break-all" data-testid={`code-${key}`}>
+                  {useSSH && step.ssh ? step.ssh : step.command}
+                </pre>
+              </div>
+            ))}
+
+            <div className="rounded-md bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Tip:</strong> After running the Quick Fix command, you only need <code className="bg-muted px-1 rounded">openclaw gateway run</code> to start your bot in the future. No more re-entering keys or running onboarding.
+              </p>
+            </div>
+          </CardContent>
+        )}
+        {showDeployCommands && !deployCommands && (
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Save your gateway configuration above first, then deploy commands will be generated.</p>
+          </CardContent>
+        )}
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">

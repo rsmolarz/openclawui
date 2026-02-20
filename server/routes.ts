@@ -614,6 +614,104 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
+  app.get("/api/openclaw/deploy-commands", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+
+      const config = await storage.getOpenclawConfig(instanceId);
+      const instance = await storage.getInstance(instanceId);
+      const vps = await storage.getVpsConnection(instanceId);
+      const llmKeys = await storage.getLlmApiKeys();
+      const activeKey = llmKeys.find(k => k.active);
+
+      const gatewayPort = config?.gatewayPort ?? 18789;
+      const gatewayBind = config?.gatewayBind ?? "127.0.0.1";
+      const gatewayMode = config?.gatewayMode ?? "local";
+      const gatewayToken = config?.gatewayToken ?? "";
+      const defaultLlm = config?.defaultLlm ?? "deepseek/deepseek-chat";
+      const sshUser = vps?.sshUser ?? "root";
+      const sshHost = vps?.vpsIp ?? instance?.serverUrl?.replace(/^https?:\/\//, "").replace(/:\d+$/, "") ?? "";
+      const sshPort = vps?.vpsPort ?? 22;
+
+      const modelPrefix = defaultLlm.split("/")[0] || "openrouter";
+      const knownProviders = ["openrouter", "anthropic", "openai", "deepseek", "google", "mistral", "cohere"];
+      const provider = knownProviders.includes(modelPrefix) ? modelPrefix : "openrouter";
+      const apiKeyPlaceholder = "YOUR_API_KEY";
+      const hasRealKey = !!activeKey?.apiKey;
+
+      const onboardCmd = `openclaw onboard --non-interactive --accept-risk --mode ${gatewayMode} --auth-choice apiKey --${provider}-api-key "${apiKeyPlaceholder}" --gateway-port ${gatewayPort} --gateway-bind ${gatewayBind === "127.0.0.1" ? "loopback" : gatewayBind}`;
+
+      const shellExportVar = provider === "openrouter" ? "OPENROUTER_API_KEY" :
+                             provider === "anthropic" ? "ANTHROPIC_API_KEY" :
+                             provider === "openai" ? "OPENAI_API_KEY" :
+                             provider === "deepseek" ? "DEEPSEEK_API_KEY" :
+                             `${provider.toUpperCase()}_API_KEY`;
+
+      const shellExport = `export ${shellExportVar}="${apiKeyPlaceholder}"`;
+
+      const sshPrefix = sshHost ? `ssh ${sshPort !== 22 ? `-p ${sshPort} ` : ""}${sshUser}@${sshHost}` : "";
+
+      const commands = {
+        step1_check: {
+          title: "1. Check Provider Status",
+          description: "Verify that your LLM provider is registered with the gateway",
+          command: "openclaw models status --json",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw models status --json"` : null,
+        },
+        step2_onboard: {
+          title: "2. Register Provider (Non-Interactive)",
+          description: "Force-register the provider and bind your API key directly to the workspace config file (~/.openclaw/openclaw.json)",
+          command: onboardCmd,
+          ssh: sshPrefix ? `${sshPrefix} '${onboardCmd}'` : null,
+        },
+        step3_persist: {
+          title: "3. Persist API Key in Shell Profile",
+          description: "Add the API key to your shell profile so it survives reboots. Edit ~/.bashrc (or ~/.zshrc on macOS) and add this line at the bottom:",
+          command: shellExport,
+          ssh: sshPrefix ? `${sshPrefix} 'echo "${shellExport}" >> ~/.bashrc && source ~/.bashrc'` : null,
+        },
+        step4_start: {
+          title: "4. Start the Gateway",
+          description: "Launch the OpenClaw gateway service",
+          command: "openclaw gateway run",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw gateway run"` : null,
+        },
+        step5_verify: {
+          title: "5. Verify Connection",
+          description: "Confirm the gateway is running and the model is loaded",
+          command: `openclaw gateway probe`,
+          ssh: sshPrefix ? `${sshPrefix} "openclaw gateway probe"` : null,
+        },
+        quick_fix: {
+          title: "Quick Fix (One Command)",
+          description: "Run this single command to re-register the provider and start the gateway in one shot:",
+          command: `${onboardCmd} && openclaw gateway run`,
+          ssh: sshPrefix ? `${sshPrefix} '${onboardCmd} && openclaw gateway run'` : null,
+        },
+      };
+
+      res.json({
+        commands,
+        hasRealKey,
+        config: {
+          provider,
+          model: defaultLlm,
+          gatewayPort,
+          gatewayBind,
+          gatewayMode,
+          gatewayToken: gatewayToken ? "configured" : "not set",
+          sshHost,
+          sshUser,
+          sshPort,
+          envVar: shellExportVar,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to generate deploy commands" });
+    }
+  });
+
   app.get("/api/api-keys", requireAuth, async (_req, res) => {
     try {
       const keys = await storage.getApiKeys();
