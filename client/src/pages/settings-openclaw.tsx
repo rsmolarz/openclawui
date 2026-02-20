@@ -411,8 +411,10 @@ export default function SettingsOpenclaw() {
     ssh: string | null;
   }
   interface DeployCommands {
-    commands: Record<string, DeployStep>;
+    doctorFix: Record<string, DeployStep>;
+    manualFix: Record<string, DeployStep>;
     hasRealKey: boolean;
+    dockerProject: string;
     config: {
       provider: string;
       model: string;
@@ -434,6 +436,7 @@ export default function SettingsOpenclaw() {
 
   const [showDeployCommands, setShowDeployCommands] = useState(false);
   const [useSSH, setUseSSH] = useState(true);
+  const [showManualSteps, setShowManualSteps] = useState(false);
 
   const isLoading = configLoading || dockerLoading || keysLoading;
 
@@ -735,10 +738,10 @@ export default function SettingsOpenclaw() {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Terminal className="h-4 w-4" />
-                Push Config to Server
+                Fix & Deploy to Server
               </CardTitle>
               <CardDescription>
-                Hardcode your settings on the VPS so they survive reboots. Based on your saved configuration.
+                Diagnose and fix OpenClaw issues on your VPS, or hardcode settings so they survive reboots.
               </CardDescription>
             </div>
             <Button
@@ -748,7 +751,7 @@ export default function SettingsOpenclaw() {
               data-testid="button-toggle-deploy-commands"
             >
               {showDeployCommands ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
-              {showDeployCommands ? "Hide Commands" : "Show Commands"}
+              {showDeployCommands ? "Hide" : "Show Commands"}
             </Button>
           </div>
         </CardHeader>
@@ -781,61 +784,114 @@ export default function SettingsOpenclaw() {
               )}
             </div>
 
-            <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3 mb-3">
-              <p className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-2">
+            <div className="rounded-md bg-green-500/10 border border-green-500/20 p-4">
+              <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2 mb-2">
                 <Wrench className="h-4 w-4" />
-                Why settings reset on your server
+                Quick Fix — Doctor Command (Recommended)
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                The OpenClaw gateway on your VPS stores its config in <code className="bg-muted px-1 rounded">~/.openclaw/openclaw.json</code>. If the API key is only entered during a temporary session, it gets lost on reboot. The commands below hardcode the key into both the config file and your shell profile so it persists permanently.
+              <p className="text-xs text-muted-foreground mb-3">
+                Not loading? Chat not responding? Gateway timed out? Run these two commands. The doctor checks your config, diagnoses the problem, and auto-fixes it. Then restart the Docker project to apply.
               </p>
-            </div>
 
-            <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3 mb-3">
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Important: Replace YOUR_API_KEY with your actual {deployCommands.config.provider} API key before running.
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                The commands use a placeholder for security. Your key should be set as the environment variable <code className="bg-muted px-1 rounded">{deployCommands.config.envVar}</code> on the server.
-                {deployCommands.hasRealKey && " You have an LLM API key saved in the dashboard — copy it from the LLM API Keys section below."}
-              </p>
-            </div>
-
-            {Object.entries(deployCommands.commands).map(([key, step]) => (
-              <div key={key} className="rounded-md border p-3 space-y-2" data-testid={`deploy-step-${key}`}>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{step.title}</p>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      const cmd = useSSH && step.ssh ? step.ssh : step.command;
-                      navigator.clipboard.writeText(cmd);
-                      toast({ title: "Copied", description: "Command copied to clipboard." });
-                    }}
-                    data-testid={`button-copy-${key}`}
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy
-                  </Button>
+              {Object.entries(deployCommands.doctorFix).map(([key, step]) => (
+                <div key={key} className="rounded-md border bg-background p-3 space-y-2 mb-2" data-testid={`deploy-step-${key}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{step.title}</p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        const cmd = useSSH && step.ssh ? step.ssh : step.command;
+                        navigator.clipboard.writeText(cmd);
+                        toast({ title: "Copied", description: "Command copied to clipboard." });
+                      }}
+                      data-testid={`button-copy-${key}`}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{step.description}</p>
+                  <pre className="bg-muted p-2 rounded text-xs overflow-x-auto select-all font-mono whitespace-pre-wrap break-all" data-testid={`code-${key}`}>
+                    {useSSH && step.ssh ? step.ssh : step.command}
+                  </pre>
                 </div>
-                <p className="text-xs text-muted-foreground">{step.description}</p>
-                <pre className="bg-muted p-2 rounded text-xs overflow-x-auto select-all font-mono whitespace-pre-wrap break-all" data-testid={`code-${key}`}>
-                  {useSSH && step.ssh ? step.ssh : step.command}
-                </pre>
-              </div>
-            ))}
+              ))}
 
-            <div className="rounded-md bg-muted/50 p-3">
+              <div className="rounded-md bg-muted/50 p-2 mt-2">
+                <p className="text-xs text-muted-foreground">
+                  <strong>Note:</strong> The Docker project name is <code className="bg-muted px-1 rounded">{deployCommands.dockerProject}</code>. If yours is different, replace it in the commands above. You can find it in your Hostinger Docker Manager under "Projects".
+                </p>
+              </div>
+            </div>
+
+            <div className="border rounded-md">
+              <button
+                className="w-full flex items-center justify-between p-3 text-sm font-medium hover:bg-muted/50 transition-colors"
+                onClick={() => setShowManualSteps(!showManualSteps)}
+                data-testid="button-toggle-manual-steps"
+              >
+                <span className="flex items-center gap-2">
+                  <Terminal className="h-4 w-4" />
+                  Advanced: Manual Fix & Persist Settings
+                </span>
+                {showManualSteps ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+
+              {showManualSteps && (
+                <div className="p-3 pt-0 space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Use these steps if the doctor didn't solve the issue, or if you need to re-register your LLM provider and persist API keys manually.
+                  </p>
+
+                  <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                      Replace YOUR_API_KEY with your actual {deployCommands.config.provider} API key before running.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your key should be set as <code className="bg-muted px-1 rounded">{deployCommands.config.envVar}</code> on the server.
+                      {deployCommands.hasRealKey && " You have an LLM API key saved in the dashboard — copy it from the LLM API Keys section below."}
+                    </p>
+                  </div>
+
+                  {Object.entries(deployCommands.manualFix).map(([key, step]) => (
+                    <div key={key} className="rounded-md border p-3 space-y-2" data-testid={`deploy-step-${key}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">{step.title}</p>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            const cmd = useSSH && step.ssh ? step.ssh : step.command;
+                            navigator.clipboard.writeText(cmd);
+                            toast({ title: "Copied", description: "Command copied to clipboard." });
+                          }}
+                          data-testid={`button-copy-${key}`}
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{step.description}</p>
+                      <pre className="bg-muted p-2 rounded text-xs overflow-x-auto select-all font-mono whitespace-pre-wrap break-all" data-testid={`code-${key}`}>
+                        {useSSH && step.ssh ? step.ssh : step.command}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3">
               <p className="text-xs text-muted-foreground">
-                <strong>Tip:</strong> After running the Quick Fix command, you only need <code className="bg-muted px-1 rounded">openclaw gateway run</code> to start your bot in the future. No more re-entering keys or running onboarding.
+                <strong>Last resort:</strong> If nothing works, you may need to delete and reinstall OpenClaw on your VPS. This can happen if the initial installation used a model that didn't complete the setup correctly (e.g., GPT-4.5 instead of Opus). Delete the Docker project and follow the installation guide again.
               </p>
             </div>
           </CardContent>
         )}
         {showDeployCommands && !deployCommands && (
           <CardContent>
-            <p className="text-sm text-muted-foreground">Save your gateway configuration above first, then deploy commands will be generated.</p>
+            <p className="text-sm text-muted-foreground">Save your gateway configuration above first, then fix/deploy commands will be generated.</p>
           </CardContent>
         )}
       </Card>
