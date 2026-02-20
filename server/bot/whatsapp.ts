@@ -16,8 +16,9 @@ const AUTH_DIR = "./whatsapp-auth";
 const MAX_QR_RETRIES = 5;
 
 export interface BotStatus {
-  state: "disconnected" | "connecting" | "qr_ready" | "connected";
+  state: "disconnected" | "connecting" | "qr_ready" | "pairing_code_ready" | "connected";
   qrDataUrl: string | null;
+  pairingCode: string | null;
   phone: string | null;
   error: string | null;
 }
@@ -27,12 +28,15 @@ class WhatsAppBot extends EventEmitter {
   private status: BotStatus = {
     state: "disconnected",
     qrDataUrl: null,
+    pairingCode: null,
     phone: null,
     error: null,
   };
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private isStarting = false;
   private qrCycleCount = 0;
+  private usePairingCode = false;
+  private pairingPhone: string | null = null;
 
   getStatus(): BotStatus {
     return { ...this.status };
@@ -57,41 +61,80 @@ class WhatsAppBot extends EventEmitter {
     }
   }
 
+  async startWithPairingCode(phoneNumber: string): Promise<void> {
+    this.usePairingCode = true;
+    this.pairingPhone = phoneNumber.replace(/[^0-9]/g, "");
+    this.clearAuthState();
+    await this.start();
+  }
+
   async start(): Promise<void> {
     if (this.isStarting) return;
     this.isStarting = true;
     this.qrCycleCount = 0;
 
     try {
-      this.status = { state: "connecting", qrDataUrl: null, phone: null, error: null };
+      this.status = { state: "connecting", qrDataUrl: null, pairingCode: null, phone: null, error: null };
       this.emit("status", this.status);
 
       const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
       const sock = makeWASocket({
         auth: state,
-        browser: ["OpenClaw", "Chrome", "1.0.0"],
+        browser: this.usePairingCode ? ["Chrome (Linux)", "", ""] : ["OpenClaw", "Chrome", "1.0.0"],
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
         retryRequestDelayMs: 500,
+        printQRInTerminal: false,
       });
 
       this.sock = sock;
 
       sock.ev.on("creds.update", saveCreds);
 
-      sock.ev.on("connection.update", async (update) => {
+      sock.ev.on("connection.update", async (update: any) => {
         const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
+        if (qr && this.usePairingCode && this.pairingPhone) {
+          try {
+            const code = await sock.requestPairingCode(this.pairingPhone);
+            const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
+            this.status = {
+              state: "pairing_code_ready",
+              qrDataUrl: null,
+              pairingCode: formattedCode,
+              phone: null,
+              error: null,
+            };
+            this.emit("status", this.status);
+            console.log(`[WhatsApp] Pairing code generated: ${formattedCode} — enter in WhatsApp > Linked Devices > Link with phone number`);
+            this.usePairingCode = false;
+          } catch (err) {
+            console.error("[WhatsApp] Failed to request pairing code:", err);
+            this.status = {
+              state: "disconnected",
+              qrDataUrl: null,
+              pairingCode: null,
+              phone: null,
+              error: `Failed to generate pairing code: ${String(err)}`,
+            };
+            this.emit("status", this.status);
+            this.isStarting = false;
+            this.usePairingCode = false;
+          }
+          return;
+        }
+
+        if (qr && !this.usePairingCode) {
           this.qrCycleCount++;
           if (this.qrCycleCount > MAX_QR_RETRIES * 6) {
             console.log(`[WhatsApp] QR code expired after ${MAX_QR_RETRIES} cycles. Stopping bot. Use dashboard to restart.`);
             this.status = {
               state: "disconnected",
               qrDataUrl: null,
+              pairingCode: null,
               phone: null,
-              error: "QR code expired. Open the dashboard to restart and scan the QR code.",
+              error: "QR code expired. Try using 'Link with Phone Number' instead, or restart the bot.",
             };
             this.emit("status", this.status);
             this.isStarting = false;
@@ -103,7 +146,7 @@ class WhatsAppBot extends EventEmitter {
           }
           try {
             const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
-            this.status = { state: "qr_ready", qrDataUrl, phone: null, error: null };
+            this.status = { state: "qr_ready", qrDataUrl, pairingCode: null, phone: null, error: null };
             this.emit("status", this.status);
             console.log(`[WhatsApp] QR code generated (${this.qrCycleCount}) - scan with your phone`);
           } catch (err) {
@@ -121,13 +164,14 @@ class WhatsAppBot extends EventEmitter {
           this.isStarting = false;
 
           if (isLoggedOut) {
-            console.log("[WhatsApp] Logged out — clearing auth state and restarting for fresh QR...");
+            console.log("[WhatsApp] Logged out — clearing auth state and restarting...");
             this.clearAuthState();
             this.status = {
               state: "disconnected",
               qrDataUrl: null,
+              pairingCode: null,
               phone: null,
-              error: "Logged out from WhatsApp. Generating new QR code...",
+              error: "Logged out from WhatsApp. Restarting...",
             };
             this.emit("status", this.status);
             this.reconnectTimer = setTimeout(() => this.start(), 3000);
@@ -136,14 +180,16 @@ class WhatsAppBot extends EventEmitter {
             this.status = {
               state: "disconnected",
               qrDataUrl: null,
+              pairingCode: null,
               phone: null,
-              error: "QR code expired after max retries. Use dashboard to restart.",
+              error: "QR code expired after max retries. Try 'Link with Phone Number' instead.",
             };
             this.emit("status", this.status);
           } else {
             this.status = {
               state: "disconnected",
               qrDataUrl: null,
+              pairingCode: null,
               phone: null,
               error: `Connection closed (${statusCode})`,
             };
@@ -152,14 +198,16 @@ class WhatsAppBot extends EventEmitter {
           }
         } else if (connection === "open") {
           this.qrCycleCount = 0;
+          this.usePairingCode = false;
+          this.pairingPhone = null;
           const phone = sock.user?.id?.split(":")[0] || sock.user?.id?.split("@")[0] || null;
-          this.status = { state: "connected", qrDataUrl: null, phone, error: null };
+          this.status = { state: "connected", qrDataUrl: null, pairingCode: null, phone, error: null };
           this.emit("status", this.status);
           console.log(`[WhatsApp] Connected as ${phone}`);
         }
       });
 
-      sock.ev.on("messages.upsert", async (m) => {
+      sock.ev.on("messages.upsert", async (m: any) => {
         if (m.type !== "notify") return;
 
         for (const msg of m.messages) {
@@ -188,6 +236,7 @@ class WhatsAppBot extends EventEmitter {
       this.status = {
         state: "disconnected",
         qrDataUrl: null,
+        pairingCode: null,
         phone: null,
         error: String(error),
       };
@@ -298,10 +347,12 @@ class WhatsAppBot extends EventEmitter {
       }
       this.sock = null;
     }
-    this.status = { state: "disconnected", qrDataUrl: null, phone: null, error: null };
+    this.status = { state: "disconnected", qrDataUrl: null, pairingCode: null, phone: null, error: null };
     this.emit("status", this.status);
     this.isStarting = false;
     this.qrCycleCount = 0;
+    this.usePairingCode = false;
+    this.pairingPhone = null;
     console.log("[WhatsApp] Bot stopped");
   }
 

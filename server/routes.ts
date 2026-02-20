@@ -897,7 +897,15 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const status = bot.getStatus();
       const instanceId = await resolveInstanceId(req);
       const config = instanceId ? await storage.getOpenclawConfig(instanceId) : null;
-      res.json({ ...status, runtime: "local", enabled: config?.whatsappEnabled ?? true });
+      res.json({
+        state: status.state,
+        qrDataUrl: status.qrDataUrl,
+        pairingCode: status.pairingCode,
+        phone: status.phone,
+        error: status.error,
+        runtime: "local",
+        enabled: config?.whatsappEnabled ?? true,
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to get WhatsApp status" });
     }
@@ -909,6 +917,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const status = bot.getStatus();
       res.json({
         qrDataUrl: status.qrDataUrl,
+        pairingCode: status.pairingCode,
         state: status.state,
         phone: status.phone,
       });
@@ -931,6 +940,33 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       res.json({ success: true, message: "WhatsApp bot starting..." });
     } catch (error) {
       res.status(500).json({ error: "Failed to start WhatsApp bot" });
+    }
+  });
+
+  app.post("/api/whatsapp/pair", async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber || typeof phoneNumber !== "string") {
+        return res.status(400).json({ error: "Phone number is required (e.g. 48123456789)" });
+      }
+      const cleaned = phoneNumber.replace(/[^0-9]/g, "");
+      if (cleaned.length < 10 || cleaned.length > 15) {
+        return res.status(400).json({ error: "Invalid phone number. Use international format without + (e.g. 48123456789)" });
+      }
+      const instanceId = await resolveInstanceId(req);
+      if (instanceId) {
+        const config = await storage.getOpenclawConfig(instanceId);
+        if (!config?.whatsappEnabled) {
+          await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: true });
+        }
+      }
+      const bot = await getWhatsappBot();
+      await bot.stop();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      bot.startWithPairingCode(cleaned);
+      res.json({ success: true, message: "Requesting pairing code..." });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to request pairing code" });
     }
   });
 

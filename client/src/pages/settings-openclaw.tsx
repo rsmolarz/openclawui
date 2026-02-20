@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
@@ -303,8 +303,9 @@ export default function SettingsOpenclaw() {
   });
 
   interface BotStatus {
-    state: "disconnected" | "connecting" | "qr_ready" | "connected" | "external";
+    state: "disconnected" | "connecting" | "qr_ready" | "pairing_code_ready" | "connected" | "external";
     qrDataUrl: string | null;
+    pairingCode: string | null;
     phone: string | null;
     error: string | null;
     runtime?: "local" | "external";
@@ -384,6 +385,22 @@ export default function SettingsOpenclaw() {
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/sessions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/pending"] });
       toast({ title: "Session removed", description: "WhatsApp session deleted." });
+    },
+  });
+
+  const [pairingPhoneInput, setPairingPhoneInput] = useState("");
+  const [showPairingForm, setShowPairingForm] = useState(false);
+
+  const pairWithPhoneMutation = useMutation({
+    mutationFn: async (phoneNumber: string) => {
+      await apiRequest("POST", "/api/whatsapp/pair", { phoneNumber });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/status"] });
+      toast({ title: "Pairing code requested", description: "Check below for your pairing code." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message || "Failed to request pairing code.", variant: "destructive" });
     },
   });
 
@@ -694,28 +711,40 @@ export default function SettingsOpenclaw() {
             <Badge
               variant={
                 botStatus?.state === "connected" ? "default" :
-                botStatus?.state === "connecting" || botStatus?.state === "qr_ready" ? "secondary" :
+                botStatus?.state === "connecting" || botStatus?.state === "qr_ready" || botStatus?.state === "pairing_code_ready" ? "secondary" :
                 "destructive"
               }
               data-testid="badge-bot-status"
             >
               {botStatus?.state === "connected" ? "Connected" :
                botStatus?.state === "connecting" ? "Connecting..." :
-               botStatus?.state === "qr_ready" ? "QR Ready" : "Disconnected"}
+               botStatus?.state === "qr_ready" ? "QR Ready" :
+               botStatus?.state === "pairing_code_ready" ? "Enter Code" : "Disconnected"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             {botStatus?.state === "disconnected" || !botStatus ? (
-              <Button
-                onClick={() => startBotMutation.mutate()}
-                disabled={startBotMutation.isPending}
-                data-testid="button-start-bot"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {startBotMutation.isPending ? "Starting..." : "Start Bot"}
-              </Button>
+              <>
+                <Button
+                  onClick={() => startBotMutation.mutate()}
+                  disabled={startBotMutation.isPending || pairWithPhoneMutation.isPending}
+                  data-testid="button-start-bot"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {startBotMutation.isPending ? "Starting..." : "Start Bot (QR)"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPairingForm(!showPairingForm)}
+                  disabled={pairWithPhoneMutation.isPending}
+                  data-testid="button-pair-phone"
+                >
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  Link with Phone Number
+                </Button>
+              </>
             ) : (
               <>
                 <Button
@@ -746,17 +775,44 @@ export default function SettingsOpenclaw() {
             )}
           </div>
 
-          {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && (
+          {showPairingForm && (botStatus?.state === "disconnected" || !botStatus) && (
+            <div className="rounded-md border p-4 space-y-3" data-testid="pairing-phone-form">
+              <p className="text-sm font-medium">Enter your WhatsApp phone number</p>
+              <p className="text-xs text-muted-foreground">
+                Use international format without the + sign (e.g. <strong>48123456789</strong> for Poland, <strong>1234567890</strong> for US)
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="48123456789"
+                  value={pairingPhoneInput}
+                  onChange={(e) => setPairingPhoneInput(e.target.value)}
+                  className="max-w-xs"
+                  data-testid="input-pairing-phone"
+                />
+                <Button
+                  onClick={() => {
+                    if (pairingPhoneInput.trim()) {
+                      pairWithPhoneMutation.mutate(pairingPhoneInput.trim());
+                      setShowPairingForm(false);
+                    }
+                  }}
+                  disabled={!pairingPhoneInput.trim() || pairWithPhoneMutation.isPending}
+                  data-testid="button-submit-pairing"
+                >
+                  {pairWithPhoneMutation.isPending ? "Requesting..." : "Get Pairing Code"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && !showPairingForm && (
             <div className="rounded-md bg-muted/50 p-4 space-y-2" data-testid="whatsapp-setup-guide">
               <p className="text-sm font-medium">How to connect WhatsApp:</p>
-              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                <li>Click <strong>Start Bot</strong> above and wait for a QR code to appear</li>
-                <li>Open WhatsApp on your phone</li>
-                <li>Go to <strong>Settings</strong> then <strong>Linked Devices</strong></li>
-                <li>Tap <strong>Link a Device</strong> and scan the QR code shown here</li>
-                <li>Once connected, anyone who messages this number gets a pairing code</li>
-                <li>Approve their pairing code below to give them AI access</li>
-              </ol>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p><strong>Option 1 — QR Code:</strong> Click <strong>Start Bot (QR)</strong>, then scan the QR code with WhatsApp.</p>
+                <p><strong>Option 2 — Phone Number (recommended):</strong> Click <strong>Link with Phone Number</strong>, enter your number, and type the pairing code into WhatsApp.</p>
+                <p className="text-xs mt-2">In WhatsApp: <strong>Settings</strong> → <strong>Linked Devices</strong> → <strong>Link a Device</strong> → <strong>Link with phone number instead</strong></p>
+              </div>
             </div>
           )}
 
@@ -774,6 +830,20 @@ export default function SettingsOpenclaw() {
             </div>
           )}
 
+          {botStatus?.state === "pairing_code_ready" && botStatus.pairingCode && (
+            <div className="flex flex-col items-center gap-3 p-6 rounded-md bg-muted/50" data-testid="pairing-code-display">
+              <p className="text-sm text-muted-foreground font-medium">Enter this code in WhatsApp</p>
+              <div className="text-4xl font-mono font-bold tracking-widest select-all" data-testid="text-pairing-code">
+                {botStatus.pairingCode}
+              </div>
+              <div className="text-xs text-muted-foreground text-center max-w-sm space-y-1">
+                <p>On your phone, open <strong>WhatsApp</strong> → <strong>Settings</strong> → <strong>Linked Devices</strong></p>
+                <p>Tap <strong>Link a Device</strong> → <strong>Link with phone number instead</strong></p>
+                <p>Type the code shown above to complete linking</p>
+              </div>
+            </div>
+          )}
+
           {botStatus?.state === "qr_ready" && botStatus.qrDataUrl && (
             <div className="flex flex-col items-center gap-3 p-4 rounded-md bg-muted/50">
               <p className="text-sm text-muted-foreground font-medium">Scan this QR code with WhatsApp</p>
@@ -785,7 +855,10 @@ export default function SettingsOpenclaw() {
                 data-testid="img-whatsapp-qr"
               />
               <p className="text-xs text-muted-foreground text-center max-w-xs">
-                Open WhatsApp on your phone, go to <strong>Settings</strong>, then <strong>Linked Devices</strong>, and scan this QR code.
+                Open WhatsApp on your phone → <strong>Settings</strong> → <strong>Linked Devices</strong> → scan this QR code.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                QR not working? <button className="underline text-primary" onClick={() => { stopBotMutation.mutate(); setShowPairingForm(true); }} data-testid="button-switch-to-pairing">Try linking with phone number instead</button>
               </p>
             </div>
           )}
