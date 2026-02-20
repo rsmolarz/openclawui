@@ -15,6 +15,7 @@ import { useState } from "react";
 import type { NodeSetupSession } from "@shared/schema";
 
 const OS_OPTIONS = [
+  { value: "docker", label: "Docker / Hostinger VPS (Recommended)", icon: Monitor },
   { value: "linux", label: "Linux (Ubuntu/Debian)", icon: Monitor },
   { value: "linux-rhel", label: "Linux (RHEL/CentOS)", icon: Monitor },
   { value: "macos", label: "macOS", icon: Monitor },
@@ -35,6 +36,19 @@ const SETUP_STEPS: SetupStep[] = [
     description: "Install the OpenClaw command-line tool on the node machine. This only installs the CLI — it does NOT set up a full gateway.",
     icon: Download,
     commands: {
+      docker: [
+        "# OpenClaw is ALREADY INSTALLED inside your Docker container.",
+        "# You do NOT need to install anything on the host machine.",
+        "# Do NOT run the install script on the host — it may fail",
+        "# with 'Homebrew not installed' or similar errors.",
+        "",
+        "# To access the CLI, use the Hostinger Docker Manager terminal",
+        "# or run commands via SSH with docker exec:",
+        "docker exec -it claw-openclaw-1 openclaw --version",
+        "",
+        "# If using Hostinger: Go to VPS → Docker Manager → Projects",
+        "# → click your project → Terminal tab",
+      ],
       linux: [
         "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard",
       ],
@@ -57,13 +71,24 @@ const SETUP_STEPS: SetupStep[] = [
         "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard",
       ],
     },
-    tip: "Windows users must use WSL2 — the install script is a Linux bash script and won't work in PowerShell or Command Prompt. All remaining steps should also be run inside WSL2 Ubuntu.",
+    tip: "Docker/Hostinger users: OpenClaw is pre-installed in the container. Do NOT run the install script on the host — it requires dependencies (like Homebrew on macOS) that aren't available on server hosts. Use the Docker Manager terminal or 'docker exec' instead.",
   },
   {
     title: "Configure Gateway Mode",
     description: "Before the gateway will start, you need to tell it to run in local mode. Then install and start the background service.",
     icon: Cpu,
     commands: {
+      docker: [
+        "# The Docker container is already configured with local mode.",
+        "# If your gateway isn't working, run the doctor to auto-fix:",
+        "docker exec -it claw-openclaw-1 openclaw doctor",
+        "",
+        "# Then restart the Docker project:",
+        "docker compose -p claw restart",
+        "",
+        "# Verify it's running:",
+        "docker exec -it claw-openclaw-1 openclaw gateway probe",
+      ],
       linux: [
         "# Set local mode (required — gateway won't start without this):",
         "openclaw config set gateway.mode local",
@@ -104,6 +129,16 @@ const SETUP_STEPS: SetupStep[] = [
     description: "Find the auto-generated gateway token. You'll need this to connect nodes and access the native dashboard.",
     icon: Shield,
     commands: {
+      docker: [
+        "# View your gateway token from inside the container:",
+        "docker exec -it claw-openclaw-1 cat /root/.openclaw/openclaw.json | grep -A2 '\"token\"'",
+        "",
+        "# Or use the Hostinger Docker Manager terminal and run:",
+        "cat ~/.openclaw/openclaw.json | grep -A2 '\"token\"'",
+        "",
+        "# Access the native dashboard at:",
+        "# http://YOUR_VPS_IP:18789/?token=YOUR_TOKEN_HERE",
+      ],
       linux: [
         "# View your gateway token:",
         "cat ~/.openclaw/openclaw.json | grep -A2 '\"token\"'",
@@ -140,6 +175,20 @@ const SETUP_STEPS: SetupStep[] = [
     description: "To add another machine as a node to this gateway, run these on the node machine. Skip this step if you only have one machine.",
     icon: Wifi,
     commands: {
+      docker: [
+        "# For Docker deployments, additional nodes need the CLI installed",
+        "# on the separate node machine (not in the Docker container).",
+        "",
+        "# On the NODE machine:",
+        "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard",
+        "",
+        "# Set the gateway token from your primary machine:",
+        "export OPENCLAW_GATEWAY_TOKEN=\"<your-gateway-token>\"",
+        "",
+        "# Connect to the gateway (use your VPS IP):",
+        "openclaw node install --host <your-vps-ip> --port 18789 --display-name \"My Node\"",
+        "openclaw node restart",
+      ],
       linux: [
         "# On the NODE machine (not the gateway):",
         "",
@@ -180,6 +229,17 @@ const SETUP_STEPS: SetupStep[] = [
     description: "Approve any pending nodes and verify everything is connected.",
     icon: Terminal,
     commands: {
+      docker: [
+        "# From your VPS host via docker exec:",
+        "docker exec -it claw-openclaw-1 openclaw nodes pending",
+        "docker exec -it claw-openclaw-1 openclaw nodes approve <requestId>",
+        "",
+        "# Check all nodes are connected:",
+        "docker exec -it claw-openclaw-1 openclaw nodes status",
+        "",
+        "# Full health check:",
+        "docker exec -it claw-openclaw-1 openclaw status",
+      ],
       linux: [
         "# On the PRIMARY machine — approve pending nodes:",
         "openclaw nodes pending",

@@ -784,13 +784,19 @@ export default function SettingsOpenclaw() {
               )}
             </div>
 
+            <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3 mb-2">
+              <p className="text-xs text-muted-foreground">
+                <strong>Hostinger users:</strong> You can also run these commands directly from the Docker Manager terminal. Go to VPS → Docker Manager → Projects → click your project → Terminal tab. When using the terminal inside the Docker Manager, you don't need the <code className="bg-muted px-1 rounded">docker exec</code> prefix — just run <code className="bg-muted px-1 rounded">openclaw doctor</code> directly.
+              </p>
+            </div>
+
             <div className="rounded-md bg-green-500/10 border border-green-500/20 p-4">
               <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2 mb-2">
                 <Wrench className="h-4 w-4" />
                 Quick Fix — Doctor Command (Recommended)
               </p>
               <p className="text-xs text-muted-foreground mb-3">
-                Not loading? Chat not responding? Gateway timed out? Run these two commands. The doctor checks your config, diagnoses the problem, and auto-fixes it. Then restart the Docker project to apply.
+                Not loading? Chat not responding? Gateway timed out? Run these commands. The doctor checks your config, diagnoses the problem, and auto-fixes it. Then restart the Docker project to apply.
               </p>
 
               {Object.entries(deployCommands.doctorFix).map(([key, step]) => (
