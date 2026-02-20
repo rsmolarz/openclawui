@@ -679,6 +679,193 @@ export default function SettingsOpenclaw() {
       )}
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              WhatsApp AI Bot
+            </CardTitle>
+            <CardDescription>Manage the WhatsApp AI bot powered by OpenRouter.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                botStatus?.state === "connected" ? "default" :
+                botStatus?.state === "connecting" || botStatus?.state === "qr_ready" ? "secondary" :
+                "destructive"
+              }
+              data-testid="badge-bot-status"
+            >
+              {botStatus?.state === "connected" ? "Connected" :
+               botStatus?.state === "connecting" ? "Connecting..." :
+               botStatus?.state === "qr_ready" ? "QR Ready" : "Disconnected"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            {botStatus?.state === "disconnected" || !botStatus ? (
+              <Button
+                onClick={() => startBotMutation.mutate()}
+                disabled={startBotMutation.isPending}
+                data-testid="button-start-bot"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {startBotMutation.isPending ? "Starting..." : "Start Bot"}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => stopBotMutation.mutate()}
+                  disabled={stopBotMutation.isPending}
+                  data-testid="button-stop-bot"
+                >
+                  <Square className="h-4 w-4 mr-2" />
+                  {stopBotMutation.isPending ? "Stopping..." : "Stop Bot"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => restartBotMutation.mutate()}
+                  disabled={restartBotMutation.isPending}
+                  data-testid="button-restart-bot"
+                >
+                  <RotateCw className="h-4 w-4 mr-2" />
+                  Restart
+                </Button>
+              </>
+            )}
+            {botStatus?.phone && (
+              <div className="flex items-center gap-2 ml-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground" data-testid="text-bot-phone">+{botStatus.phone}</span>
+              </div>
+            )}
+          </div>
+
+          {botStatus?.error && (
+            <div className="rounded-md bg-destructive/10 p-3">
+              <p className="text-sm text-destructive" data-testid="text-bot-error">{botStatus.error}</p>
+            </div>
+          )}
+
+          {botStatus?.state === "qr_ready" && botStatus.qrDataUrl && (
+            <div className="flex flex-col items-center gap-3 p-4 rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground font-medium">Scan this QR code with WhatsApp</p>
+              <img
+                src={botStatus.qrDataUrl}
+                alt="WhatsApp QR Code"
+                className="rounded-md border"
+                style={{ width: 260, height: 260 }}
+                data-testid="img-whatsapp-qr"
+              />
+              <p className="text-xs text-muted-foreground text-center max-w-xs">
+                Open WhatsApp on your phone, go to Settings, then Linked Devices, and scan this QR code.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {pendingWaSessions && pendingWaSessions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Pending WhatsApp Approvals
+            </CardTitle>
+            <CardDescription>{pendingWaSessions.length} user{pendingWaSessions.length !== 1 ? "s" : ""} waiting for approval.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingWaSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                  data-testid={`row-pending-wa-${session.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium" data-testid={`text-wa-phone-${session.id}`}>+{session.phone}</p>
+                      {session.displayName && (
+                        <span className="text-sm text-muted-foreground">{session.displayName}</span>
+                      )}
+                      <Badge variant="secondary" className="text-xs" data-testid={`badge-wa-code-${session.id}`}>Code: {session.pairingCode}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => approveWaSessionMutation.mutate(session.id)}
+                      disabled={approveWaSessionMutation.isPending}
+                      data-testid={`button-approve-wa-${session.id}`}
+                    >
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Approve
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteWaSessionMutation.mutate(session.id)}
+                      data-testid={`button-delete-wa-${session.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {whatsappSessions && whatsappSessions.filter(s => s.status === "approved").length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              Approved WhatsApp Users
+            </CardTitle>
+            <CardDescription>Users with active WhatsApp AI access.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {whatsappSessions.filter(s => s.status === "approved").map((session) => (
+                <div
+                  key={session.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                  data-testid={`row-approved-wa-${session.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium" data-testid={`text-approved-wa-phone-${session.id}`}>+{session.phone}</p>
+                      {session.displayName && (
+                        <span className="text-sm text-muted-foreground" data-testid={`text-approved-wa-name-${session.id}`}>{session.displayName}</span>
+                      )}
+                      <Badge variant="default" className="text-xs" data-testid={`badge-approved-wa-${session.id}`}>Approved</Badge>
+                    </div>
+                    {session.lastMessageAt && (
+                      <p className="text-xs text-muted-foreground mt-1" data-testid={`text-approved-wa-lastmsg-${session.id}`}>
+                        Last message: {new Date(session.lastMessageAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => deleteWaSessionMutation.mutate(session.id)}
+                    data-testid={`button-remove-wa-${session.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Cog className="h-4 w-4" />
@@ -1033,193 +1220,6 @@ export default function SettingsOpenclaw() {
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Approve
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              WhatsApp AI Bot
-            </CardTitle>
-            <CardDescription>Manage the WhatsApp AI bot powered by OpenRouter.</CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={
-                botStatus?.state === "connected" ? "default" :
-                botStatus?.state === "connecting" || botStatus?.state === "qr_ready" ? "secondary" :
-                "destructive"
-              }
-              data-testid="badge-bot-status"
-            >
-              {botStatus?.state === "connected" ? "Connected" :
-               botStatus?.state === "connecting" ? "Connecting..." :
-               botStatus?.state === "qr_ready" ? "QR Ready" : "Disconnected"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            {botStatus?.state === "disconnected" || !botStatus ? (
-              <Button
-                onClick={() => startBotMutation.mutate()}
-                disabled={startBotMutation.isPending}
-                data-testid="button-start-bot"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {startBotMutation.isPending ? "Starting..." : "Start Bot"}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="destructive"
-                  onClick={() => stopBotMutation.mutate()}
-                  disabled={stopBotMutation.isPending}
-                  data-testid="button-stop-bot"
-                >
-                  <Square className="h-4 w-4 mr-2" />
-                  {stopBotMutation.isPending ? "Stopping..." : "Stop Bot"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => restartBotMutation.mutate()}
-                  disabled={restartBotMutation.isPending}
-                  data-testid="button-restart-bot"
-                >
-                  <RotateCw className="h-4 w-4 mr-2" />
-                  Restart
-                </Button>
-              </>
-            )}
-            {botStatus?.phone && (
-              <div className="flex items-center gap-2 ml-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground" data-testid="text-bot-phone">+{botStatus.phone}</span>
-              </div>
-            )}
-          </div>
-
-          {botStatus?.error && (
-            <div className="rounded-md bg-destructive/10 p-3">
-              <p className="text-sm text-destructive" data-testid="text-bot-error">{botStatus.error}</p>
-            </div>
-          )}
-
-          {botStatus?.state === "qr_ready" && botStatus.qrDataUrl && (
-            <div className="flex flex-col items-center gap-3 p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground font-medium">Scan this QR code with WhatsApp</p>
-              <img
-                src={botStatus.qrDataUrl}
-                alt="WhatsApp QR Code"
-                className="rounded-md border"
-                style={{ width: 260, height: 260 }}
-                data-testid="img-whatsapp-qr"
-              />
-              <p className="text-xs text-muted-foreground text-center max-w-xs">
-                Open WhatsApp on your phone, go to Settings, then Linked Devices, and scan this QR code.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {pendingWaSessions && pendingWaSessions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Pending WhatsApp Approvals
-            </CardTitle>
-            <CardDescription>{pendingWaSessions.length} user{pendingWaSessions.length !== 1 ? "s" : ""} waiting for approval.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pendingWaSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
-                  data-testid={`row-pending-wa-${session.id}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium" data-testid={`text-wa-phone-${session.id}`}>+{session.phone}</p>
-                      {session.displayName && (
-                        <span className="text-sm text-muted-foreground">{session.displayName}</span>
-                      )}
-                      <Badge variant="secondary" className="text-xs" data-testid={`badge-wa-code-${session.id}`}>Code: {session.pairingCode}</Badge>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => approveWaSessionMutation.mutate(session.id)}
-                      disabled={approveWaSessionMutation.isPending}
-                      data-testid={`button-approve-wa-${session.id}`}
-                    >
-                      <UserCheck className="h-4 w-4 mr-2" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deleteWaSessionMutation.mutate(session.id)}
-                      data-testid={`button-delete-wa-${session.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {whatsappSessions && whatsappSessions.filter(s => s.status === "approved").length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
-              Approved WhatsApp Users
-            </CardTitle>
-            <CardDescription>Users with active WhatsApp AI access.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {whatsappSessions.filter(s => s.status === "approved").map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
-                  data-testid={`row-approved-wa-${session.id}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium" data-testid={`text-approved-wa-phone-${session.id}`}>+{session.phone}</p>
-                      {session.displayName && (
-                        <span className="text-sm text-muted-foreground" data-testid={`text-approved-wa-name-${session.id}`}>{session.displayName}</span>
-                      )}
-                      <Badge variant="default" className="text-xs" data-testid={`badge-approved-wa-${session.id}`}>Approved</Badge>
-                    </div>
-                    {session.lastMessageAt && (
-                      <p className="text-xs text-muted-foreground mt-1" data-testid={`text-approved-wa-lastmsg-${session.id}`}>
-                        Last message: {new Date(session.lastMessageAt).toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => deleteWaSessionMutation.mutate(session.id)}
-                    data-testid={`button-remove-wa-${session.id}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))}

@@ -13,7 +13,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 
 const AUTH_DIR = "./whatsapp-auth";
-const MAX_QR_RETRIES = 3;
+const MAX_QR_RETRIES = 5;
 
 export interface BotStatus {
   state: "disconnected" | "connecting" | "qr_ready" | "connected";
@@ -240,7 +240,7 @@ class WhatsAppBot extends EventEmitter {
     }
     if (this.sock) {
       try {
-        await this.sock.logout();
+        this.sock.end(undefined);
       } catch {
       }
       this.sock = null;
