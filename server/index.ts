@@ -109,23 +109,21 @@ app.use((req, res, next) => {
   await seed();
   await registerRoutes(httpServer, app);
 
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const config = await storage.getOpenclawConfig();
-      if (config?.whatsappEnabled) {
-        const { whatsappBot } = await import("./bot/whatsapp");
-        if (whatsappBot.hasAuthState()) {
-          console.log("[OpenClaw] WhatsApp is enabled and has auth state, starting bot...");
-          whatsappBot.start();
-        } else {
-          console.log("[OpenClaw] WhatsApp is enabled but no phone linked yet. Use dashboard to start and scan QR.");
-        }
+  try {
+    const instances = await storage.getInstances();
+    const firstInstance = instances[0];
+    const config = firstInstance ? await storage.getOpenclawConfig(String(firstInstance.id)) : undefined;
+    if (config?.whatsappEnabled) {
+      const { whatsappBot } = await import("./bot/whatsapp");
+      if (whatsappBot.hasAuthState()) {
+        console.log("[OpenClaw] WhatsApp is enabled and has auth state, starting bot...");
+      } else {
+        console.log("[OpenClaw] WhatsApp is enabled, starting bot (QR code will be generated for pairing)...");
       }
-    } catch (err) {
-      console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);
+      whatsappBot.start();
     }
-  } else {
-    console.log("[OpenClaw] Production mode - WhatsApp bot runs on your OpenClaw server");
+  } catch (err) {
+    console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);
   }
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
