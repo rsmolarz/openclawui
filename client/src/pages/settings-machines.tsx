@@ -416,7 +416,7 @@ export default function SettingsMachines() {
               <Button
                 variant="outline"
                 onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending || !probeResult?.reachable}
+                disabled={syncMutation.isPending}
                 data-testid="button-sync-gateway"
               >
                 {syncMutation.isPending ? (
@@ -428,15 +428,12 @@ export default function SettingsMachines() {
                 {probeResult?.reachable && (
                   <CheckCircle2 className="h-3.5 w-3.5 ml-1.5 text-green-500" />
                 )}
-                {probeResult && !probeResult.reachable && (
-                  <AlertCircle className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" />
-                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               {probeResult?.reachable
                 ? `Connected to gateway at ${probeResult.serverUrl}`
-                : probeResult?.error || "Gateway not reachable. Configure Server URL and Gateway Token in settings."}
+                : "Gateway not directly reachable — sync may still work if the server is accessible."}
             </TooltipContent>
           </Tooltip>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -528,7 +525,7 @@ export default function SettingsMachines() {
         </div>
       </div>
 
-      <QuickStartGuide />
+      <QuickStartGuide instanceId={selectedInstanceId} />
 
       {machines && machines.length > 0 ? (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
