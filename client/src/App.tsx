@@ -25,6 +25,7 @@ import SettingsInstances from "@/pages/settings-instances";
 import SettingsSkills from "@/pages/settings-skills";
 import Documentation from "@/pages/documentation";
 import NodeSetupWizard from "@/pages/node-setup-wizard";
+import VpsMonitoring from "@/pages/vps-monitoring";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/settings/skills" component={SettingsSkills} />
       <Route path="/docs" component={Documentation} />
       <Route path="/node-setup" component={NodeSetupWizard} />
+      <Route path="/vps-monitor" component={VpsMonitoring} />
       <Route component={NotFound} />
     </Switch>
   );

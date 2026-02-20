@@ -1199,5 +1199,191 @@ export async function registerRoutes(
     }
   });
 
+  // ──────────── Hostinger VPS Monitoring ────────────
+
+  app.get("/api/hostinger/vms", requireAuth, async (_req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const vms = await hostinger.listVMs();
+      res.json(vms);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch VPS list from Hostinger" });
+    }
+  });
+
+  app.get("/api/hostinger/vms/:vmId", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const vm = await hostinger.getVM(Number(req.params.vmId));
+      res.json(vm);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch VM details" });
+    }
+  });
+
+  app.get("/api/hostinger/vms/:vmId/metrics", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const dateFrom = req.query.date_from as string | undefined;
+      const dateTo = req.query.date_to as string | undefined;
+      const metrics = await hostinger.getMetrics(Number(req.params.vmId), dateFrom, dateTo);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch metrics" });
+    }
+  });
+
+  app.post("/api/hostinger/vms/:vmId/start", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const action = await hostinger.startVM(Number(req.params.vmId));
+      res.json(action);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to start VM" });
+    }
+  });
+
+  app.post("/api/hostinger/vms/:vmId/stop", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const action = await hostinger.stopVM(Number(req.params.vmId));
+      res.json(action);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to stop VM" });
+    }
+  });
+
+  app.post("/api/hostinger/vms/:vmId/restart", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const action = await hostinger.restartVM(Number(req.params.vmId));
+      res.json(action);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to restart VM" });
+    }
+  });
+
+  app.get("/api/hostinger/vms/:vmId/actions", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const actions = await hostinger.getActions(Number(req.params.vmId));
+      res.json(actions);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch actions" });
+    }
+  });
+
+  app.get("/api/hostinger/vms/:vmId/docker", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const projects = await hostinger.listDockerProjects(Number(req.params.vmId));
+      res.json(projects);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch Docker projects" });
+    }
+  });
+
+  app.get("/api/hostinger/vms/:vmId/docker/:projectName/containers", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const containers = await hostinger.getDockerContainers(Number(req.params.vmId), req.params.projectName);
+      res.json(containers);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch containers" });
+    }
+  });
+
+  app.post("/api/hostinger/vms/:vmId/docker/:projectName/restart", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      await hostinger.restartDockerProject(Number(req.params.vmId), req.params.projectName);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to restart Docker project" });
+    }
+  });
+
+  app.post("/api/hostinger/vms/:vmId/docker/:projectName/start", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      await hostinger.startDockerProject(Number(req.params.vmId), req.params.projectName);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to start Docker project" });
+    }
+  });
+
+  app.post("/api/hostinger/vms/:vmId/docker/:projectName/stop", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      await hostinger.stopDockerProject(Number(req.params.vmId), req.params.projectName);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to stop Docker project" });
+    }
+  });
+
+  app.get("/api/hostinger/firewalls", requireAuth, async (_req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const firewalls = await hostinger.listFirewalls();
+      res.json(firewalls);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch firewalls" });
+    }
+  });
+
+  app.get("/api/hostinger/firewalls/:firewallId", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const firewall = await hostinger.getFirewall(Number(req.params.firewallId));
+      res.json(firewall);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch firewall" });
+    }
+  });
+
+  app.post("/api/hostinger/firewalls/:firewallId/rules", requireAuth, async (req, res) => {
+    try {
+      const { z } = await import("zod");
+      const firewallRuleSchema = z.object({
+        protocol: z.enum(["tcp", "udp", "icmp"]),
+        port: z.string().min(1).max(20),
+        source: z.enum(["any", "custom"]),
+        source_detail: z.string().optional(),
+        action: z.enum(["accept", "drop"]),
+      });
+      const parsed = firewallRuleSchema.parse(req.body);
+      const { hostinger } = await import("./hostinger");
+      const result = await hostinger.createFirewallRule(Number(req.params.firewallId), parsed);
+      res.json(result);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid firewall rule data", details: error.errors });
+      }
+      res.status(502).json({ error: error.message || "Failed to create firewall rule" });
+    }
+  });
+
+  app.post("/api/hostinger/firewalls/:firewallId/sync", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      await hostinger.syncFirewall(Number(req.params.firewallId));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to sync firewall" });
+    }
+  });
+
+  app.get("/api/hostinger/vms/:vmId/backups", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const backups = await hostinger.listBackups(Number(req.params.vmId));
+      res.json(backups);
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to fetch backups" });
+    }
+  });
+
   return httpServer;
 }

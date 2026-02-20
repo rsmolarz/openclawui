@@ -14,6 +14,7 @@ import {
   Zap,
   FileText,
   Wand2,
+  Activity,
 } from "lucide-react";
 import {
   Sidebar,
@@ -46,6 +47,7 @@ const settingsItems = [
 
 const infraItems = [
   { title: "Instances", url: "/settings/instances", icon: Layers },
+  { title: "VPS Monitoring", url: "/vps-monitor", icon: Activity },
   { title: "VPS Connection", url: "/settings/vps", icon: Server },
   { title: "OpenClaw Config", url: "/settings/openclaw", icon: Cog },
   { title: "Skills", url: "/settings/skills", icon: Zap },

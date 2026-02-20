@@ -18,6 +18,14 @@ A professional settings management dashboard for the OpenClaw AI agent gateway p
 - **Native Dashboard Integration**: OpenClaw Config page shows "Open Dashboard" button when instance has a server URL. Builds authenticated URL with gateway token for one-click access.
 - **VPS Connection Logs**: Connection test history with status tracking, quick SSH command builder with one-click copy
 - **Quick Start Onboarding**: 5-step checklist on Overview page with progress bar, per-user/instance persistence, dismissible
+- **Hostinger VPS Monitoring** (`/vps-monitor`): Live VPS monitoring powered by Hostinger API
+  - Server overview: hostname, IP, OS, plan, datacenter, specs, state
+  - Resource metrics: CPU and memory usage with progress bars (auto-refreshes every 60s)
+  - Docker tab: List Docker Compose projects, view containers, start/stop/restart projects
+  - Firewall tab: View firewall rules and sync status
+  - Backups tab: List available VPS backups
+  - Power controls: Start/Stop/Restart VPS directly from dashboard
+  - Multi-VPS support: Switch between multiple VPS instances
 
 ## Architecture
 - **Frontend**: React + TypeScript with Vite, Shadcn UI components, wouter routing, TanStack Query
@@ -147,6 +155,25 @@ shared/
 ### Onboarding Checklist (protected, instance+user-scoped)
 - `GET /api/onboarding` - Get onboarding state
 - `PATCH /api/onboarding` - Update onboarding steps/dismissed
+
+### Hostinger VPS Monitoring (protected, proxies to Hostinger API)
+- `GET /api/hostinger/vms` - List all VPS instances
+- `GET /api/hostinger/vms/:vmId` - Get VM details
+- `GET /api/hostinger/vms/:vmId/metrics` - Get CPU/RAM/disk/network metrics
+- `POST /api/hostinger/vms/:vmId/start` - Start VM
+- `POST /api/hostinger/vms/:vmId/stop` - Stop VM
+- `POST /api/hostinger/vms/:vmId/restart` - Restart VM
+- `GET /api/hostinger/vms/:vmId/actions` - Get action history
+- `GET /api/hostinger/vms/:vmId/docker` - List Docker projects
+- `GET /api/hostinger/vms/:vmId/docker/:projectName/containers` - List containers
+- `POST /api/hostinger/vms/:vmId/docker/:projectName/start` - Start Docker project
+- `POST /api/hostinger/vms/:vmId/docker/:projectName/stop` - Stop Docker project
+- `POST /api/hostinger/vms/:vmId/docker/:projectName/restart` - Restart Docker project
+- `GET /api/hostinger/firewalls` - List firewalls
+- `GET /api/hostinger/firewalls/:firewallId` - Get firewall details with rules
+- `POST /api/hostinger/firewalls/:firewallId/rules` - Create firewall rule
+- `POST /api/hostinger/firewalls/:firewallId/sync` - Sync firewall rules to VPS
+- `GET /api/hostinger/vms/:vmId/backups` - List backups
 
 ### Global Protected Routes
 - `GET /api/settings` - List all settings
