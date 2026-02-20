@@ -42,7 +42,7 @@ interface VM {
   os: { name: string; version: string };
   data_center: { name: string; location: string };
   created_at: string;
-  firewall?: { id: number; name: string } | null;
+  firewall_group_id?: number | null;
   [key: string]: any;
 }
 
@@ -199,7 +199,8 @@ export default function VpsMonitoring() {
   });
 
   const lastCpu = metrics?.cpu?.length ? metrics.cpu[metrics.cpu.length - 1]?.value : null;
-  const lastMem = metrics?.memory?.length ? metrics.memory[metrics.memory.length - 1]?.value : null;
+  const rawLastMem = metrics?.memory?.length ? metrics.memory[metrics.memory.length - 1]?.value : null;
+  const lastMem = rawLastMem !== null && rawLastMem > 100 ? null : rawLastMem;
 
   if (vmsLoading) {
     return (
@@ -432,18 +433,18 @@ export default function VpsMonitoring() {
                     <div className="rounded-md bg-muted/50 p-3">
                       <p className="text-xs text-muted-foreground flex items-center gap-1"><HardDrive className="h-3 w-3" /> OS</p>
                       <p className="text-sm font-semibold mt-1" data-testid="text-vm-os">
-                        {activeVm.os?.name} {activeVm.os?.version}
+                        {activeVm.os?.name || "N/A"}{activeVm.os?.version ? ` ${activeVm.os.version}` : ""}
                       </p>
                     </div>
                     <div className="rounded-md bg-muted/50 p-3">
                       <p className="text-xs text-muted-foreground flex items-center gap-1"><Globe className="h-3 w-3" /> Datacenter</p>
                       <p className="text-sm font-semibold mt-1" data-testid="text-vm-datacenter">
-                        {activeVm.data_center?.name} ({activeVm.data_center?.location})
+                        {activeVm.data_center?.name || "N/A"}{activeVm.data_center?.location ? ` (${activeVm.data_center.location})` : ""}
                       </p>
                     </div>
                     <div className="rounded-md bg-muted/50 p-3">
                       <p className="text-xs text-muted-foreground flex items-center gap-1"><Network className="h-3 w-3" /> Bandwidth</p>
-                      <p className="text-sm font-semibold mt-1" data-testid="text-vm-bandwidth">{formatBytes(activeVm.bandwidth || 0)}</p>
+                      <p className="text-sm font-semibold mt-1" data-testid="text-vm-bandwidth">{formatMB(activeVm.bandwidth || 0)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -487,7 +488,7 @@ export default function VpsMonitoring() {
                       </div>
                       <div>
                         <p className="text-sm font-medium mb-2">Memory Usage</p>
-                        {metrics.memory && metrics.memory.length > 0 ? (
+                        {metrics.memory && metrics.memory.length > 0 && metrics.memory[0].value <= 100 ? (
                           <div className="space-y-1.5">
                             {metrics.memory.slice(-8).map((point, idx) => (
                               <div key={idx} className="flex items-center gap-2 text-xs">

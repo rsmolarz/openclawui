@@ -35,7 +35,7 @@ export interface HostingerVM {
   os: { name: string; version: string };
   data_center: { name: string; location: string };
   created_at: string;
-  firewall?: { id: number; name: string } | null;
+  firewall_group_id?: number | null;
   [key: string]: any;
 }
 
@@ -94,23 +94,125 @@ export interface HostingerBackup {
   [key: string]: any;
 }
 
+function normalizeVM(raw: any): HostingerVM {
+  const ipAddresses: Array<{ address: string; type: string }> = [];
+  if (Array.isArray(raw.ipv4)) {
+    for (const ip of raw.ipv4) {
+      ipAddresses.push({ address: ip.address, type: "ipv4" });
+    }
+  }
+  if (Array.isArray(raw.ipv6)) {
+    for (const ip of raw.ipv6) {
+      ipAddresses.push({ address: ip.address, type: "ipv6" });
+    }
+  }
+  if (raw.ip_addresses && !raw.ipv4) {
+    ipAddresses.push(...raw.ip_addresses);
+  }
+
+  let os = raw.os || { name: "Unknown", version: "" };
+  if (!raw.os && raw.template) {
+    os = { name: raw.template.name || "Unknown", version: "" };
+  }
+
+  let dataCenter = raw.data_center || { name: "Unknown", location: "" };
+  if (!raw.data_center && raw.data_center_id) {
+    dataCenter = { name: `DC #${raw.data_center_id}`, location: "" };
+  }
+
+  return {
+    ...raw,
+    ip_addresses: ipAddresses,
+    os,
+    data_center: dataCenter,
+    firewall_group_id: raw.firewall_group_id ?? null,
+  };
+}
+
+function formatDateParam(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
 export const hostinger = {
   async listVMs(): Promise<HostingerVM[]> {
     const data = await hostingerFetch("/api/vps/v1/virtual-machines");
-    return Array.isArray(data) ? data : data?.data || [];
+    const list = Array.isArray(data) ? data : data?.data || [];
+    return list.map(normalizeVM);
   },
 
   async getVM(vmId: number): Promise<HostingerVM> {
-    return hostingerFetch(`/api/vps/v1/virtual-machines/${vmId}`);
+    const data = await hostingerFetch(`/api/vps/v1/virtual-machines/${vmId}`);
+    return normalizeVM(data);
   },
 
-  async getMetrics(vmId: number, dateFrom?: string, dateTo?: string): Promise<HostingerMetrics> {
-    let path = `/api/vps/v1/virtual-machines/${vmId}/metrics`;
+  async getMetrics(vmId: number, dateFrom?: string, dateTo?: string, totalMemoryMB?: number): Promise<HostingerMetrics> {
+    if (!dateFrom || !dateTo) {
+      const now = new Date();
+      dateTo = dateTo || formatDateParam(now);
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      dateFrom = dateFrom || formatDateParam(weekAgo);
+    }
     const params = new URLSearchParams();
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo) params.set("date_to", dateTo);
-    if (params.toString()) path += `?${params}`;
-    return hostingerFetch(path);
+    params.set("date_from", dateFrom);
+    params.set("date_to", dateTo);
+    const path = `/api/vps/v1/virtual-machines/${vmId}/metrics?${params}`;
+    const data = await hostingerFetch(path);
+    const result: HostingerMetrics = { cpu: [], memory: [], disk: [], network: [] };
+
+    function parseUsageMap(usageObj: any): Array<{ timestamp: string; value: number }> {
+      if (!usageObj || typeof usageObj !== "object") return [];
+      return Object.entries(usageObj)
+        .map(([ts, val]) => ({
+          timestamp: new Date(Number(ts) * 1000).toISOString(),
+          value: Number(val),
+        }))
+        .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    }
+
+    if (data.cpu_usage?.usage) {
+      result.cpu = parseUsageMap(data.cpu_usage.usage);
+    }
+    if (data.ram_usage?.usage) {
+      const totalMemBytes = totalMemoryMB ? totalMemoryMB * 1024 * 1024 : 0;
+      if (data.ram_usage.unit === "bytes" && totalMemBytes > 0) {
+        result.memory = Object.entries(data.ram_usage.usage)
+          .map(([ts, val]) => ({
+            timestamp: new Date(Number(ts) * 1000).toISOString(),
+            value: Math.min(100, (Number(val) / totalMemBytes) * 100),
+          }))
+          .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      } else {
+        result.memory = parseUsageMap(data.ram_usage.usage);
+      }
+    }
+    const diskSource = data.disk_usage?.usage || data.disk_space?.usage;
+    if (diskSource) {
+      result.disk = Object.entries(diskSource)
+        .map(([ts, val]: [string, any]) => ({
+          timestamp: new Date(Number(ts) * 1000).toISOString(),
+          read: typeof val === "object" ? Number(val.read || 0) : Number(val),
+          write: typeof val === "object" ? Number(val.write || 0) : 0,
+        }))
+        .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    }
+
+    const inTraffic = data.incoming_traffic?.usage;
+    const outTraffic = data.outgoing_traffic?.usage;
+    if (inTraffic || outTraffic) {
+      const allTimestamps = new Set([
+        ...Object.keys(inTraffic || {}),
+        ...Object.keys(outTraffic || {}),
+      ]);
+      result.network = Array.from(allTimestamps)
+        .sort()
+        .map((ts) => ({
+          timestamp: new Date(Number(ts) * 1000).toISOString(),
+          in: Number(inTraffic?.[ts] || 0),
+          out: Number(outTraffic?.[ts] || 0),
+        }));
+    }
+
+    return result;
   },
 
   async startVM(vmId: number): Promise<HostingerAction> {

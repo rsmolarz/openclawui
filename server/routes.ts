@@ -1224,9 +1224,11 @@ export async function registerRoutes(
   app.get("/api/hostinger/vms/:vmId/metrics", requireAuth, async (req, res) => {
     try {
       const { hostinger } = await import("./hostinger");
+      const vmId = Number(req.params.vmId);
       const dateFrom = req.query.date_from as string | undefined;
       const dateTo = req.query.date_to as string | undefined;
-      const metrics = await hostinger.getMetrics(Number(req.params.vmId), dateFrom, dateTo);
+      const vm = await hostinger.getVM(vmId);
+      const metrics = await hostinger.getMetrics(vmId, dateFrom, dateTo, vm.memory);
       res.json(metrics);
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to fetch metrics" });
