@@ -62,9 +62,15 @@ class WhatsAppBot extends EventEmitter {
   }
 
   async startWithPairingCode(phoneNumber: string): Promise<void> {
+    const cleaned = phoneNumber.replace(/[^0-9]/g, "");
+    if (!cleaned || cleaned.length < 7) {
+      throw new Error("Invalid phone number");
+    }
     this.usePairingCode = true;
-    this.pairingPhone = phoneNumber.replace(/[^0-9]/g, "");
-    this.clearAuthState();
+    this.pairingPhone = cleaned;
+    if (this.hasAuthState()) {
+      this.clearAuthState();
+    }
     await this.start();
   }
 

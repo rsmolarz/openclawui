@@ -268,15 +268,43 @@ export async function registerRoutes(
 .connected{background:#22c55e;color:#fff}
 .waiting{background:#f59e0b;color:#000}
 .error{background:#ef4444;color:#fff}
+.code{font-size:48px;font-family:monospace;letter-spacing:8px;margin:20px;padding:20px;background:#1e293b;border-radius:12px;user-select:all}
 h1{margin-bottom:0}p{color:#999;margin-top:8px}
-button{margin:16px;padding:10px 24px;background:#3b82f6;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:16px}
-button:hover{background:#2563eb}</style></head>
-<body><h1>OpenClaw WhatsApp</h1><p>Scan the QR code with WhatsApp on your phone</p>
+input{padding:10px 16px;background:#222;border:1px solid #444;border-radius:8px;color:#fff;font-size:16px;width:200px;margin:4px}
+button{margin:8px;padding:10px 24px;background:#3b82f6;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:16px}
+button:hover{background:#2563eb}
+.btn-outline{background:transparent;border:1px solid #3b82f6}
+.btn-outline:hover{background:#1e3a5f}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px}
+.phone-form{display:flex;gap:8px;align-items:center;margin:16px}
+</style></head>
+<body><h1>OpenClaw WhatsApp</h1><p>Connect WhatsApp to your OpenClaw AI bot</p>
 <div id="content"><p>Loading...</p></div>
-<button onclick="restart()">Restart Bot</button>
+<div class="actions">
+<button onclick="restart()">Restart Bot (QR)</button>
+<button class="btn-outline" onclick="showPhoneForm()">Link with Phone Number</button>
+</div>
+<div id="phone-form" style="display:none">
+<p style="color:#ccc;font-size:14px">Enter phone number in international format (without +)</p>
+<div class="phone-form">
+<input id="phone" placeholder="48123456789" />
+<button onclick="requestPairing()">Get Code</button>
+</div>
+</div>
 <script>
+function showPhoneForm(){document.getElementById('phone-form').style.display='block'}
+async function requestPairing(){
+  var ph=document.getElementById('phone').value.trim();
+  if(!ph){alert('Enter a phone number');return}
+  try{var r=await fetch('/api/whatsapp/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phoneNumber:ph})});
+  if(!r.ok){var d=await r.json();alert(d.error||'Failed');return}
+  document.getElementById('phone-form').style.display='none';
+  document.getElementById('content').innerHTML='<div class="status waiting">Requesting pairing code...</div>';
+  setTimeout(poll,2000)}catch(e){alert('Failed to request pairing code')}
+}
 async function poll(){try{const r=await fetch('/api/whatsapp/qr');const d=await r.json();const el=document.getElementById('content');
-if(d.state==='connected'){el.innerHTML='<div class="status connected">Connected as '+d.phone+'</div>';return}
+if(d.state==='connected'){el.innerHTML='<div class="status connected">Connected as +'+d.phone+'</div>';return}
+if(d.state==='pairing_code_ready'&&d.pairingCode){el.innerHTML='<p style="color:#ccc">Enter this code in WhatsApp</p><div class="code">'+d.pairingCode+'</div><p style="color:#999;font-size:13px">WhatsApp > Settings > Linked Devices > Link a Device > Link with phone number</p>';setTimeout(poll,5000);return}
 if(d.state==='qr_ready'&&d.qrDataUrl){el.innerHTML='<div class="qr"><img src="'+d.qrDataUrl+'" alt="QR"></div><div class="status waiting">Waiting for scan...</div>'}
 else{el.innerHTML='<div class="status waiting">'+d.state+'</div>'}}catch(e){document.getElementById('content').innerHTML='<div class="status error">Error loading</div>'}
 setTimeout(poll,3000)}poll();
