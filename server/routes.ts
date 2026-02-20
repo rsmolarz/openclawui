@@ -403,7 +403,7 @@ export async function registerRoutes(
       const instance = await storage.getInstance(instanceId);
       if (!instance?.serverUrl) return res.json({ reachable: false, error: "No server URL configured for this instance" });
       const config = await storage.getOpenclawConfig(instanceId);
-      const token = config?.gatewayToken;
+      const token = config?.gatewayToken || instance.apiKey;
       const url = new URL("/api/health", instance.serverUrl);
       if (token) url.searchParams.set("token", token);
       const controller = new AbortController();
@@ -429,8 +429,8 @@ export async function registerRoutes(
       const instance = await storage.getInstance(instanceId);
       if (!instance?.serverUrl) return res.status(400).json({ error: "No server URL configured. Set it in Instance settings." });
       const config = await storage.getOpenclawConfig(instanceId);
-      const token = config?.gatewayToken;
-      if (!token) return res.status(400).json({ error: "No gateway token configured. Set it in OpenClaw Config." });
+      const token = config?.gatewayToken || instance.apiKey;
+      if (!token) return res.status(400).json({ error: "No gateway token configured. Set it in OpenClaw Config or set an API key on the instance." });
 
       // Try known gateway API endpoints for fetching sessions/nodes
       const endpoints = ["/api/sessions", "/api/nodes", "/api/v1/sessions", "/api/v1/nodes"];
