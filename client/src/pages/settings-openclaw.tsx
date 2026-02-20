@@ -394,6 +394,7 @@ export default function SettingsOpenclaw() {
     gatewayBind: "127.0.0.1",
     gatewayMode: "local",
     gatewayToken: "",
+    gatewayPassword: "",
     defaultLlm: "deepseek/deepseek-chat",
     fallbackLlm: "openrouter/auto",
     whatsappEnabled: false,
@@ -401,6 +402,7 @@ export default function SettingsOpenclaw() {
     tailscaleEnabled: false,
   });
   const [showToken, setShowToken] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [newKey, setNewKey] = useState({ provider: "OpenRouter", label: "", apiKey: "", baseUrl: "" });
   const [showAddKey, setShowAddKey] = useState(false);
@@ -413,6 +415,7 @@ export default function SettingsOpenclaw() {
         gatewayBind: config.gatewayBind,
         gatewayMode: config.gatewayMode,
         gatewayToken: config.gatewayToken ?? "",
+        gatewayPassword: config.gatewayPassword ?? "",
         defaultLlm: config.defaultLlm,
         fallbackLlm: config.fallbackLlm,
         whatsappEnabled: config.whatsappEnabled,
@@ -424,7 +427,7 @@ export default function SettingsOpenclaw() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formValues) => {
-      const payload = { ...data, gatewayToken: data.gatewayToken || null };
+      const payload = { ...data, gatewayToken: data.gatewayToken || null, gatewayPassword: data.gatewayPassword || null };
       await apiRequest("POST", `/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, payload);
     },
     onSuccess: () => {
@@ -968,6 +971,32 @@ export default function SettingsOpenclaw() {
             </div>
             <p className="text-xs text-muted-foreground">
               Found in ~/.openclaw/openclaw.json under gateway.auth.token. Used to access the native dashboard and authenticate nodes.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="gateway_password">Gateway Password</Label>
+            <div className="flex gap-2">
+              <Input
+                id="gateway_password"
+                type={showPassword ? "text" : "password"}
+                value={formValues.gatewayPassword}
+                onChange={(e) => setFormValues((p) => ({ ...p, gatewayPassword: e.target.value }))}
+                placeholder="System or shared password for gateway WebSocket auth"
+                data-testid="input-gateway-password"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                data-testid="button-toggle-password-visibility"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The password used by the native dashboard for WebSocket authentication. Set via <code className="text-xs">openclaw config set gateway.password YOUR_PASSWORD</code> on your server.
             </p>
           </div>
 

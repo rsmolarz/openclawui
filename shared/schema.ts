@@ -83,6 +83,7 @@ export const openclawConfig = pgTable("openclaw_config", {
   gatewayBind: text("gateway_bind").notNull().default("127.0.0.1"),
   gatewayMode: text("gateway_mode").notNull().default("local"),
   gatewayToken: text("gateway_token"),
+  gatewayPassword: text("gateway_password"),
   gatewayStatus: text("gateway_status").notNull().default("offline"),
   defaultLlm: text("default_llm").notNull().default("openrouter/deepseek-chat"),
   fallbackLlm: text("fallback_llm").notNull().default("openrouter/auto"),
