@@ -134,10 +134,42 @@ function NodeCard({
   );
 }
 
-function QuickStartGuide() {
+function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
   const { toast } = useToast();
+
+  const { data: config } = useQuery<{ gatewayToken?: string; gatewayPort?: number }>({
+    queryKey: ["/api/openclaw/config", instanceId],
+    enabled: !!instanceId,
+  });
+
+  const { data: instance } = useQuery<{ serverUrl?: string }>({
+    queryKey: ["/api/instances", instanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/instances`, { credentials: "include" });
+      if (!resp.ok) return {};
+      const list = await resp.json();
+      return list.find((i: any) => i.id === instanceId) || {};
+    },
+    enabled: !!instanceId,
+  });
+
+  const gatewayToken = config?.gatewayToken || "";
+  const gatewayPort = config?.gatewayPort || 18789;
+
+  let gatewayHost = "<gateway-ip>";
+  if (instance?.serverUrl) {
+    try {
+      const url = new URL(instance.serverUrl);
+      gatewayHost = url.hostname;
+    } catch {
+      gatewayHost = instance.serverUrl.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
+    }
+  }
+
   const installCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
-  const nodeRunCmd = "openclaw node run --host <gateway-ip> --port 18789";
+  const exportCmd = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"`;
+  const nodeRunCmd = `openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
+  const fullStep2 = `${exportCmd} && ${nodeRunCmd}`;
 
   const copyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -178,25 +210,33 @@ function QuickStartGuide() {
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
             <div className="flex-1 min-w-0 space-y-1.5">
               <p className="text-sm text-muted-foreground">
-                <strong>Set your gateway token</strong> and connect the node:
+                <strong>Set your gateway token and connect</strong> — copy and paste this single command:
               </p>
               <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid="text-export-cmd">export OPENCLAW_GATEWAY_TOKEN="your-token"</code>
-                <Button size="icon" variant="ghost" onClick={() => copyText('export OPENCLAW_GATEWAY_TOKEN=""')} className="shrink-0" data-testid="button-copy-export">
+                <code className="text-xs font-mono break-all" data-testid="text-full-connect-cmd">{fullStep2}</code>
+                <Button size="icon" variant="ghost" onClick={() => copyText(fullStep2)} className="shrink-0" data-testid="button-copy-connect">
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid="text-node-run-cmd">{nodeRunCmd}</code>
-                <Button size="icon" variant="ghost" onClick={() => copyText(nodeRunCmd)} className="shrink-0" data-testid="button-copy-node-run">
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Find your token in{" "}
-                <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link>{" "}
-                or in <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">~/.openclaw/openclaw.json</code> on the gateway machine.
-              </p>
+              {!gatewayToken && (
+                <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    Gateway token not set yet. Add it in{" "}
+                    <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link>{" "}
+                    or find it in <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">~/.openclaw/openclaw.json</code> on the gateway machine.
+                  </p>
+                </div>
+              )}
+              {gatewayHost === "<gateway-ip>" && (
+                <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    Server URL not set. Add it on the{" "}
+                    <Link href="/settings/instances" className="text-primary underline-offset-4 hover:underline">Instances</Link> page to auto-fill the gateway IP.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
