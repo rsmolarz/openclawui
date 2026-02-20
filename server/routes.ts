@@ -469,7 +469,7 @@ export async function registerRoutes(
 
       if (!successEndpoint) {
         return res.status(502).json({
-          error: "Could not fetch nodes from gateway. The gateway may not expose a compatible API, or the token may be incorrect.",
+          error: "Could not reach the gateway server. This usually means the server is behind a firewall or only accessible via Tailscale/VPN. You can add nodes manually instead using the Add Node button.",
           tried: endpoints,
         });
       }
@@ -839,22 +839,11 @@ export async function registerRoutes(
 
   app.get("/api/whatsapp/status", requireAuth, async (req, res) => {
     try {
-      if (isProductionRuntime) {
-        const instanceId = await resolveInstanceId(req);
-        const config = instanceId ? await storage.getOpenclawConfig(instanceId) : null;
-        res.json({
-          state: "external",
-          qrDataUrl: null,
-          phone: config?.whatsappPhone || null,
-          error: null,
-          runtime: "external",
-          enabled: config?.whatsappEnabled ?? false,
-        });
-      } else {
-        const bot = await getWhatsappBot();
-        const status = bot.getStatus();
-        res.json({ ...status, runtime: "local", enabled: true });
-      }
+      const bot = await getWhatsappBot();
+      const status = bot.getStatus();
+      const instanceId = await resolveInstanceId(req);
+      const config = instanceId ? await storage.getOpenclawConfig(instanceId) : null;
+      res.json({ ...status, runtime: "local", enabled: config?.whatsappEnabled ?? true });
     } catch (error) {
       res.status(500).json({ error: "Failed to get WhatsApp status" });
     }
@@ -862,9 +851,6 @@ export async function registerRoutes(
 
   app.get("/api/whatsapp/qr", requireAuth, async (_req, res) => {
     try {
-      if (isProductionRuntime) {
-        return res.json({ qrDataUrl: null, state: "external", phone: null });
-      }
       const bot = await getWhatsappBot();
       const status = bot.getStatus();
       res.json({
@@ -880,15 +866,6 @@ export async function registerRoutes(
   app.post("/api/whatsapp/start", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
-      if (isProductionRuntime) {
-        if (instanceId) {
-          const config = await storage.getOpenclawConfig(instanceId);
-          if (!config?.whatsappEnabled) {
-            await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: true });
-          }
-        }
-        return res.json({ success: true, message: "WhatsApp enabled. Bot will start on your OpenClaw server." });
-      }
       if (instanceId) {
         const config = await storage.getOpenclawConfig(instanceId);
         if (!config?.whatsappEnabled) {
@@ -906,11 +883,8 @@ export async function registerRoutes(
   app.post("/api/whatsapp/stop", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
-      if (isProductionRuntime) {
-        if (instanceId) {
-          await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: false });
-        }
-        return res.json({ success: true, message: "WhatsApp disabled. Bot will stop on your OpenClaw server." });
+      if (instanceId) {
+        await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: false });
       }
       const bot = await getWhatsappBot();
       await bot.stop();
@@ -922,9 +896,6 @@ export async function registerRoutes(
 
   app.post("/api/whatsapp/restart", requireAuth, async (_req, res) => {
     try {
-      if (isProductionRuntime) {
-        return res.json({ success: true, message: "Restart signal sent. Bot will restart on your OpenClaw server." });
-      }
       const bot = await getWhatsappBot();
       await bot.restart();
       res.json({ success: true, message: "WhatsApp bot restarting..." });

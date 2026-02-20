@@ -1,8 +1,9 @@
-import makeWASocket, {
+import baileysDefault, {
   useMultiFileAuthState,
   DisconnectReason,
-  WASocket,
 } from "@whiskeysockets/baileys";
+import type { WASocket } from "@whiskeysockets/baileys";
+const makeWASocket = (baileysDefault as any).default || baileysDefault;
 import { Boom } from "@hapi/boom";
 import * as QRCode from "qrcode";
 import { randomBytes } from "crypto";
