@@ -7,7 +7,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Cpu, Settings, Bell, KeyRound, TrendingUp, Server, Cog,
-  CheckCircle2, Circle, ChevronRight, X, Rocket
+  CheckCircle2, Circle, ChevronRight, X, Rocket, MessageSquare
 } from "lucide-react";
 import { useInstance } from "@/hooks/use-instance";
 import { Link } from "wouter";
@@ -232,6 +232,11 @@ export default function Overview() {
     enabled: !!selectedInstanceId,
   });
 
+  const { data: botStatus } = useQuery<{ state: string; phone: string | null }>({
+    queryKey: ["/api/whatsapp/status"],
+    refetchInterval: 10000,
+  });
+
   const isLoading = machinesLoading || settingsLoading || apiKeysLoading;
 
   const connectedNodes = machines?.filter((m) => m.status === "connected").length ?? 0;
@@ -278,7 +283,7 @@ export default function Overview() {
         <OnboardingChecklist instanceId={selectedInstanceId} />
       )}
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           title="Connected Nodes"
           value={connectedNodes}
@@ -306,6 +311,13 @@ export default function Overview() {
           icon={Server}
           description={vps?.vpsIp ?? "Not configured"}
           testId="card-stat-vps"
+        />
+        <StatCard
+          title="WhatsApp Bot"
+          value={botStatus?.state === "connected" ? "Connected" : botStatus?.state === "qr_ready" ? "QR Ready" : botStatus?.state === "connecting" ? "Connecting" : "Not Running"}
+          icon={MessageSquare}
+          description={botStatus?.state === "connected" && botStatus.phone ? `+${botStatus.phone}` : botStatus?.state === "disconnected" || !botStatus ? "Start from OpenClaw Config" : "Setting up..."}
+          testId="card-stat-whatsapp"
         />
       </div>
 
@@ -364,6 +376,7 @@ export default function Overview() {
                 { icon: KeyRound, label: "API Configuration", desc: "Manage API access keys", href: "/settings/api-keys" },
                 { icon: Server, label: "VPS Connection", desc: "Manage server connection", href: "/settings/vps" },
                 { icon: Cog, label: "OpenClaw Config", desc: "Gateway, LLM, and nodes", href: "/settings/openclaw" },
+                { icon: MessageSquare, label: "WhatsApp Bot", desc: "Set up and manage AI bot", href: "/settings/openclaw" },
               ].map((action) => (
                 <Link
                   key={action.label}

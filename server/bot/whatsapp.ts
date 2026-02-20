@@ -173,7 +173,10 @@ class WhatsAppBot extends EventEmitter {
 
   private async handleMessage(jid: string, phone: string, text: string, pushName?: string): Promise<void> {
     try {
+      console.log(`[WhatsApp] Incoming message from ${phone} (${pushName || "unknown"}): "${text.substring(0, 100)}"`);
+
       const session = await storage.getWhatsappSessionByPhone(phone);
+      console.log(`[WhatsApp] Session for ${phone}: ${session ? `status=${session.status}` : "none"}`);
 
       if (!session || session.status === "pending") {
         const code = session?.pairingCode || generatePairingCode();
@@ -185,6 +188,8 @@ class WhatsAppBot extends EventEmitter {
           pairingCode: code,
         });
 
+        console.log(`[WhatsApp] New/pending user ${phone} assigned pairing code: ${code}`);
+
         await this.sendMessage(jid,
           `Welcome to *OpenClaw AI*\n\n` +
           `Your access is not yet approved.\n\n` +
@@ -195,6 +200,7 @@ class WhatsAppBot extends EventEmitter {
       }
 
       if (session.status === "blocked") {
+        console.log(`[WhatsApp] Blocked user ${phone} tried to send a message`);
         await this.sendMessage(jid, "Your access has been revoked. Contact the administrator.");
         return;
       }
@@ -202,11 +208,16 @@ class WhatsAppBot extends EventEmitter {
       if (session.status === "approved") {
         await storage.updateWhatsappSessionLastMessage(phone);
 
+        console.log(`[WhatsApp] Processing AI response for approved user ${phone}...`);
         await this.sendTyping(jid);
 
+        const startTime = Date.now();
         const response = await chat(text, pushName || session.displayName || undefined);
+        const elapsed = Date.now() - startTime;
+        console.log(`[WhatsApp] AI response generated in ${elapsed}ms (${response.length} chars) for ${phone}`);
 
         await this.sendMessage(jid, response);
+        console.log(`[WhatsApp] Reply sent to ${phone}`);
       }
     } catch (error) {
       console.error(`[WhatsApp] Error handling message from ${phone}:`, error);

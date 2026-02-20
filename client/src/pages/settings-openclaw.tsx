@@ -743,6 +743,28 @@ export default function SettingsOpenclaw() {
             )}
           </div>
 
+          {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && (
+            <div className="rounded-md bg-muted/50 p-4 space-y-2" data-testid="whatsapp-setup-guide">
+              <p className="text-sm font-medium">How to connect WhatsApp:</p>
+              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                <li>Click <strong>Start Bot</strong> above and wait for a QR code to appear</li>
+                <li>Open WhatsApp on your phone</li>
+                <li>Go to <strong>Settings</strong> then <strong>Linked Devices</strong></li>
+                <li>Tap <strong>Link a Device</strong> and scan the QR code shown here</li>
+                <li>Once connected, anyone who messages this number gets a pairing code</li>
+                <li>Approve their pairing code below to give them AI access</li>
+              </ol>
+            </div>
+          )}
+
+          {botStatus?.state === "connected" && (
+            <div className="rounded-md bg-muted/50 p-3" data-testid="whatsapp-connected-info">
+              <p className="text-sm text-muted-foreground">
+                The bot is running. When someone messages this WhatsApp number, they will receive a pairing code. Approve them in the <strong>Pending Approvals</strong> section below to grant AI access.
+              </p>
+            </div>
+          )}
+
           {botStatus?.error && (
             <div className="rounded-md bg-destructive/10 p-3">
               <p className="text-sm text-destructive" data-testid="text-bot-error">{botStatus.error}</p>
@@ -760,7 +782,7 @@ export default function SettingsOpenclaw() {
                 data-testid="img-whatsapp-qr"
               />
               <p className="text-xs text-muted-foreground text-center max-w-xs">
-                Open WhatsApp on your phone, go to Settings, then Linked Devices, and scan this QR code.
+                Open WhatsApp on your phone, go to <strong>Settings</strong>, then <strong>Linked Devices</strong>, and scan this QR code.
               </p>
             </div>
           )}

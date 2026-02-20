@@ -59,6 +59,7 @@ async function callModel(model: string, messages: ChatMessage[]): Promise<string
 
 export async function chat(userMessage: string, senderName?: string): Promise<string> {
   if (!OPENROUTER_API_KEY) {
+    console.error("[OpenClaw] OPENROUTER_API_KEY is not set!");
     return "OpenClaw is not configured yet. The admin needs to set up an OpenRouter API key.";
   }
 
@@ -68,6 +69,8 @@ export async function chat(userMessage: string, senderName?: string): Promise<st
   const primaryModel = config?.defaultLlm || "deepseek/deepseek-chat";
   const fallbackModel = config?.fallbackLlm || "openrouter/auto";
 
+  console.log(`[OpenClaw] Chat request: model=${primaryModel}, fallback=${fallbackModel}, sender=${senderName || "unknown"}`);
+
   const systemPrompt = `You are OpenClaw, a helpful AI assistant available via WhatsApp. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are an AI gateway powered by OpenClaw.${senderName ? ` The user's name is ${senderName}.` : ""}`;
 
   const messages: ChatMessage[] = [
@@ -76,14 +79,18 @@ export async function chat(userMessage: string, senderName?: string): Promise<st
   ];
 
   try {
-    return await callModel(primaryModel, messages);
+    const result = await callModel(primaryModel, messages);
+    console.log(`[OpenClaw] Primary model (${primaryModel}) succeeded, ${result.length} chars`);
+    return result;
   } catch (primaryError) {
     console.error(`[OpenClaw] Primary model (${primaryModel}) failed:`, primaryError);
 
     if (fallbackModel && fallbackModel !== primaryModel) {
       try {
         console.log(`[OpenClaw] Falling back to ${fallbackModel}`);
-        return await callModel(fallbackModel, messages);
+        const result = await callModel(fallbackModel, messages);
+        console.log(`[OpenClaw] Fallback model (${fallbackModel}) succeeded, ${result.length} chars`);
+        return result;
       } catch (fallbackError) {
         console.error(`[OpenClaw] Fallback model (${fallbackModel}) also failed:`, fallbackError);
       }
