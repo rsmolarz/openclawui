@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
@@ -45,18 +45,25 @@ function NodeCard({
   machine,
   onDelete,
   onStatusChange,
+  onHealthCheck,
+  isCheckingHealth,
+  healthResult,
 }: {
   machine: Machine;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
+  onHealthCheck: (id: string) => void;
+  isCheckingHealth: boolean;
+  healthResult?: { status: string; lastChecked: string; results: { method: string; reachable: boolean; latencyMs?: number; error?: string }[]; noChecksPossible?: boolean } | null;
 }) {
+  const effectiveStatus = healthResult?.status || machine.status;
   return (
     <Card data-testid={`card-node-${machine.id}`}>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0 flex-1">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
-              <Monitor className="h-5 w-5 text-muted-foreground" />
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${effectiveStatus === "connected" ? "bg-green-500/10" : effectiveStatus === "disconnected" ? "bg-destructive/10" : "bg-muted"}`}>
+              <Monitor className={`h-5 w-5 ${effectiveStatus === "connected" ? "text-green-600" : effectiveStatus === "disconnected" ? "text-destructive" : "text-muted-foreground"}`} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-tight" data-testid={`text-node-name-${machine.id}`}>
@@ -72,13 +79,13 @@ function NodeCard({
               <DropdownMenuTrigger asChild>
                 <button className="inline-flex items-center gap-1 cursor-pointer" data-testid={`button-status-${machine.id}`}>
                   <Badge
-                    variant={getStatusVariant(machine.status)}
+                    variant={getStatusVariant(effectiveStatus)}
                     data-testid={`badge-node-status-${machine.id}`}
                   >
-                    {machine.status === "connected" && <Wifi className="h-3 w-3 mr-1" />}
-                    {machine.status === "pending" && <Clock className="h-3 w-3 mr-1" />}
-                    {machine.status === "disconnected" && <WifiOff className="h-3 w-3 mr-1" />}
-                    {machine.status}
+                    {effectiveStatus === "connected" && <Wifi className="h-3 w-3 mr-1" />}
+                    {effectiveStatus === "pending" && <Clock className="h-3 w-3 mr-1" />}
+                    {effectiveStatus === "disconnected" && <WifiOff className="h-3 w-3 mr-1" />}
+                    {effectiveStatus}
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </Badge>
                 </button>
@@ -96,6 +103,24 @@ function NodeCard({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onHealthCheck(machine.id)}
+                  disabled={isCheckingHealth}
+                  data-testid={`button-health-check-${machine.id}`}
+                >
+                  {isCheckingHealth ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Activity className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Check connectivity</TooltipContent>
+            </Tooltip>
             <Button
               size="icon"
               variant="ghost"
@@ -129,6 +154,35 @@ function NodeCard({
             </p>
           </div>
         </div>
+
+        {healthResult && (
+          <div className={`mt-3 rounded-md p-2.5 text-xs ${healthResult.noChecksPossible ? "bg-muted/50 text-muted-foreground" : healthResult.status === "connected" ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-destructive/10 text-destructive"}`} data-testid={`health-result-${machine.id}`}>
+            <div className="flex items-center gap-1.5">
+              {healthResult.noChecksPossible ? (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>No IP or gateway available to check. Set an IP address or configure a gateway.</span>
+                </>
+              ) : healthResult.status === "connected" ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Online
+                    {healthResult.results[0]?.latencyMs != null && ` (${healthResult.results[0].latencyMs}ms)`}
+                    {healthResult.results[0]?.method === "gateway" && " via gateway"}
+                    {healthResult.results[0]?.method === "tcp" && " via direct TCP"}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                  <span>Unreachable — {healthResult.results[0]?.error || "node did not respond"}</span>
+                </>
+              )}
+            </div>
+            <p className="text-[10px] mt-1 opacity-70">Checked {new Date(healthResult.lastChecked).toLocaleTimeString()}</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -274,6 +328,8 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
 export default function SettingsMachines() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [healthResults, setHealthResults] = useState<Record<string, any>>({});
+  const [checkingHealthIds, setCheckingHealthIds] = useState<Set<string>>(new Set());
   const { selectedInstanceId } = useInstance();
 
   const { data: machines, isLoading } = useQuery<Machine[]>({
@@ -374,6 +430,40 @@ export default function SettingsMachines() {
     },
   });
 
+  const handleHealthCheck = async (machineId: string) => {
+    setCheckingHealthIds((prev) => new Set(prev).add(machineId));
+    try {
+      const resp = await apiRequest("POST", `/api/machines/${machineId}/health-check?instanceId=${selectedInstanceId || ""}`);
+      const result = await resp.json();
+      setHealthResults((prev) => ({ ...prev, [machineId]: result }));
+      queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
+      toast({
+        title: result.status === "connected" ? "Node is online" : result.noChecksPossible ? "Cannot check" : "Node unreachable",
+        description: result.status === "connected"
+          ? `Node responded successfully${result.results[0]?.latencyMs ? ` (${result.results[0].latencyMs}ms)` : ""}.`
+          : result.noChecksPossible
+          ? "Set an IP address or configure a gateway to check connectivity."
+          : "Node did not respond to connectivity checks.",
+        variant: result.status === "connected" ? "default" : "destructive",
+      });
+    } catch (err: any) {
+      toast({ title: "Health check failed", description: err?.message || "Could not perform health check.", variant: "destructive" });
+    } finally {
+      setCheckingHealthIds((prev) => {
+        const next = new Set(prev);
+        next.delete(machineId);
+        return next;
+      });
+    }
+  };
+
+  const handleCheckAllHealth = async () => {
+    if (!machines || machines.length === 0) return;
+    for (const machine of machines) {
+      handleHealthCheck(machine.id);
+    }
+  };
+
   const onSubmit = (data: InsertMachine) => {
     createMutation.mutate(data);
   };
@@ -411,6 +501,26 @@ export default function SettingsMachines() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {machines && machines.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  onClick={handleCheckAllHealth}
+                  disabled={checkingHealthIds.size > 0}
+                  data-testid="button-check-all-health"
+                >
+                  {checkingHealthIds.size > 0 ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Activity className="h-4 w-4 mr-2" />
+                  )}
+                  Check All
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Run connectivity checks on all nodes</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -535,6 +645,9 @@ export default function SettingsMachines() {
               machine={machine}
               onDelete={(id) => deleteMutation.mutate(id)}
               onStatusChange={(id, status) => updateMutation.mutate({ id, status })}
+              onHealthCheck={handleHealthCheck}
+              isCheckingHealth={checkingHealthIds.has(machine.id)}
+              healthResult={healthResults[machine.id] || null}
             />
           ))}
         </div>

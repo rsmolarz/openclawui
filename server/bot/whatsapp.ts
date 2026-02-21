@@ -214,6 +214,20 @@ class WhatsAppBot extends EventEmitter {
           } else if (this.autoReconnect) {
             await this.checkDbAuth();
             const hasSession = this.hasAuthState();
+
+            if (!hasSession && isTimedOut) {
+              console.log("[WhatsApp] QR expired with no session. Stopping auto-reconnect — user must click Start again.");
+              this.status = {
+                state: "disconnected",
+                qrDataUrl: null,
+                pairingCode: null,
+                phone: null,
+                error: "QR code expired before it was scanned. Click Start to try again, or use 'Link with Phone Number' instead.",
+              };
+              this.emit("status", this.status);
+              return;
+            }
+
             this.reconnectAttempts++;
             const delay = hasSession
               ? Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, this.reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS)

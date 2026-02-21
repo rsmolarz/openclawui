@@ -795,6 +795,124 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
     }
   });
 
+  app.post("/api/machines/:id/health-check", requireAuth, async (req, res) => {
+    try {
+      const machine = await storage.getMachine(req.params.id as string);
+      if (!machine) return res.status(404).json({ error: "Node not found" });
+
+      const instanceId = await resolveInstanceId(req);
+      const results: { method: string; reachable: boolean; latencyMs?: number; error?: string }[] = [];
+
+      if (instanceId) {
+        const instance = await storage.getInstance(instanceId);
+        const config = await storage.getOpenclawConfig(instanceId);
+        const token = config?.gatewayToken || instance?.apiKey;
+        if (instance?.serverUrl && token) {
+          const endpoints = ["/api/sessions", "/api/nodes", "/api/v1/sessions", "/api/v1/nodes"];
+          for (const ep of endpoints) {
+            try {
+              const url = new URL(ep, instance.serverUrl);
+              url.searchParams.set("token", token);
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 8000);
+              const start = Date.now();
+              const resp = await fetch(url.toString(), { signal: controller.signal });
+              clearTimeout(timeout);
+              if (resp.ok) {
+                const data = await resp.json();
+                const nodes = Array.isArray(data) ? data :
+                  data.sessions || data.nodes || data.peers || data.data || [];
+                const allNodes = Array.isArray(nodes) ? nodes : [];
+                const match = allNodes.find((n: any) =>
+                  (machine.hostname && (n.hostname === machine.hostname || n.host === machine.hostname)) ||
+                  (machine.name && (n.name === machine.name || n.displayName === machine.name)) ||
+                  (machine.ipAddress && (n.ip === machine.ipAddress || n.ipAddress === machine.ipAddress || n.address === machine.ipAddress))
+                );
+                if (match) {
+                  const isOnline = match.connected || match.status === "connected" || match.online;
+                  const latency = Date.now() - start;
+                  results.push({
+                    method: "gateway",
+                    reachable: !!isOnline,
+                    latencyMs: latency,
+                  });
+                  const newStatus = isOnline ? "connected" : "disconnected";
+                  await storage.updateMachine(machine.id, { status: newStatus, lastSeen: isOnline ? new Date() : machine.lastSeen });
+                  return res.json({
+                    nodeId: machine.id,
+                    status: newStatus,
+                    lastChecked: new Date().toISOString(),
+                    results,
+                  });
+                }
+                break;
+              }
+            } catch {
+              continue;
+            }
+          }
+        }
+      }
+
+      if (machine.ipAddress) {
+        try {
+          const { Socket } = await import("net");
+          const ports = [22, 80, 443, 18789];
+          let tcpReachable = false;
+          let tcpLatency = 0;
+          for (const port of ports) {
+            try {
+              const start = Date.now();
+              await new Promise<void>((resolve, reject) => {
+                const socket = new Socket();
+                socket.setTimeout(3000);
+                socket.on("connect", () => { socket.destroy(); resolve(); });
+                socket.on("error", reject);
+                socket.on("timeout", () => { socket.destroy(); reject(new Error("timeout")); });
+                socket.connect(port, machine.ipAddress!);
+              });
+              tcpReachable = true;
+              tcpLatency = Date.now() - start;
+              break;
+            } catch {
+              continue;
+            }
+          }
+          results.push({
+            method: "tcp",
+            reachable: tcpReachable,
+            latencyMs: tcpReachable ? tcpLatency : undefined,
+            error: tcpReachable ? undefined : "No open ports found on common ports (22, 80, 443, 18789)",
+          });
+          if (tcpReachable) {
+            await storage.updateMachine(machine.id, { status: "connected", lastSeen: new Date() });
+          }
+        } catch (err) {
+          results.push({ method: "tcp", reachable: false, error: String(err) });
+        }
+      }
+
+      const isReachable = results.some(r => r.reachable);
+      const newStatus = isReachable ? "connected" : (results.length > 0 ? "disconnected" : machine.status);
+      if (results.length > 0) {
+        await storage.updateMachine(machine.id, {
+          status: newStatus,
+          ...(isReachable ? { lastSeen: new Date() } : {}),
+        });
+      }
+
+      res.json({
+        nodeId: machine.id,
+        status: newStatus,
+        lastChecked: new Date().toISOString(),
+        results,
+        noChecksPossible: results.length === 0,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Health check failed: " + (error.message || "Unknown error") });
+    }
+  });
+
   app.get("/api/openclaw/deploy-commands", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
