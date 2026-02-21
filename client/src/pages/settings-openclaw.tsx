@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
@@ -1470,9 +1470,26 @@ export default function SettingsOpenclaw() {
                   <Copy className="h-4 w-4" />
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  const bytes = new Uint8Array(24);
+                  crypto.getRandomValues(bytes);
+                  const token = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+                  setFormValues((p) => ({ ...p, gatewayToken: token }));
+                  setShowToken(true);
+                  toast({ title: "Token generated", description: "A new 48-character hex token has been created. Save the config and update your VPS to use it." });
+                }}
+                data-testid="button-generate-gateway-token"
+              >
+                <Sparkles className="h-4 w-4 mr-1" />
+                Generate
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Found in ~/.openclaw/openclaw.json under gateway.auth.token. Used to access the native dashboard and authenticate nodes.
+              Click <strong>Generate</strong> to create a new token, then <strong>Save Configuration</strong>. You'll also need to update the token on your VPS by running: <code className="bg-muted px-1 rounded">openclaw config set gateway.auth.token YOUR_NEW_TOKEN</code>
             </p>
           </div>
 
