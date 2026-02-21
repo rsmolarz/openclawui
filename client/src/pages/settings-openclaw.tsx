@@ -535,7 +535,11 @@ export default function SettingsOpenclaw() {
   });
 
   const sshActionsQuery = useQuery<{ actions: string[]; configured: boolean; host: string | null }>({
-    queryKey: ["/api/ssh/gateway/actions"],
+    queryKey: ["/api/ssh/gateway/actions", selectedInstanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/ssh/gateway/actions?instanceId=${selectedInstanceId || ""}`);
+      return resp.json();
+    },
   });
 
   const [sshResult, setSSHResult] = useState<{ success?: boolean; output?: string; error?: string; action?: string } | null>(null);
@@ -544,7 +548,7 @@ export default function SettingsOpenclaw() {
   const sshMutation = useMutation({
     mutationFn: async (action: string) => {
       setSSHRunning(action);
-      const resp = await apiRequest("POST", `/api/ssh/gateway/${action}`);
+      const resp = await apiRequest("POST", `/api/ssh/gateway/${action}`, { instanceId: selectedInstanceId });
       return resp.json();
     },
     onSuccess: (data: any, action: string) => {

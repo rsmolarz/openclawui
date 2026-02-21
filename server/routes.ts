@@ -488,25 +488,28 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const host = parsedUrl.hostname;
       const port = parseInt(parsedUrl.port) || (config?.gatewayPort ?? 18789);
 
-      const baseOrigin = `${parsedUrl.protocol}//${host}:${port}`;
+      const protocols = parsedUrl.protocol === "https:" ? ["https:", "http:"] : ["http:", "https:"];
       const httpEndpoints = ["/__openclaw__/canvas/", "/api/health", "/"];
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      for (const endpoint of httpEndpoints) {
-        try {
-          const url = new URL(endpoint, baseOrigin);
-          const resp = await fetch(url.toString(), { signal: controller.signal, headers });
-          if (resp.ok || resp.status < 500) {
-            clearTimeout(timeout);
-            return res.json({ reachable: true, status: resp.status, serverUrl: instance.serverUrl, endpoint });
-          }
-        } catch {}
+      for (const proto of protocols) {
+        const baseOrigin = `${proto}//${host}:${port}`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        for (const endpoint of httpEndpoints) {
+          try {
+            const url = new URL(endpoint, baseOrigin);
+            const resp = await fetch(url.toString(), { signal: controller.signal, headers });
+            if (resp.ok || resp.status < 500) {
+              clearTimeout(timeout);
+              return res.json({ reachable: true, status: resp.status, serverUrl: `${proto}//${host}:${port}`, endpoint });
+            }
+          } catch {}
+        }
+        clearTimeout(timeout);
       }
-      clearTimeout(timeout);
 
       const net = await import("net");
       const tcpReachable = await new Promise<boolean>((resolve) => {
@@ -522,7 +525,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
         return res.json({ reachable: true, status: 0, serverUrl: instance.serverUrl, endpoint: `tcp://${host}:${port}` });
       }
 
-      return res.json({ reachable: false, error: `Gateway not responding on ${host}:${port}` });
+      return res.json({ reachable: false, error: `Gateway not responding on ${host}:${port}. Check that port ${port} is open in the VPS firewall.` });
     } catch (error) {
       res.status(500).json({ error: "Failed to probe gateway" });
     }
@@ -545,16 +548,29 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
       const rawPath = req.query.path?.toString() || "/__openclaw__/canvas/";
       const canvasPath = rawPath.startsWith("/__openclaw__/") ? rawPath : "/__openclaw__/canvas/";
-      const canvasUrl = `${parsedUrl.protocol}//${host}:${port}${canvasPath}`;
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const protocols = parsedUrl.protocol === "https:" ? ["https:", "http:"] : ["http:", "https:"];
+      let resp: globalThis.Response | null = null;
+      let workingProto = protocols[0];
 
-      const resp = await fetch(canvasUrl, { headers, signal: controller.signal });
-      clearTimeout(timeout);
+      for (const proto of protocols) {
+        const canvasUrl = `${proto}//${host}:${port}${canvasPath}`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        try {
+          resp = await fetch(canvasUrl, { headers, signal: controller.signal });
+          clearTimeout(timeout);
+          workingProto = proto;
+          break;
+        } catch {
+          clearTimeout(timeout);
+        }
+      }
+
+      if (!resp) return res.status(502).json({ error: "Failed to load OpenClaw canvas" });
 
       const contentType = resp.headers.get("content-type") || "text/html";
       res.setHeader("Content-Type", contentType);
@@ -562,8 +578,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
       const body = await resp.text();
 
-      // Rewrite relative asset URLs in HTML so CSS/JS/images load correctly through proxy
-      const baseUrl = `${parsedUrl.protocol}//${host}:${port}`;
+      const baseUrl = `${workingProto}//${host}:${port}`;
       const rewritten = body
         .replace(/(href|src|action)="\/(?!\/)/g, `$1="${baseUrl}/`)
         .replace(/url\(["']?\/(?!\/)/g, `url("${baseUrl}/`);
@@ -585,51 +600,66 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const token = config?.gatewayToken || instance.apiKey;
       if (!token) return res.status(400).json({ error: "No gateway token configured. Set it in OpenClaw Config or set an API key on the instance." });
 
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(instance.serverUrl); } catch { return res.status(400).json({ error: "Invalid server URL" }); }
+      const host = parsedUrl.hostname;
+      const port = parseInt(parsedUrl.port) || (config?.gatewayPort ?? 18789);
+      const protocols = parsedUrl.protocol === "https:" ? ["https:", "http:"] : ["http:", "https:"];
+
       const restartEndpoints = ["/api/restart", "/api/v1/restart", "/api/gateway/restart", "/restart"];
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
 
       let lastStatus = 0;
       let lastError = "";
-      for (const endpoint of restartEndpoints) {
-        try {
-          const url = new URL(endpoint, instance.serverUrl);
-          url.searchParams.set("token", token);
-          const resp = await fetch(url.toString(), { method: "POST", signal: controller.signal });
-          lastStatus = resp.status;
-          if (resp.ok) {
-            clearTimeout(timeout);
-            let body: any = {};
-            try { body = await resp.json(); } catch {}
-            return res.json({ success: true, status: resp.status, endpoint, message: body.message || "Gateway restart signal sent", serverUrl: instance.serverUrl });
-          }
-          if (resp.status === 401 || resp.status === 403) {
-            lastError = `Authentication failed (${resp.status}). Check your gateway token.`;
-          }
-        } catch {}
+      for (const proto of protocols) {
+        const baseOrigin = `${proto}//${host}:${port}`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        for (const endpoint of restartEndpoints) {
+          try {
+            const url = new URL(endpoint, baseOrigin);
+            const resp = await fetch(url.toString(), {
+              method: "POST",
+              signal: controller.signal,
+              headers: { "Authorization": `Bearer ${token}` },
+            });
+            lastStatus = resp.status;
+            if (resp.ok) {
+              clearTimeout(timeout);
+              let body: any = {};
+              try { body = await resp.json(); } catch {}
+              return res.json({ success: true, status: resp.status, endpoint, message: body.message || "Gateway restart signal sent", serverUrl: `${proto}//${host}:${port}` });
+            }
+            if (resp.status === 401 || resp.status === 403) {
+              lastError = `Authentication failed (${resp.status}). Check your gateway token.`;
+            }
+          } catch {}
+        }
+        clearTimeout(timeout);
       }
 
-      clearTimeout(timeout);
-
-      // If auth failed, return that specific error
       if (lastError) {
         return res.status(403).json({ error: lastError, status: lastStatus });
       }
 
-      // Fallback: try a health/probe to confirm gateway is at least reachable, even if no restart endpoint found
       try {
-        const healthUrl = new URL("/api/health", instance.serverUrl);
-        if (token) healthUrl.searchParams.set("token", token);
-        const healthController = new AbortController();
-        const healthTimeout = setTimeout(() => healthController.abort(), 8000);
-        const healthResp = await fetch(healthUrl.toString(), { signal: healthController.signal });
-        clearTimeout(healthTimeout);
-        if (healthResp.ok) {
-          return res.json({
-            success: false,
-            reachable: true,
-            error: "Gateway is reachable but no restart API endpoint was found. You may need to restart the Docker container manually using: docker compose -p PROJECT restart",
-          });
+        for (const proto of protocols) {
+          const healthUrl = `${proto}//${host}:${port}/api/health`;
+          const healthController = new AbortController();
+          const healthTimeout = setTimeout(() => healthController.abort(), 5000);
+          try {
+            const healthResp = await fetch(healthUrl, {
+              signal: healthController.signal,
+              headers: { "Authorization": `Bearer ${token}` },
+            });
+            clearTimeout(healthTimeout);
+            if (healthResp.ok) {
+              return res.json({
+                success: false,
+                reachable: true,
+                error: "Gateway is reachable but no restart API endpoint was found. You may need to restart the Docker container manually using: docker compose -p PROJECT restart",
+              });
+            }
+          } catch { clearTimeout(healthTimeout); }
         }
       } catch {}
 
@@ -1810,10 +1840,20 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
-  app.get("/api/ssh/gateway/actions", requireAuth, async (_req, res) => {
+  app.get("/api/ssh/gateway/actions", requireAuth, async (req, res) => {
     try {
-      const { listAllowedCommands, getSSHConfig } = await import("./ssh");
-      const config = getSSHConfig();
+      const { listAllowedCommands, getSSHConfig, buildSSHConfigFromVps } = await import("./ssh");
+      const instanceId = req.query.instanceId as string | undefined;
+      let config;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) {
+          config = buildSSHConfigFromVps(vps);
+        }
+      }
+      if (!config) {
+        config = getSSHConfig();
+      }
       res.json({
         actions: listAllowedCommands(),
         configured: !!config,
