@@ -822,6 +822,55 @@ export default function SettingsOpenclaw() {
                   </Button>
                 </div>
               )}
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-muted-foreground min-w-24">WebSocket URL:</span>
+                <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate" data-testid="text-websocket-url-display">
+                  {config?.websocketUrl || (() => {
+                    try {
+                      const u = new URL(currentInstance.serverUrl!);
+                      return `ws://${u.hostname}:${config?.gatewayPort ?? 18789}`;
+                    } catch { return "Not configured"; }
+                  })()}
+                </code>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    const wsUrl = config?.websocketUrl || (() => {
+                      try {
+                        const u = new URL(currentInstance.serverUrl!);
+                        return `ws://${u.hostname}:${config?.gatewayPort ?? 18789}`;
+                      } catch { return ""; }
+                    })();
+                    if (wsUrl) {
+                      navigator.clipboard.writeText(wsUrl);
+                      toast({ title: "Copied", description: "WebSocket URL copied to clipboard." });
+                    }
+                  }}
+                  data-testid="button-copy-websocket-url-display"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+              {config?.gatewayToken && (
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-muted-foreground min-w-24">Gateway Token:</span>
+                  <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate font-mono" data-testid="text-registered-token">
+                    {config.gatewayToken.slice(0, 8)}...{config.gatewayToken.slice(-8)}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      navigator.clipboard.writeText(config.gatewayToken!);
+                      toast({ title: "Copied", description: "Gateway token copied to clipboard." });
+                    }}
+                    data-testid="button-copy-registered-token"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
               {!config?.gatewayToken && (
                 <p className="text-xs text-muted-foreground">
                   Add your gateway token below to enable one-click authenticated access.
@@ -1401,6 +1450,71 @@ export default function SettingsOpenclaw() {
           <CardDescription>Configure the OpenClaw gateway server.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {config?.gatewayToken && (
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3" data-testid="connection-summary">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Shield className="h-4 w-4 text-primary" />
+                Connection Summary
+              </div>
+              <div className="grid gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground min-w-32">Registered Token:</span>
+                  <code className="bg-background px-2 py-0.5 rounded font-mono" data-testid="text-summary-token">
+                    {config.gatewayToken.slice(0, 12)}...{config.gatewayToken.slice(-12)}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(config.gatewayToken!);
+                      toast({ title: "Copied", description: "Registered gateway token copied. Compare this with the token shown in your native OpenClaw dashboard." });
+                    }}
+                    data-testid="button-copy-summary-token"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground min-w-32">WebSocket Address:</span>
+                  <code className="bg-background px-2 py-0.5 rounded font-mono" data-testid="text-summary-ws">
+                    {config.websocketUrl || (() => {
+                      try {
+                        const u = new URL(currentInstance?.serverUrl || "");
+                        return `ws://${u.hostname}:${config.gatewayPort}`;
+                      } catch { return `ws://your-server:${config.gatewayPort}`; }
+                    })()}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    type="button"
+                    onClick={() => {
+                      const wsAddr = config.websocketUrl || (() => {
+                        try {
+                          const u = new URL(currentInstance?.serverUrl || "");
+                          return `ws://${u.hostname}:${config.gatewayPort}`;
+                        } catch { return ""; }
+                      })();
+                      if (wsAddr) {
+                        navigator.clipboard.writeText(wsAddr);
+                        toast({ title: "Copied", description: "WebSocket address copied." });
+                      }
+                    }}
+                    data-testid="button-copy-summary-ws"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Compare these values with what your <strong>native OpenClaw dashboard</strong> shows under "Gateway Access". If the token or WebSocket URL don't match, update the values below and save.
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-6 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="gateway_port">Port</Label>
@@ -1489,7 +1603,7 @@ export default function SettingsOpenclaw() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Click <strong>Generate</strong> to create a new token, then <strong>Save Configuration</strong>. You'll also need to update the token on your VPS by running: <code className="bg-muted px-1 rounded">openclaw config set gateway.auth.token YOUR_NEW_TOKEN</code>
+              This token must match the one on your VPS. To check your VPS token, open the <strong>native OpenClaw dashboard</strong> and look under "Gateway Access → Gateway Token". If they don't match, either paste the VPS token here or generate a new one and update your VPS: <code className="bg-muted px-1 rounded">openclaw config set gateway.auth.token YOUR_NEW_TOKEN</code>
             </p>
           </div>
 
@@ -1521,15 +1635,60 @@ export default function SettingsOpenclaw() {
 
           <div className="space-y-2">
             <Label htmlFor="websocket_url">WebSocket URL</Label>
-            <Input
-              id="websocket_url"
-              value={formValues.websocketUrl}
-              onChange={(e) => setFormValues((p) => ({ ...p, websocketUrl: e.target.value }))}
-              placeholder="wss://187.77.192.215 or wss://your-server-ip"
-              data-testid="input-websocket-url"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="websocket_url"
+                value={formValues.websocketUrl}
+                onChange={(e) => setFormValues((p) => ({ ...p, websocketUrl: e.target.value }))}
+                placeholder={(() => {
+                  if (currentInstance?.serverUrl) {
+                    try {
+                      const u = new URL(currentInstance.serverUrl);
+                      return `ws://${u.hostname}:${formValues.gatewayPort}`;
+                    } catch {}
+                  }
+                  return "ws://your-server-ip:18789";
+                })()}
+                data-testid="input-websocket-url"
+              />
+              {formValues.websocketUrl && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(formValues.websocketUrl);
+                    toast({ title: "Copied", description: "WebSocket URL copied to clipboard." });
+                  }}
+                  data-testid="button-copy-websocket-url"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              )}
+              {!formValues.websocketUrl && currentInstance?.serverUrl && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    try {
+                      const u = new URL(currentInstance.serverUrl!);
+                      const wsUrl = `ws://${u.hostname}:${formValues.gatewayPort}`;
+                      setFormValues((p) => ({ ...p, websocketUrl: wsUrl }));
+                      toast({ title: "Auto-filled", description: `WebSocket URL set to ${wsUrl}` });
+                    } catch {
+                      toast({ title: "Error", description: "Could not determine WebSocket URL from server address.", variant: "destructive" });
+                    }
+                  }}
+                  data-testid="button-autofill-websocket-url"
+                >
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  Auto-fill
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              The WebSocket URL the gateway uses for real-time connections. Found in the native dashboard under <strong>Gateway Access → WebSocket URL</strong>.
+              The WebSocket URL the gateway uses for real-time connections. The native dashboard shows this under <strong>Gateway Access → WebSocket URL</strong> (usually <code className="bg-muted px-1 rounded">ws://localhost:18789</code>). For remote access, replace <code>localhost</code> with your server IP.
             </p>
           </div>
 
