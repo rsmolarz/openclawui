@@ -52,7 +52,7 @@ export const openclawInstances = pgTable("openclaw_instances", {
 export const vpsConnections = pgTable("vps_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   instanceId: varchar("instance_id"),
-  vpsIp: text("vps_ip").notNull().default("187.77.192.215"),
+  vpsIp: text("vps_ip").notNull().default("187.77.194.205"),
   vpsPort: integer("vps_port").notNull().default(22),
   sshUser: text("ssh_user").notNull().default("root"),
   sshKeyPath: text("ssh_key_path"),

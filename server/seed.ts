@@ -147,7 +147,7 @@ async function ensureDefaultInstance(): Promise<string> {
   const [instance] = await db.insert(openclawInstances).values({
     name: "Default Instance",
     description: "Primary OpenClaw server instance",
-    serverUrl: "https://187.77.192.215",
+    serverUrl: "https://187.77.194.205",
     status: "online",
     isDefault: true,
   }).returning();
@@ -207,7 +207,7 @@ export async function seed() {
   ]);
 
   await db.insert(vpsConnections).values([
-    { instanceId: defaultInstanceId, vpsIp: "187.77.192.215", vpsPort: 22, sshUser: "root", isConnected: false },
+    { instanceId: defaultInstanceId, vpsIp: "187.77.194.205", vpsPort: 22, sshUser: "root", isConnected: false },
   ]);
 
   await db.insert(dockerServices).values([

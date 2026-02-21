@@ -228,7 +228,7 @@ const SETUP_STEPS: SetupStep[] = [
         "openclaw node restart",
       ],
     },
-    tip: "Replace YOUR_GATEWAY_IP with the IP of your primary machine (e.g. 187.77.192.215). Replace PASTE_YOUR_TOKEN_HERE with the token from Step 3. Do NOT use angle brackets — just paste the values directly.",
+    tip: "Replace YOUR_GATEWAY_IP with the IP of your primary machine (e.g. 187.77.194.205). Replace PASTE_YOUR_TOKEN_HERE with the token from Step 3. Do NOT use angle brackets — just paste the values directly.",
   },
   {
     title: "Approve & Verify",

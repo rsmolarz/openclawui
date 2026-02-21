@@ -38,7 +38,7 @@ export default function SettingsVps() {
   });
 
   const [formValues, setFormValues] = useState({
-    vpsIp: "187.77.192.215",
+    vpsIp: "187.77.194.205",
     vpsPort: 22,
     sshUser: "root",
     sshKeyPath: "",
@@ -219,7 +219,7 @@ export default function SettingsVps() {
                 id="vps_ip"
                 value={formValues.vpsIp}
                 onChange={(e) => setFormValues((p) => ({ ...p, vpsIp: e.target.value }))}
-                placeholder="187.77.192.215"
+                placeholder="187.77.194.205"
                 data-testid="input-vps-ip"
               />
             </div>
