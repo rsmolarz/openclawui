@@ -737,8 +737,8 @@ export default function SettingsOpenclaw() {
               <Cog className="h-4 w-4 text-muted-foreground" />
               <p className="text-xs text-muted-foreground font-medium">Gateway</p>
             </div>
-            <Badge variant={config?.gatewayStatus === "online" ? "default" : "destructive"}>
-              {config?.gatewayStatus ?? "offline"}
+            <Badge variant={probeGatewayQuery.data?.reachable ? "default" : probeGatewayQuery.isLoading ? "secondary" : "destructive"}>
+              {probeGatewayQuery.isLoading ? "checking..." : probeGatewayQuery.data?.reachable ? "online" : "offline"}
             </Badge>
           </CardContent>
         </Card>
@@ -790,11 +790,13 @@ export default function SettingsOpenclaw() {
               variant="default"
               onClick={() => {
                 try {
-                  const url = new URL(currentInstance.serverUrl!);
+                  const parsed = new URL(currentInstance.serverUrl!);
+                  const port = parsed.port || config?.gatewayPort || 18789;
+                  const dashUrl = new URL(`${parsed.protocol}//${parsed.hostname}:${port}/__openclaw__/canvas/`);
                   if (config?.gatewayToken) {
-                    url.searchParams.set("token", config.gatewayToken);
+                    dashUrl.searchParams.set("token", config.gatewayToken);
                   }
-                  window.open(url.toString(), "_blank");
+                  window.open(dashUrl.toString(), "_blank");
                 } catch {
                   window.open(currentInstance.serverUrl!, "_blank");
                 }
@@ -831,8 +833,9 @@ export default function SettingsOpenclaw() {
                     {(() => {
                       try {
                         const u = new URL(currentInstance.serverUrl!);
-                        return `${u.origin}${u.pathname}?token=****${config.gatewayToken.slice(-8)}`;
-                      } catch { return `${currentInstance.serverUrl}?token=****${config.gatewayToken.slice(-8)}`; }
+                        const p = u.port || config?.gatewayPort || 18789;
+                        return `${u.protocol}//${u.hostname}:${p}/__openclaw__/canvas/?token=****${config.gatewayToken.slice(-8)}`;
+                      } catch { return `${currentInstance.serverUrl}/__openclaw__/canvas/?token=****${config.gatewayToken.slice(-8)}`; }
                     })()}
                   </code>
                   <Button
@@ -841,10 +844,11 @@ export default function SettingsOpenclaw() {
                     onClick={() => {
                       try {
                         const u = new URL(currentInstance.serverUrl!);
-                        u.searchParams.set("token", config.gatewayToken!);
-                        navigator.clipboard.writeText(u.toString());
+                        const p = u.port || config?.gatewayPort || 18789;
+                        const dashUrl = `${u.protocol}//${u.hostname}:${p}/__openclaw__/canvas/?token=${config.gatewayToken}`;
+                        navigator.clipboard.writeText(dashUrl);
                       } catch {
-                        navigator.clipboard.writeText(`${currentInstance.serverUrl}?token=${config.gatewayToken}`);
+                        navigator.clipboard.writeText(`${currentInstance.serverUrl}/__openclaw__/canvas/?token=${config.gatewayToken}`);
                       }
                       toast({ title: "Copied", description: "Full dashboard URL with token copied." });
                     }}

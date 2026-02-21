@@ -482,13 +482,20 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const config = await storage.getOpenclawConfig(instanceId);
       const token = config?.gatewayToken || instance.apiKey;
 
-      const endpoints = ["/api/health", "/"];
+      const serverUrl = instance.serverUrl;
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(serverUrl); } catch { return res.json({ reachable: false, error: "Invalid server URL" }); }
+      const host = parsedUrl.hostname;
+      const port = parseInt(parsedUrl.port) || (config?.gatewayPort ?? 18789);
+
+      const baseOrigin = `${parsedUrl.protocol}//${host}:${port}`;
+      const httpEndpoints = ["/__openclaw__/canvas/", "/api/health", "/"];
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      for (const endpoint of endpoints) {
+      for (const endpoint of httpEndpoints) {
         try {
-          const url = new URL(endpoint, instance.serverUrl);
+          const url = new URL(endpoint, baseOrigin);
           if (token) url.searchParams.set("token", token);
           const resp = await fetch(url.toString(), { signal: controller.signal });
           if (resp.ok || resp.status < 500) {
@@ -497,9 +504,23 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
           }
         } catch {}
       }
-
       clearTimeout(timeout);
-      return res.json({ reachable: false, error: "Gateway not responding on any endpoint" });
+
+      const net = await import("net");
+      const tcpReachable = await new Promise<boolean>((resolve) => {
+        const sock = new net.Socket();
+        sock.setTimeout(5000);
+        sock.on("connect", () => { sock.destroy(); resolve(true); });
+        sock.on("error", () => { sock.destroy(); resolve(false); });
+        sock.on("timeout", () => { sock.destroy(); resolve(false); });
+        sock.connect(port, host);
+      });
+
+      if (tcpReachable) {
+        return res.json({ reachable: true, status: 0, serverUrl: instance.serverUrl, endpoint: `tcp://${host}:${port}` });
+      }
+
+      return res.json({ reachable: false, error: `Gateway not responding on ${host}:${port}` });
     } catch (error) {
       res.status(500).json({ error: "Failed to probe gateway" });
     }
