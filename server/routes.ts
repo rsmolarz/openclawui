@@ -1715,13 +1715,26 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
   // ──────────── SSH Remote Gateway Control ────────────
   app.post("/api/ssh/gateway/:action", requireAuth, async (req, res) => {
     try {
-      const { executeSSHCommand, listAllowedCommands } = await import("./ssh");
+      const { executeSSHCommand, listAllowedCommands, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
       const action = String(req.params.action);
       const allowed = listAllowedCommands();
       if (!allowed.includes(action)) {
         return res.status(400).json({ error: `Invalid action: ${action}. Allowed: ${allowed.join(", ")}` });
       }
-      const result = await executeSSHCommand(action);
+
+      const instanceId = req.body?.instanceId as string | undefined;
+      let sshConfig;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) {
+          sshConfig = buildSSHConfigFromVps(vps);
+        }
+      }
+      if (!sshConfig) {
+        sshConfig = getSSHConfig() || undefined;
+      }
+
+      const result = await executeSSHCommand(action, sshConfig);
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || "SSH command failed" });

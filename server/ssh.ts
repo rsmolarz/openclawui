@@ -7,15 +7,16 @@ const ALLOWED_COMMANDS: Record<string, string> = {
   status: "ps aux | grep -E 'openclaw|openclaw-gateway' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789 || echo 'Port 18789 not listening'",
   start: "su - ubuntu -c 'nohup openclaw start > /tmp/openclaw.log 2>&1 &' && sleep 4 && ps aux | grep openclaw-gateway | grep -v grep && ss -tlnp | grep 18789 || echo 'Started but port may not be externally bound yet'",
   stop: "kill $(pgrep -f openclaw-gateway) $(pgrep -f 'openclaw start') $(pgrep -f 'openclaw node') 2>/dev/null; sleep 2 && (pgrep -f openclaw-gateway > /dev/null && echo 'Some processes still running, trying SIGKILL' && kill -9 $(pgrep -f openclaw-gateway) $(pgrep -f 'openclaw node') 2>/dev/null || echo 'OpenClaw processes stopped')",
-  restart: "pkill -f openclaw-gateway; pkill -f 'openclaw start'; pkill -f 'openclaw node'; sleep 2 && su - ubuntu -c 'nohup openclaw start > /tmp/openclaw.log 2>&1 &' && sleep 4 && ps aux | grep openclaw-gateway | grep -v grep && ss -tlnp | grep 18789 || echo 'Restarted but port may not be externally bound yet'",
+  restart: "kill $(pgrep -f openclaw-gateway) $(pgrep -f 'openclaw start') $(pgrep -f 'openclaw node') 2>/dev/null; sleep 2; kill -9 $(pgrep -f openclaw-gateway) 2>/dev/null; sleep 1 && su - ubuntu -c 'nohup openclaw start > /tmp/openclaw.log 2>&1 &' && sleep 4 && ps aux | grep openclaw-gateway | grep -v grep && ss -tlnp | grep 18789 || echo 'Restarted but port may not be externally bound yet'",
   diagnose: "which openclaw && openclaw --version 2>/dev/null; echo '---PORTS---'; ss -tlnp | grep -E '18789|8080|3000'; echo '---PROCS---'; ps aux | grep -E 'openclaw|node' | grep -v grep; echo '---CONFIG---'; cat /etc/openclaw/config.yaml 2>/dev/null || cat ~/.openclaw/config.yaml 2>/dev/null || echo 'No config found'; echo '---FIREWALL---'; ufw status 2>/dev/null || iptables -L INPUT -n 2>/dev/null | head -20",
   "check-firewall": "ufw status verbose 2>/dev/null || iptables -L INPUT -n 2>/dev/null",
   "open-port": "ufw allow 18789/tcp 2>/dev/null && ufw reload 2>/dev/null && echo 'Port 18789 opened' || (iptables -I INPUT -p tcp --dport 18789 -j ACCEPT 2>/dev/null && echo 'Port 18789 opened via iptables')",
   "check-config": "cat /etc/openclaw/config.yaml 2>/dev/null || cat ~/.openclaw/config.yaml 2>/dev/null || cat /root/.openclaw/config.yaml 2>/dev/null || echo 'No config found'; echo '---ENV---'; env | grep -i openclaw 2>/dev/null || echo 'No openclaw env vars'",
   "bind-lan": "openclaw gateway config set --bind 0.0.0.0 2>/dev/null; openclaw config set gateway.bind 0.0.0.0 2>/dev/null; echo 'Bind set to 0.0.0.0 (LAN mode). Restart gateway to apply.'",
+  "view-log": "tail -50 /tmp/openclaw.log 2>/dev/null || echo 'No log file found'",
 };
 
-interface SSHConnectionConfig {
+export interface SSHConnectionConfig {
   host: string;
   port?: number;
   username?: string;
@@ -41,6 +42,24 @@ function getDefaultConfig(): SSHConnectionConfig | null {
   };
 }
 
+export function buildSSHConfigFromVps(vps: { vpsIp: string; vpsPort: number; sshUser: string; sshKeyPath?: string | null }): SSHConnectionConfig {
+  const config: SSHConnectionConfig = {
+    host: vps.vpsIp,
+    port: vps.vpsPort,
+    username: vps.sshUser,
+  };
+  if (vps.sshKeyPath) {
+    try {
+      const fs = require("fs");
+      config.privateKey = fs.readFileSync(vps.sshKeyPath, "utf8");
+    } catch {}
+  }
+  if (!config.privateKey && process.env.VPS_ROOT_PASSWORD) {
+    config.password = process.env.VPS_ROOT_PASSWORD;
+  }
+  return config;
+}
+
 export function getSSHConfig(overrides?: Partial<SSHConnectionConfig>): SSHConnectionConfig | null {
   const defaults = getDefaultConfig();
   if (!defaults && !overrides?.host) return null;
@@ -62,7 +81,7 @@ export async function executeSSHCommand(
 
   const sshConfig = config || getDefaultConfig();
   if (!sshConfig) {
-    return { success: false, output: "", error: "No SSH credentials configured. Set VPS_ROOT_PASSWORD secret." };
+    return { success: false, output: "", error: "No SSH credentials configured. Add a VPS connection or set VPS_ROOT_PASSWORD secret." };
   }
 
   return new Promise<SSHResult>((resolve) => {
