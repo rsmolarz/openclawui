@@ -493,11 +493,13 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       for (const endpoint of httpEndpoints) {
         try {
           const url = new URL(endpoint, baseOrigin);
-          if (token) url.searchParams.set("token", token);
-          const resp = await fetch(url.toString(), { signal: controller.signal });
+          const resp = await fetch(url.toString(), { signal: controller.signal, headers });
           if (resp.ok || resp.status < 500) {
             clearTimeout(timeout);
             return res.json({ reachable: true, status: resp.status, serverUrl: instance.serverUrl, endpoint });
@@ -523,6 +525,52 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       return res.json({ reachable: false, error: `Gateway not responding on ${host}:${port}` });
     } catch (error) {
       res.status(500).json({ error: "Failed to probe gateway" });
+    }
+  });
+
+  // Gateway proxy: proxy the native OpenClaw canvas UI (browser can't add Auth headers to window.open)
+  app.get("/api/gateway/canvas", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const instance = await storage.getInstance(instanceId);
+      if (!instance?.serverUrl) return res.status(400).json({ error: "No server URL configured" });
+      const config = await storage.getOpenclawConfig(instanceId);
+      const token = config?.gatewayToken || instance.apiKey;
+
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(instance.serverUrl); } catch { return res.status(400).json({ error: "Invalid server URL" }); }
+      const host = parsedUrl.hostname;
+      const port = parseInt(parsedUrl.port) || (config?.gatewayPort ?? 18789);
+
+      const rawPath = req.query.path?.toString() || "/__openclaw__/canvas/";
+      const canvasPath = rawPath.startsWith("/__openclaw__/") ? rawPath : "/__openclaw__/canvas/";
+      const canvasUrl = `${parsedUrl.protocol}//${host}:${port}${canvasPath}`;
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const resp = await fetch(canvasUrl, { headers, signal: controller.signal });
+      clearTimeout(timeout);
+
+      const contentType = resp.headers.get("content-type") || "text/html";
+      res.setHeader("Content-Type", contentType);
+      res.status(resp.status);
+
+      const body = await resp.text();
+
+      // Rewrite relative asset URLs in HTML so CSS/JS/images load correctly through proxy
+      const baseUrl = `${parsedUrl.protocol}//${host}:${port}`;
+      const rewritten = body
+        .replace(/(href|src|action)="\/(?!\/)/g, `$1="${baseUrl}/`)
+        .replace(/url\(["']?\/(?!\/)/g, `url("${baseUrl}/`);
+
+      res.send(rewritten);
+    } catch (error) {
+      res.status(502).json({ error: "Failed to load OpenClaw canvas" });
     }
   });
 
