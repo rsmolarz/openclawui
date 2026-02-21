@@ -33,6 +33,7 @@ const openclawConfigUpdateSchema = z.object({
   tailscaleIp: z.string().nullable().optional(),
   pendingNodes: z.any().optional(),
   nodesApproved: z.number().optional(),
+  dockerProject: z.string().optional(),
 });
 
 const vpsUpdateSchema = z.object({
@@ -652,7 +653,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
       const sshPrefix = sshHost ? `ssh ${sshPort !== 22 ? `-p ${sshPort} ` : ""}${sshUser}@${sshHost}` : "";
 
-      const dockerProject = "claw";
+      const dockerProject = config?.dockerProject ?? "claw";
 
       const containerName = `${dockerProject}-openclaw-1`;
 

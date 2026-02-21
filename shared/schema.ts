@@ -96,6 +96,7 @@ export const openclawConfig = pgTable("openclaw_config", {
   tailscaleStatus: text("tailscale_status"),
   nodesApproved: integer("nodes_approved").notNull().default(0),
   pendingNodes: jsonb("pending_nodes"),
+  dockerProject: text("docker_project").notNull().default("claw"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

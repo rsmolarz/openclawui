@@ -451,6 +451,7 @@ export default function SettingsOpenclaw() {
     whatsappEnabled: false,
     whatsappPhone: "",
     tailscaleEnabled: false,
+    dockerProject: "claw",
   });
   const [showToken, setShowToken] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -472,6 +473,7 @@ export default function SettingsOpenclaw() {
         whatsappEnabled: config.whatsappEnabled,
         whatsappPhone: config.whatsappPhone ?? "",
         tailscaleEnabled: config.tailscaleEnabled,
+        dockerProject: config.dockerProject ?? "claw",
       });
     }
   }, [config]);
@@ -786,7 +788,7 @@ export default function SettingsOpenclaw() {
 
             <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3 mb-2">
               <p className="text-xs text-muted-foreground">
-                <strong>Hostinger users:</strong> You can also run these commands directly from the Docker Manager terminal. Go to VPS → Docker Manager → Projects → click your project → Terminal tab. When using the terminal inside the Docker Manager, you don't need the <code className="bg-muted px-1 rounded">docker exec</code> prefix — just run <code className="bg-muted px-1 rounded">openclaw doctor</code> directly.
+                <strong>Hostinger users:</strong> You can run these commands from the Docker Manager terminal (VPS → Docker Manager → Projects → Terminal tab). Inside that terminal, you don't need the <code className="bg-muted px-1 rounded">docker exec</code> prefix — just run <code className="bg-muted px-1 rounded">openclaw doctor</code> directly. If using SSH instead, first find your container name with <code className="bg-muted px-1 rounded">docker ps --format '{"{{"}.Names{"}}"}'</code> — it may differ from the default.
               </p>
             </div>
 
@@ -1274,6 +1276,20 @@ export default function SettingsOpenclaw() {
             </div>
             <p className="text-xs text-muted-foreground">
               The password used by the native dashboard for WebSocket authentication. Set via <code className="text-xs">openclaw config set gateway.password YOUR_PASSWORD</code> on your server.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="docker_project">Docker Project Name</Label>
+            <Input
+              id="docker_project"
+              value={formValues.dockerProject}
+              onChange={(e) => setFormValues((p) => ({ ...p, dockerProject: e.target.value }))}
+              placeholder="claw"
+              data-testid="input-docker-project"
+            />
+            <p className="text-xs text-muted-foreground">
+              The Docker Compose project name on your VPS. This determines the container name used in deploy commands (e.g. <code className="text-xs">{formValues.dockerProject}-openclaw-1</code>). Run <code className="text-xs">docker ps --format '{"{{"}.Names{"}}"}'</code> on your VPS to find the correct container name.
             </p>
           </div>
 
