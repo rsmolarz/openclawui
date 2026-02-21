@@ -1,7 +1,7 @@
 import { Client } from "ssh2";
 
 const SSH_TIMEOUT_MS = 15000;
-const CMD_TIMEOUT_MS = 12000;
+const CMD_TIMEOUT_MS = 20000;
 
 const ALLOWED_COMMANDS: Record<string, string> = {
   status: "ps aux | grep -E 'openclaw|openclaw-gateway' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789 || echo 'Port 18789 not listening'",
@@ -12,8 +12,10 @@ const ALLOWED_COMMANDS: Record<string, string> = {
   "check-firewall": "ufw status verbose 2>/dev/null || iptables -L INPUT -n 2>/dev/null",
   "open-port": "ufw allow 18789/tcp 2>/dev/null && ufw reload 2>/dev/null && echo 'Port 18789 opened' || (iptables -I INPUT -p tcp --dport 18789 -j ACCEPT 2>/dev/null && echo 'Port 18789 opened via iptables')",
   "check-config": "cat /etc/openclaw/config.yaml 2>/dev/null || cat ~/.openclaw/config.yaml 2>/dev/null || cat /root/.openclaw/config.yaml 2>/dev/null || echo 'No config found'; echo '---ENV---'; env | grep -i openclaw 2>/dev/null || echo 'No openclaw env vars'",
-  "bind-lan": "openclaw gateway config set --bind 0.0.0.0 2>/dev/null; openclaw config set gateway.bind 0.0.0.0 2>/dev/null; echo 'Bind set to 0.0.0.0 (LAN mode). Restart gateway to apply.'",
-  "view-log": "tail -50 /tmp/openclaw.log 2>/dev/null || echo 'No log file found'",
+  "bind-lan": "mkdir -p /root/.openclaw 2>/dev/null; mkdir -p /home/ubuntu/.openclaw 2>/dev/null; echo 'host: 0.0.0.0' > /root/.openclaw/config.yaml; cp /root/.openclaw/config.yaml /home/ubuntu/.openclaw/config.yaml 2>/dev/null; chown -R ubuntu:ubuntu /home/ubuntu/.openclaw 2>/dev/null; echo 'Config written to bind 0.0.0.0. Restart gateway to apply.'",
+  "fix-binding": "kill -9 $(pgrep -f openclaw-gateway) $(pgrep -f 'openclaw node') $(pgrep -f 'openclaw start') 2>/dev/null; sleep 2; export OPENCLAW_HOST=0.0.0.0; nohup openclaw start --host 0.0.0.0 > /tmp/openclaw.log 2>&1 & sleep 6; ps aux | grep -E 'openclaw-gateway|openclaw.*node' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789; echo '---BIND---'; tail -20 /tmp/openclaw.log",
+  "fix-binding-env": "kill -9 $(pgrep -f openclaw-gateway) $(pgrep -f 'openclaw node') $(pgrep -f 'openclaw start') 2>/dev/null; sleep 2; echo 'OPENCLAW_HOST=0.0.0.0' >> /etc/environment; export OPENCLAW_HOST=0.0.0.0; export HOST=0.0.0.0; nohup env OPENCLAW_HOST=0.0.0.0 HOST=0.0.0.0 openclaw start > /tmp/openclaw.log 2>&1 & sleep 6; ps aux | grep -E 'openclaw-gateway|openclaw.*node' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789; echo '---BIND---'; tail -20 /tmp/openclaw.log",
+  "view-log": "tail -80 /tmp/openclaw.log 2>/dev/null || echo 'No log file found'",
 };
 
 export interface SSHConnectionConfig {
