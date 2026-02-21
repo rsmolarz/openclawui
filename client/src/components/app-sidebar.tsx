@@ -15,6 +15,7 @@ import {
   FileText,
   Wand2,
   Activity,
+  Terminal,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ const navItems = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "Documentation", url: "/docs", icon: FileText },
   { title: "Node Setup", url: "/node-setup", icon: Wand2 },
+  { title: "Commands", url: "/commands", icon: Terminal },
 ];
 
 const settingsItems = [

@@ -1,223 +1,31 @@
 # OpenClaw Dashboard - Settings Management
 
 ## Overview
-A professional settings management dashboard for the OpenClaw AI agent gateway platform with multi-user authentication via MedInvest DID OAuth. Supports managing multiple OpenClaw instances simultaneously with instance-specific configurations, VPS connections, and Docker services. Manage general settings, notifications, nodes/computers (via pairing codes), API keys, appearance preferences, VPS connection, Docker services monitoring, OpenClaw configuration (gateway, LLM with primary/fallback models from 70+ OpenRouter options, WhatsApp, Tailscale, node approvals), LLM API key management, and external integrations with full CRUD operations and PostgreSQL persistence.
+The OpenClaw Dashboard is a professional settings management platform for the OpenClaw AI agent gateway. It provides multi-user authentication and supports managing multiple OpenClaw instances simultaneously. Key capabilities include instance-specific configurations, VPS connections, Docker service management, and comprehensive settings for general operations, notifications, nodes, API keys, and appearance. It also features a Documentation Hub for setup guides, a Node Setup Wizard, native dashboard integration, VPS connection logs, and a Quick Start Onboarding process. The dashboard integrates live VPS monitoring via Hostinger API, offering server overview, resource metrics, Docker management, firewall configuration, and backup access. It also provides a complete OpenClaw CLI reference and allows for direct VPS power controls. The platform aims to streamline the management and configuration of OpenClaw agents, enhancing usability and control for administrators.
 
-### UX Enhancement Features (Feb 2026)
-- **Documentation Hub** (`/docs`): Full CRUD for setup guides, troubleshooting, references with markdown content, categories, tags, pinning, search/filter
-- **Node Setup Wizard** (`/node-setup`): 5-step guided setup covering full gateway lifecycle:
-  1. Install CLI with `--no-onboard` flag
-  2. Configure gateway mode (`openclaw config set gateway.mode local`)
-  3. Install & start gateway service (`openclaw gateway install` + `restart` + `probe`)
-  4. Get auto-generated gateway token from `~/.openclaw/openclaw.json`
-  5. Optionally connect additional nodes and approve them
-  - Windows users MUST use WSL2 — PowerShell `curl` doesn't support Linux flags like `-fsSL`
-  - Gateway token is auto-generated during `gateway install`, 48-char hex string
-  - Native dashboard accessed at `http://localhost:18789/?token=YOUR_TOKEN`
-  - Remote access via SSH tunnel: `ssh -N -L 18789:127.0.0.1:18789 user@server`
-- **Native Dashboard Integration**: OpenClaw Config page shows "Open Dashboard" button when instance has a server URL. Builds authenticated URL with gateway token for one-click access.
-- **VPS Connection Logs**: Connection test history with status tracking, quick SSH command builder with one-click copy
-- **Quick Start Onboarding**: 5-step checklist on Overview page with progress bar, per-user/instance persistence, dismissible
-- **Hostinger VPS Monitoring** (`/vps-monitor`): Live VPS monitoring powered by Hostinger API
-  - Server overview: hostname, IP, OS, plan, datacenter, specs, state
-  - Resource metrics: CPU and memory usage with progress bars (auto-refreshes every 60s)
-  - Docker tab: List Docker Compose projects, view containers, start/stop/restart projects
-  - Firewall tab: View firewall rules and sync status
-  - Backups tab: List available VPS backups
-  - Power controls: Start/Stop/Restart VPS directly from dashboard
-  - Multi-VPS support: Switch between multiple VPS instances
+## User Preferences
+I prefer iterative development, with a focus on delivering core features first and then refining them. When making changes, please ask before implementing major architectural shifts or complex features. I value clear, concise communication and prefer detailed explanations for significant decisions or complex code sections. Do not make changes to files outside the `client/src` and `server/` directories unless explicitly instructed.
 
-## Architecture
-- **Frontend**: React + TypeScript with Vite, Shadcn UI components, wouter routing, TanStack Query
-- **Backend**: Express.js REST API with PostgreSQL (Drizzle ORM)
-- **Authentication**: MedInvest DID OAuth 2.0 (Authorization Code flow) with express-session + connect-pg-simple
-- **Styling**: Tailwind CSS with dark/light theme support
-- **Multi-Instance**: InstanceContext/InstanceProvider pattern with instance selector in header; instance-scoped queries use `[queryKey, instanceId]` pattern
+## System Architecture
+The application follows a client-server architecture.
+- **Frontend**: Built with React and TypeScript, utilizing Vite for tooling, Shadcn UI for components, `wouter` for routing, and TanStack Query for data fetching and caching. Styling is handled by Tailwind CSS with support for dark/light themes.
+- **Backend**: An Express.js REST API layer that interacts with a PostgreSQL database using Drizzle ORM.
+- **Authentication**: Implements MedInvest DID OAuth 2.0 (Authorization Code flow) managed with `express-session` and `connect-pg-simple`.
+- **Multi-Instance Management**: Leverages an `InstanceContext`/`InstanceProvider` pattern on the frontend, allowing users to select and manage different OpenClaw instances. Backend queries are instance-scoped using `instanceId` parameters.
+- **UI/UX Decisions**: The dashboard incorporates a responsive design with a prominent sidebar navigation for easy access to different sections like Overview, Documentation, Node Setup, and various settings categories. The design emphasizes clarity and ease of use for managing complex configurations.
+- **Feature Specifications**:
+    - **Documentation Hub**: Full CRUD operations for markdown-based documentation with categories, tags, pinning, search, and filtering.
+    - **Node Setup Wizard**: A guided 5-step process for setting up OpenClaw gateways, including CLI installation, configuration, service installation, and token retrieval.
+    - **Hostinger VPS Monitoring**: Real-time monitoring of VPS instances including system metrics, Docker project management (start/stop/restart), firewall rule management, and backup listing.
+    - **OpenClaw Commands**: A comprehensive CLI reference with quick start guides and troubleshooting steps, capable of auto-generating SSH commands.
+- **Data Models**: Key data models include `openclaw_instances` for managing multiple OpenClaw deployments, `settings` for user preferences, `machines` for node management, `apiKeys` and `llmApiKeys` for credential management, `vpsConnections` and `dockerServices` for infrastructure management, `openclawConfig` for instance-specific configurations, `integrations` for external services, `users` for authentication, and `whatsappSessions` for messaging. Instance-scoped tables include `openclaw_config`, `vps_connections`, and `docker_services`.
 
-## Project Structure
-```
-client/src/
-├── components/
-│   ├── ui/           # Shadcn UI components
-│   ├── app-sidebar.tsx  # Navigation sidebar
-│   ├── instance-provider.tsx  # InstanceContext + InstanceSelector
-│   ├── theme-provider.tsx
-│   └── theme-toggle.tsx
-├── pages/
-│   ├── overview.tsx                  # Dashboard overview with stats (instance-scoped)
-│   ├── settings-general.tsx          # General settings
-│   ├── settings-notifications.tsx    # Notification preferences
-│   ├── settings-machines.tsx         # Node/computer management (pairing codes)
-│   ├── settings-api-keys.tsx         # API key management
-│   ├── settings-appearance.tsx       # Theme/appearance settings
-│   ├── settings-vps.tsx              # VPS connection management (instance-scoped)
-│   ├── settings-openclaw.tsx         # OpenClaw config, Docker, nodes (instance-scoped)
-│   ├── settings-instances.tsx        # Instance management (CRUD)
-│   ├── settings-skills.tsx           # Skills management (install/enable/remove)
-│   ├── settings-integrations.tsx     # External integrations management
-│   ├── documentation.tsx             # Documentation Hub (CRUD, markdown, categories, tags, pin)
-│   └── node-setup-wizard.tsx         # Guided node installation wizard (5 steps, OS-specific)
-├── hooks/
-│   ├── use-auth.ts           # Auth hook (useAuth) for session state
-│   ├── use-instance.ts       # Instance context hook (useInstance)
-│   └── use-toast.ts
-├── lib/
-└── App.tsx
-
-server/
-├── index.ts          # Express entry (auto-starts WhatsApp bot if enabled)
-├── routes.ts         # API routes (instance-scoped via resolveInstanceId helper)
-├── storage.ts        # Database storage layer (instance-aware methods)
-├── db.ts             # Drizzle connection
-├── seed.ts           # Seed data (creates Default Instance, backfills instanceId)
-└── bot/
-    ├── whatsapp.ts   # WhatsApp bot (Baileys) - QR auth, pairing, message routing
-    └── openrouter.ts # OpenRouter LLM service - primary/fallback model support
-
-shared/
-└── schema.ts         # Drizzle schema + Zod types
-```
-
-## Multi-Instance Architecture
-- **openclaw_instances**: Central registry of OpenClaw instances (name, description, status, baseUrl, apiKey)
-- Instance-scoped tables: `openclaw_config`, `vps_connections`, `docker_services` — each has an `instanceId` foreign key
-- Global tables: `settings`, `machines`, `apiKeys`, `llmApiKeys`, `integrations`, `users`, `whatsappSessions`
-- Backend: `resolveInstanceId(req)` helper reads `?instanceId=` query param, falls back to first instance
-- Frontend: `useInstance()` hook provides `selectedInstanceId`, all instance-scoped queries include it in queryKey and as URL param
-- Seed logic: Creates "Default Instance" on startup, backfills instanceId on existing config/VPS/docker rows
-
-## Data Models
-- **skills**: Agent skills/capabilities (skillId, name, description, category, version, enabled, status, icon, config JSON)
-- **openclawInstances**: Instance registry with name, description, status (online/offline/maintenance), baseUrl, apiKey
-- **settings**: Key-value settings with categories (general, notifications, appearance)
-- **machines**: OpenClaw nodes/computers with hostname, IP address, OS, pairing code, display name, status (pending/paired/connected/disconnected)
-- **apiKeys**: API keys with permissions and active status
-- **vpsConnections**: VPS server connection details (IP, port, SSH user, key path, connection status) — instance-scoped
-- **dockerServices**: Docker container services (name, status, port, image, CPU/memory usage) — instance-scoped
-- **openclawConfig**: Gateway settings, LLM provider (primary + fallback), WhatsApp, Tailscale, node approvals — instance-scoped
-- **llmApiKeys**: LLM provider API keys (provider, label, apiKey, baseUrl, active status)
-- **integrations**: External service integrations (name, type, category, enabled, status, config JSON, icon)
-- **users**: MedInvest DID-linked user accounts (medinvestId, medinvestDid, username, displayName, email)
-- **whatsappSessions**: WhatsApp user sessions (phone, displayName, status, pairingCode, approvedAt, lastMessageAt)
-
-## API Endpoints
-
-### Authentication (public)
-- `GET /api/auth/me` - Get current authenticated user
-- `GET /api/auth/medinvest/start` - Initiate MedInvest OAuth login flow
-- `GET /api/auth/medinvest/callback` - OAuth callback (handles code exchange)
-- `POST /api/auth/logout` - Destroy session and log out
-- `GET /api/status` - Overall system status summary (public health check)
-
-### Instance Management (protected)
-- `GET /api/instances` - List all instances
-- `POST /api/instances` - Create instance
-- `PATCH /api/instances/:id` - Update instance
-- `DELETE /api/instances/:id` - Delete instance
-
-### Instance-Scoped Routes (protected, accept `?instanceId=` query param)
-- `GET /api/vps` - Get VPS connection config
-- `POST /api/vps` - Upsert VPS connection settings
-- `POST /api/vps/check` - Check VPS connection status
-- `GET /api/docker/services` - List Docker services
-- `GET /api/openclaw/config` - Get OpenClaw configuration
-- `POST /api/openclaw/config` - Update OpenClaw configuration
-- `GET /api/nodes/pending` - Get pending node approvals
-- `POST /api/nodes/approve` - Approve a pending node
-
-### Gateway Sync (protected, instance-scoped)
-- `GET /api/gateway/probe` - Test if gateway is reachable via instance serverUrl (polls every 30s)
-- `POST /api/gateway/restart` - Send restart signal to native gateway (tries /api/restart, /api/v1/restart, /api/gateway/restart, /restart)
-- `POST /api/gateway/sync` - Fetch nodes from native gateway API and sync into machines table (auto-discovers API endpoints)
-
-### Skills Management (protected)
-- `GET /api/skills` - List installed skills
-- `GET /api/skills/catalog` - Browse available skills catalog (marks installed ones)
-- `POST /api/skills` - Install a skill
-- `PATCH /api/skills/:id` - Update skill (enable/disable)
-- `DELETE /api/skills/:id` - Remove/uninstall a skill
-
-### Documentation Hub (protected)
-- `GET /api/docs` - List all documents
-- `GET /api/docs/:id` - Get single document
-- `POST /api/docs` - Create document
-- `PATCH /api/docs/:id` - Update document
-- `DELETE /api/docs/:id` - Delete document
-
-### Node Setup Wizard (protected, instance-scoped)
-- `GET /api/node-setup` - List setup sessions
-- `GET /api/node-setup/:id` - Get single session
-- `POST /api/node-setup` - Create new setup session
-- `PATCH /api/node-setup/:id` - Update session progress
-
-### VPS Connection Logs (protected, instance-scoped)
-- `GET /api/vps/logs` - Get connection test history
-
-### Onboarding Checklist (protected, instance+user-scoped)
-- `GET /api/onboarding` - Get onboarding state
-- `PATCH /api/onboarding` - Update onboarding steps/dismissed
-
-### Hostinger VPS Monitoring (protected, proxies to Hostinger API)
-- `GET /api/hostinger/vms` - List all VPS instances
-- `GET /api/hostinger/vms/:vmId` - Get VM details
-- `GET /api/hostinger/vms/:vmId/metrics` - Get CPU/RAM/disk/network metrics
-- `POST /api/hostinger/vms/:vmId/start` - Start VM
-- `POST /api/hostinger/vms/:vmId/stop` - Stop VM
-- `POST /api/hostinger/vms/:vmId/restart` - Restart VM
-- `GET /api/hostinger/vms/:vmId/actions` - Get action history
-- `GET /api/hostinger/vms/:vmId/docker` - List Docker projects
-- `GET /api/hostinger/vms/:vmId/docker/:projectName/containers` - List containers
-- `POST /api/hostinger/vms/:vmId/docker/:projectName/start` - Start Docker project
-- `POST /api/hostinger/vms/:vmId/docker/:projectName/stop` - Stop Docker project
-- `POST /api/hostinger/vms/:vmId/docker/:projectName/restart` - Restart Docker project
-- `GET /api/hostinger/firewalls` - List firewalls
-- `GET /api/hostinger/firewalls/:firewallId` - Get firewall details with rules
-- `POST /api/hostinger/firewalls/:firewallId/rules` - Create firewall rule
-- `POST /api/hostinger/firewalls/:firewallId/sync` - Sync firewall rules to VPS
-- `GET /api/hostinger/vms/:vmId/backups` - List backups
-
-### Global Protected Routes
-- `GET /api/settings` - List all settings
-- `PATCH /api/settings/bulk` - Bulk update settings
-- `GET /api/machines` - List nodes
-- `POST /api/machines` - Create node
-- `PATCH /api/machines/:id` - Update node
-- `DELETE /api/machines/:id` - Delete node
-- `GET /api/api-keys` - List API keys
-- `POST /api/api-keys` - Create API key
-- `PATCH /api/api-keys/:id` - Update API key
-- `DELETE /api/api-keys/:id` - Delete API key
-- `GET /api/llm-api-keys` - List LLM API keys
-- `POST /api/llm-api-keys` - Create LLM API key
-- `PATCH /api/llm-api-keys/:id` - Update LLM API key
-- `DELETE /api/llm-api-keys/:id` - Delete LLM API key
-- `GET /api/integrations` - List integrations
-- `POST /api/integrations` - Create integration
-- `PATCH /api/integrations/:id` - Update integration
-- `DELETE /api/integrations/:id` - Delete integration
-- `GET /api/whatsapp/status` - Get WhatsApp bot connection status
-- `GET /api/whatsapp/qr` - Get QR code for WhatsApp pairing
-- `POST /api/whatsapp/start` - Start the WhatsApp bot
-- `POST /api/whatsapp/stop` - Stop the WhatsApp bot
-- `POST /api/whatsapp/restart` - Restart the WhatsApp bot
-- `GET /api/whatsapp/sessions` - List all WhatsApp user sessions
-- `GET /api/whatsapp/pending` - List pending WhatsApp session approvals
-- `POST /api/whatsapp/approve/:id` - Approve a pending WhatsApp session
-- `DELETE /api/whatsapp/sessions/:id` - Delete a WhatsApp session
-
-## Sidebar Navigation
-- **Main**: Overview, Documentation, Node Setup
-- **Settings**: General, Notifications, Nodes, API Keys, Appearance
-- **Infrastructure**: Instances, VPS Connection, OpenClaw Config, Skills, Integrations
-
-## Integration Categories
-- **messaging**: WhatsApp, Telegram, Discord, Slack
-- **ai**: OpenRouter (LLM gateway)
-- **networking**: Tailscale (mesh VPN)
-- **automation**: Webhook, n8n
-- **notifications**: Email / SMTP
-- **iot**: MQTT
-
-## Running
-- `npm run dev` starts both frontend and backend on port 5000
-- `npm run db:push` syncs database schema
+## External Dependencies
+- **Database**: PostgreSQL (managed via Drizzle ORM)
+- **Authentication Provider**: MedInvest DID OAuth 2.0
+- **Cloud/VPS Provider API**: Hostinger API (for VPS monitoring and management)
+- **LLM Gateway**: OpenRouter (supports primary/fallback models from over 70 options)
+- **Messaging**: Baileys (for WhatsApp bot functionality)
+- **Networking**: Tailscale (for mesh VPN configurations)
+- **UI Component Library**: Shadcn UI
+- **Data Fetching/State Management**: TanStack Query

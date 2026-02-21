@@ -31,6 +31,9 @@ import {
   Network,
   MemoryStick,
   Plus,
+  Terminal,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -417,6 +420,7 @@ export default function VpsMonitoring() {
               <TabsTrigger value="docker" data-testid="tab-docker"><Container className="h-4 w-4 mr-1.5" /> Docker</TabsTrigger>
               <TabsTrigger value="firewall" data-testid="tab-firewall"><Shield className="h-4 w-4 mr-1.5" /> Firewall</TabsTrigger>
               <TabsTrigger value="backups" data-testid="tab-backups"><Database className="h-4 w-4 mr-1.5" /> Backups</TabsTrigger>
+              <TabsTrigger value="commands" data-testid="tab-commands"><Terminal className="h-4 w-4 mr-1.5" /> Commands</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-4">
@@ -910,8 +914,150 @@ export default function VpsMonitoring() {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="commands" className="space-y-4">
+              <SshCommandsPanel activeVm={activeVm} />
+            </TabsContent>
           </Tabs>
         </>
+      )}
+    </div>
+  );
+}
+
+function SshCopyButton({ text, testId }: { text: string; testId?: string }) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-7 px-2 text-xs gap-1 shrink-0"
+      data-testid={testId || "button-copy-ssh"}
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        toast({ title: "Copied!" });
+        setTimeout(() => setCopied(false), 2000);
+      }}
+    >
+      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+    </Button>
+  );
+}
+
+function SshCommandsPanel({ activeVm }: { activeVm: VM | null }) {
+  const ip = activeVm?.ip_addresses?.find(a => a.type === "ipv4")?.address || activeVm?.ip_addresses?.[0]?.address || "";
+  const sshPrefix = ip ? `ssh root@${ip}` : "";
+
+  const commandGroups = [
+    {
+      title: "Gateway Quick Actions",
+      description: "Essential commands to manage the OpenClaw gateway on your VPS.",
+      commands: [
+        { label: "Check gateway status", cmd: "openclaw gateway status" },
+        { label: "Restart gateway", cmd: "openclaw gateway restart" },
+        { label: "Probe gateway health", cmd: "openclaw gateway probe" },
+        { label: "Start gateway", cmd: "openclaw gateway start" },
+        { label: "Stop gateway", cmd: "openclaw gateway stop" },
+      ],
+    },
+    {
+      title: "Diagnostics",
+      description: "Troubleshoot and diagnose issues.",
+      commands: [
+        { label: "Run doctor (auto-fix)", cmd: "openclaw doctor" },
+        { label: "Check model status", cmd: "openclaw models status --json" },
+        { label: "View live logs", cmd: "openclaw logs" },
+        { label: "Health check", cmd: "openclaw health" },
+      ],
+    },
+    {
+      title: "Configuration",
+      description: "View and modify OpenClaw settings.",
+      commands: [
+        { label: "List all config", cmd: "openclaw config list" },
+        { label: "View config file", cmd: "cat ~/.openclaw/openclaw.json" },
+        { label: "Get gateway token", cmd: "cat ~/.openclaw/openclaw.json | grep token" },
+        { label: "Set bind mode", cmd: "openclaw config set gateway.bind loopback" },
+      ],
+    },
+    {
+      title: "Node Management",
+      description: "Manage connected nodes/devices.",
+      commands: [
+        { label: "List nodes", cmd: "openclaw nodes list" },
+        { label: "Approve node", cmd: "openclaw nodes approve <node-id>" },
+      ],
+    },
+    {
+      title: "Service Management",
+      description: "Control the OpenClaw systemd service.",
+      commands: [
+        { label: "Service status", cmd: "systemctl status openclaw-gateway" },
+        { label: "Restart service", cmd: "systemctl restart openclaw-gateway" },
+        { label: "View service logs", cmd: "journalctl -u openclaw-gateway -f --no-pager -n 50" },
+        { label: "Check port in use", cmd: "ss -tlnp | grep 18789" },
+      ],
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {!ip && (
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+              Select a VPS above to generate SSH-ready commands with your server IP.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {commandGroups.map((group, gi) => (
+        <Card key={gi}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">{group.title}</CardTitle>
+            <CardDescription className="text-xs">{group.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {group.commands.map((c, ci) => (
+              <div key={ci} className="flex items-center gap-2" data-testid={`row-vps-cmd-${gi}-${ci}`}>
+                <span className="text-xs text-muted-foreground w-40 shrink-0" data-testid={`text-cmd-label-${gi}-${ci}`}>{c.label}</span>
+                <div className="flex-1 flex items-center gap-1 bg-muted/50 rounded-md px-3 py-1.5 font-mono text-xs border min-w-0">
+                  <code className="break-all flex-1 select-all" data-testid={`code-vps-cmd-${gi}-${ci}`}>
+                    {sshPrefix ? `${sshPrefix} "${c.cmd}"` : c.cmd}
+                  </code>
+                  <SshCopyButton text={sshPrefix ? `${sshPrefix} "${c.cmd}"` : c.cmd} testId={`button-copy-cmd-${gi}-${ci}`} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
+
+      {ip && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">SSH Connection</CardTitle>
+            <CardDescription className="text-xs">Quick access to your VPS terminal.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center gap-2" data-testid="row-ssh-connect">
+              <span className="text-xs text-muted-foreground w-40 shrink-0">Connect via SSH</span>
+              <div className="flex-1 flex items-center gap-1 bg-muted/50 rounded-md px-3 py-1.5 font-mono text-xs border">
+                <code className="break-all flex-1 select-all" data-testid="code-ssh-connect">{sshPrefix}</code>
+                <SshCopyButton text={sshPrefix} testId="button-copy-ssh-connect" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2" data-testid="row-ssh-tunnel">
+              <span className="text-xs text-muted-foreground w-40 shrink-0">SSH tunnel (dashboard)</span>
+              <div className="flex-1 flex items-center gap-1 bg-muted/50 rounded-md px-3 py-1.5 font-mono text-xs border">
+                <code className="break-all flex-1 select-all" data-testid="code-ssh-tunnel">ssh -N -L 18789:127.0.0.1:18789 root@{ip}</code>
+                <SshCopyButton text={`ssh -N -L 18789:127.0.0.1:18789 root@${ip}`} testId="button-copy-ssh-tunnel" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

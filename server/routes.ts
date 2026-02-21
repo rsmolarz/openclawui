@@ -723,61 +723,57 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
       const sshPrefix = sshHost ? `ssh ${sshPort !== 22 ? `-p ${sshPort} ` : ""}${sshUser}@${sshHost}` : "";
 
-      const dockerProject = config?.dockerProject ?? "claw";
-
-      const containerName = `${dockerProject}-openclaw-1`;
-
       const doctorFix = {
         step1_doctor: {
           title: "1. Run the Doctor",
-          description: "This checks your OpenClaw config, diagnoses issues, and auto-fixes them. Run this inside your VPS terminal or via SSH.",
-          command: `docker exec -it ${containerName} openclaw doctor`,
-          ssh: sshPrefix ? `${sshPrefix} "docker exec -it ${containerName} openclaw doctor"` : null,
+          description: "Checks your OpenClaw config, diagnoses issues, and auto-fixes them. Run on your VPS.",
+          command: "openclaw doctor",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw doctor"` : null,
         },
         step2_restart: {
-          title: "2. Restart the Docker Project",
-          description: "After the doctor fixes the config, restart the Docker project so changes take effect.",
-          command: `docker compose -p ${dockerProject} restart`,
-          ssh: sshPrefix ? `${sshPrefix} "docker compose -p ${dockerProject} restart"` : null,
+          title: "2. Restart the Gateway",
+          description: "Apply fixes by restarting the gateway service.",
+          command: "openclaw gateway restart",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw gateway restart"` : null,
         },
         step3_verify: {
           title: "3. Verify It's Working",
-          description: "Check the gateway status inside the container to confirm everything is running.",
-          command: `docker exec -it ${containerName} openclaw gateway probe`,
-          ssh: sshPrefix ? `${sshPrefix} "docker exec -it ${containerName} openclaw gateway probe"` : null,
+          description: "Check gateway status to confirm everything is running.",
+          command: "openclaw gateway probe",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw gateway probe"` : null,
         },
       };
 
       const manualFix = {
         step1_check: {
           title: "1. Check Provider Status",
-          description: "Verify that your LLM provider is registered inside the container",
-          command: `docker exec -it ${containerName} openclaw models status --json`,
-          ssh: sshPrefix ? `${sshPrefix} "docker exec -it ${containerName} openclaw models status --json"` : null,
+          description: "Verify that your LLM provider is registered.",
+          command: "openclaw models status --json",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw models status --json"` : null,
         },
         step2_onboard: {
           title: "2. Register Provider (Non-Interactive)",
-          description: "Force-register the provider and bind your API key inside the container config (~/.openclaw/openclaw.json)",
-          command: `docker exec -it ${containerName} ${onboardCmd}`,
-          ssh: sshPrefix ? `${sshPrefix} 'docker exec -it ${containerName} ${onboardCmd}'` : null,
+          description: "Force-register the provider and bind your API key in ~/.openclaw/openclaw.json",
+          command: onboardCmd,
+          ssh: sshPrefix ? `${sshPrefix} '${onboardCmd}'` : null,
         },
         step3_persist: {
-          title: "3. Persist API Key in Container Environment",
-          description: "Set the API key as an environment variable in the Docker Compose file. Open your docker-compose.yml and add this under the openclaw service's 'environment' section:",
-          command: `${shellExportVar}=${apiKeyPlaceholder}`,
-          ssh: null,
+          title: "3. Set API Key Environment Variable",
+          description: "Export your API key so OpenClaw can access it.",
+          command: `export ${shellExportVar}="${apiKeyPlaceholder}"`,
+          ssh: sshPrefix ? `${sshPrefix} "export ${shellExportVar}=${apiKeyPlaceholder}"` : null,
         },
         step4_restart: {
-          title: "4. Restart Docker Project",
-          description: "Restart the Docker project to apply the environment variable and config changes",
-          command: `docker compose -p ${dockerProject} restart`,
-          ssh: sshPrefix ? `${sshPrefix} "docker compose -p ${dockerProject} restart"` : null,
+          title: "4. Restart Gateway",
+          description: "Restart the gateway service to apply changes.",
+          command: "openclaw gateway restart",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw gateway restart"` : null,
         },
         step5_verify: {
           title: "5. Verify Connection",
-          description: "Confirm the gateway is running and the model is loaded inside the container",
-          command: `docker exec -it ${containerName} openclaw gateway probe`,
-          ssh: sshPrefix ? `${sshPrefix} "docker exec -it ${containerName} openclaw gateway probe"` : null,
+          description: "Confirm the gateway is running and the model is loaded.",
+          command: "openclaw gateway probe && openclaw models status --json",
+          ssh: sshPrefix ? `${sshPrefix} "openclaw gateway probe && openclaw models status --json"` : null,
         },
       };
 
@@ -785,7 +781,6 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
         doctorFix,
         manualFix,
         hasRealKey,
-        dockerProject,
         config: {
           provider,
           model: defaultLlm,
