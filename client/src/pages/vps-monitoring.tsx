@@ -5,6 +5,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +30,7 @@ import {
   Square,
   Network,
   MemoryStick,
+  Plus,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -195,6 +200,45 @@ export default function VpsMonitoring() {
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Docker action failed.", variant: "destructive" });
+    },
+  });
+
+  const [addRuleFirewallId, setAddRuleFirewallId] = useState<number | null>(null);
+  const [ruleProtocol, setRuleProtocol] = useState<string>("tcp");
+  const [rulePort, setRulePort] = useState<string>("");
+  const [ruleSource, setRuleSource] = useState<string>("any");
+  const [ruleSourceDetail, setRuleSourceDetail] = useState<string>("");
+  const [ruleAction, setRuleAction] = useState<string>("accept");
+
+  const addRuleMutation = useMutation({
+    mutationFn: async ({ firewallId, rule }: { firewallId: number; rule: { protocol: string; port: string; source: string; source_detail?: string; action: string } }) => {
+      await apiRequest("POST", `/api/hostinger/firewalls/${firewallId}/rules`, rule);
+    },
+    onSuccess: () => {
+      toast({ title: "Rule added", description: "Firewall rule created. Don't forget to sync to apply changes." });
+      queryClient.invalidateQueries({ queryKey: ["/api/hostinger/firewalls"] });
+      setAddRuleFirewallId(null);
+      setRulePort("");
+      setRuleSourceDetail("");
+      setRuleProtocol("tcp");
+      setRuleSource("any");
+      setRuleAction("accept");
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to add firewall rule.", variant: "destructive" });
+    },
+  });
+
+  const syncFirewallMutation = useMutation({
+    mutationFn: async (firewallId: number) => {
+      await apiRequest("POST", `/api/hostinger/firewalls/${firewallId}/sync`);
+    },
+    onSuccess: () => {
+      toast({ title: "Firewall synced", description: "Rules have been pushed to the VPS." });
+      queryClient.invalidateQueries({ queryKey: ["/api/hostinger/firewalls"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Sync failed", description: err.message || "Failed to sync firewall.", variant: "destructive" });
     },
   });
 
@@ -636,7 +680,7 @@ export default function VpsMonitoring() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <Shield className="h-4 w-4" /> Firewall Rules
                   </CardTitle>
-                  <CardDescription>View and manage your Hostinger VPS firewall configuration.</CardDescription>
+                  <CardDescription>View and manage your Hostinger VPS firewall configuration. Add rules and sync them to apply changes.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {firewallsLoading ? (
@@ -644,15 +688,133 @@ export default function VpsMonitoring() {
                       {[1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
                     </div>
                   ) : firewalls && firewalls.length > 0 ? (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {firewalls.map((fw) => (
-                        <div key={fw.id}>
+                        <div key={fw.id} className="border rounded-lg p-4">
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium" data-testid={`text-firewall-name-${fw.id}`}>{fw.name}</span>
                               <Badge variant={fw.is_synced ? "default" : "secondary"}>
                                 {fw.is_synced ? "Synced" : "Pending sync"}
                               </Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Dialog open={addRuleFirewallId === fw.id} onOpenChange={(open) => { if (!open) setAddRuleFirewallId(null); }}>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline" onClick={() => setAddRuleFirewallId(fw.id)} data-testid={`button-add-rule-${fw.id}`}>
+                                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Rule
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Add Firewall Rule</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4 py-2">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label>Protocol</Label>
+                                        <Select value={ruleProtocol} onValueChange={setRuleProtocol}>
+                                          <SelectTrigger data-testid="select-rule-protocol">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="tcp">TCP</SelectItem>
+                                            <SelectItem value="udp">UDP</SelectItem>
+                                            <SelectItem value="icmp">ICMP</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Port</Label>
+                                        <Input
+                                          placeholder="e.g. 80, 443, 18789"
+                                          value={rulePort}
+                                          onChange={(e) => setRulePort(e.target.value)}
+                                          data-testid="input-rule-port"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label>Source</Label>
+                                        <Select value={ruleSource} onValueChange={setRuleSource}>
+                                          <SelectTrigger data-testid="select-rule-source">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="any">Any (0.0.0.0/0)</SelectItem>
+                                            <SelectItem value="custom">Custom IP</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Action</Label>
+                                        <Select value={ruleAction} onValueChange={setRuleAction}>
+                                          <SelectTrigger data-testid="select-rule-action">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="accept">Accept</SelectItem>
+                                            <SelectItem value="drop">Drop</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                    {ruleSource === "custom" && (
+                                      <div className="space-y-2">
+                                        <Label>Source IP / CIDR</Label>
+                                        <Input
+                                          placeholder="e.g. 192.168.1.0/24 or 10.0.0.5"
+                                          value={ruleSourceDetail}
+                                          onChange={(e) => setRuleSourceDetail(e.target.value)}
+                                          data-testid="input-rule-source-detail"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <DialogFooter>
+                                    <DialogClose asChild>
+                                      <Button variant="outline" data-testid="button-cancel-rule">Cancel</Button>
+                                    </DialogClose>
+                                    <Button
+                                      onClick={() => {
+                                        if (!rulePort.trim()) {
+                                          toast({ title: "Port required", description: "Please enter a port number.", variant: "destructive" });
+                                          return;
+                                        }
+                                        if (ruleSource === "custom" && !ruleSourceDetail.trim()) {
+                                          toast({ title: "Source IP required", description: "Please enter a source IP or CIDR.", variant: "destructive" });
+                                          return;
+                                        }
+                                        addRuleMutation.mutate({
+                                          firewallId: fw.id,
+                                          rule: {
+                                            protocol: ruleProtocol,
+                                            port: rulePort.trim(),
+                                            source: ruleSource,
+                                            ...(ruleSource === "custom" ? { source_detail: ruleSourceDetail.trim() } : {}),
+                                            action: ruleAction,
+                                          },
+                                        });
+                                      }}
+                                      disabled={addRuleMutation.isPending}
+                                      data-testid="button-submit-rule"
+                                    >
+                                      {addRuleMutation.isPending ? "Adding..." : "Add Rule"}
+                                    </Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                size="sm"
+                                variant={fw.is_synced ? "outline" : "default"}
+                                onClick={() => syncFirewallMutation.mutate(fw.id)}
+                                disabled={syncFirewallMutation.isPending}
+                                data-testid={`button-sync-firewall-${fw.id}`}
+                              >
+                                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncFirewallMutation.isPending ? "animate-spin" : ""}`} />
+                                {syncFirewallMutation.isPending ? "Syncing..." : "Sync to VPS"}
+                              </Button>
                             </div>
                           </div>
                           {fw.rules && fw.rules.length > 0 ? (
