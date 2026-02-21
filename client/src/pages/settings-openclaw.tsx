@@ -438,6 +438,36 @@ export default function SettingsOpenclaw() {
   const [useSSH, setUseSSH] = useState(true);
   const [showManualSteps, setShowManualSteps] = useState(false);
 
+  const [restartResult, setRestartResult] = useState<{ success?: boolean; message?: string; error?: string } | null>(null);
+  const restartGatewayMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await apiRequest("POST", `/api/gateway/restart?instanceId=${selectedInstanceId ?? ""}`);
+      return resp.json();
+    },
+    onSuccess: (data: any) => {
+      setRestartResult(data);
+      if (data.success) {
+        toast({ title: "Gateway restart signal sent", description: data.message || "The gateway is restarting. It may take a few seconds to come back online." });
+        queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config", selectedInstanceId] });
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: [`/api/gateway/probe?instanceId=${selectedInstanceId ?? ""}`] });
+        }, 5000);
+      } else {
+        toast({ title: "Restart issue", description: data.error || "Gateway may need manual restart.", variant: "destructive" });
+      }
+    },
+    onError: (err: any) => {
+      setRestartResult({ error: err?.message || "Failed to reach gateway" });
+      toast({ title: "Restart failed", description: err?.message || "Could not restart the gateway.", variant: "destructive" });
+    },
+  });
+
+  const probeGatewayQuery = useQuery<{ reachable: boolean; status?: number; error?: string }>({
+    queryKey: [`/api/gateway/probe?instanceId=${selectedInstanceId ?? ""}`],
+    enabled: !!selectedInstanceId && !!currentInstance?.serverUrl,
+    refetchInterval: 30000,
+  });
+
   const isLoading = configLoading || dockerLoading || keysLoading;
 
   const [formValues, setFormValues] = useState({
@@ -729,6 +759,105 @@ export default function SettingsOpenclaw() {
                   Add your gateway token below to enable one-click authenticated access.
                 </p>
               )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentInstance?.serverUrl && (
+        <Card data-testid="card-restart-gateway">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <RotateCw className="h-4 w-4" />
+                Restart Gateway
+              </CardTitle>
+              <CardDescription>
+                Restart the gateway service to resolve connection state mismatches between this dashboard and the native UI.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {probeGatewayQuery.data?.reachable ? (
+                  <Badge variant="default" data-testid="badge-gateway-reachable">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Reachable
+                  </Badge>
+                ) : probeGatewayQuery.isLoading ? (
+                  <Badge variant="secondary">
+                    <RotateCw className="h-3 w-3 mr-1 animate-spin" />
+                    Checking...
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" data-testid="badge-gateway-unreachable">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Unreachable
+                  </Badge>
+                )}
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setRestartResult(null);
+                  restartGatewayMutation.mutate();
+                }}
+                disabled={restartGatewayMutation.isPending}
+                data-testid="button-restart-gateway"
+              >
+                {restartGatewayMutation.isPending ? (
+                  <RotateCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RotateCw className="h-4 w-4 mr-2" />
+                )}
+                {restartGatewayMutation.isPending ? "Restarting..." : "Restart Gateway"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3">
+                <p className="text-xs text-muted-foreground">
+                  Use this when the dashboard shows "connected" but the native OpenClaw UI shows "not connected", or when the gateway becomes unresponsive. The gateway will briefly go offline and reconnect automatically.
+                </p>
+              </div>
+              {restartResult && (
+                <div className={`rounded-md p-3 border ${restartResult.success ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"}`} data-testid="text-restart-result">
+                  <p className={`text-sm ${restartResult.success ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+                    {restartResult.success ? (
+                      <span className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        {restartResult.message || "Gateway restart signal sent successfully."}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4" />
+                        {restartResult.error || "Restart failed."}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => probeGatewayQuery.refetch()}
+                  disabled={probeGatewayQuery.isFetching}
+                  data-testid="button-probe-gateway"
+                >
+                  {probeGatewayQuery.isFetching ? (
+                    <RotateCw className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Network className="h-3 w-3 mr-1" />
+                  )}
+                  Check Connection
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {probeGatewayQuery.data?.reachable
+                    ? `Gateway responding (status ${probeGatewayQuery.data.status})`
+                    : probeGatewayQuery.data?.error || "Not checked yet"}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>

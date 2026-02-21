@@ -127,6 +127,7 @@ shared/
 
 ### Gateway Sync (protected, instance-scoped)
 - `GET /api/gateway/probe` - Test if gateway is reachable via instance serverUrl (polls every 30s)
+- `POST /api/gateway/restart` - Send restart signal to native gateway (tries /api/restart, /api/v1/restart, /api/gateway/restart, /restart)
 - `POST /api/gateway/sync` - Fetch nodes from native gateway API and sync into machines table (auto-discovers API endpoints)
 
 ### Skills Management (protected)

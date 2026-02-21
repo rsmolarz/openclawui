@@ -504,6 +504,75 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
+  // Gateway proxy: restart the gateway service
+  app.post("/api/gateway/restart", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const instance = await storage.getInstance(instanceId);
+      if (!instance?.serverUrl) return res.status(400).json({ error: "No server URL configured for this instance" });
+      const config = await storage.getOpenclawConfig(instanceId);
+      const token = config?.gatewayToken || instance.apiKey;
+      if (!token) return res.status(400).json({ error: "No gateway token configured. Set it in OpenClaw Config or set an API key on the instance." });
+
+      const restartEndpoints = ["/api/restart", "/api/v1/restart", "/api/gateway/restart", "/restart"];
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      let lastStatus = 0;
+      let lastError = "";
+      for (const endpoint of restartEndpoints) {
+        try {
+          const url = new URL(endpoint, instance.serverUrl);
+          url.searchParams.set("token", token);
+          const resp = await fetch(url.toString(), { method: "POST", signal: controller.signal });
+          lastStatus = resp.status;
+          if (resp.ok) {
+            clearTimeout(timeout);
+            let body: any = {};
+            try { body = await resp.json(); } catch {}
+            return res.json({ success: true, status: resp.status, endpoint, message: body.message || "Gateway restart signal sent", serverUrl: instance.serverUrl });
+          }
+          if (resp.status === 401 || resp.status === 403) {
+            lastError = `Authentication failed (${resp.status}). Check your gateway token.`;
+          }
+        } catch {}
+      }
+
+      clearTimeout(timeout);
+
+      // If auth failed, return that specific error
+      if (lastError) {
+        return res.status(403).json({ error: lastError, status: lastStatus });
+      }
+
+      // Fallback: try a health/probe to confirm gateway is at least reachable, even if no restart endpoint found
+      try {
+        const healthUrl = new URL("/api/health", instance.serverUrl);
+        if (token) healthUrl.searchParams.set("token", token);
+        const healthController = new AbortController();
+        const healthTimeout = setTimeout(() => healthController.abort(), 8000);
+        const healthResp = await fetch(healthUrl.toString(), { signal: healthController.signal });
+        clearTimeout(healthTimeout);
+        if (healthResp.ok) {
+          return res.json({
+            success: false,
+            reachable: true,
+            error: "Gateway is reachable but no restart API endpoint was found. You may need to restart the Docker container manually using: docker compose -p PROJECT restart",
+          });
+        }
+      } catch {}
+
+      return res.status(502).json({
+        error: "Could not reach the gateway server. Check that the server URL is correct and the gateway is running.",
+        tried: restartEndpoints,
+        lastStatus: lastStatus || undefined,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to restart gateway: " + (error.message || "Unknown error") });
+    }
+  });
+
   // Gateway proxy: sync nodes from native dashboard
   app.post("/api/gateway/sync", requireAuth, async (req, res) => {
     try {
