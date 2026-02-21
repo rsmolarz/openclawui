@@ -1110,6 +1110,30 @@ export default function SettingsOpenclaw() {
             )}
           </div>
 
+          <div className="rounded-md border p-4 space-y-2" data-testid="whatsapp-phone-config">
+            <Label htmlFor="whatsappPhone" className="text-sm font-medium">Bot Phone Number</Label>
+            <p className="text-xs text-muted-foreground">The WhatsApp phone number the bot should use (international format with country code, e.g. +13405140344).</p>
+            <div className="flex items-center gap-2">
+              <Input
+                id="whatsappPhone"
+                value={formValues.whatsappPhone}
+                onChange={(e) => setFormValues((v) => ({ ...v, whatsappPhone: e.target.value }))}
+                placeholder="+13405140344"
+                data-testid="input-whatsapp-phone"
+                className="max-w-xs"
+              />
+              <Button
+                size="sm"
+                onClick={() => saveMutation.mutate(formValues)}
+                disabled={saveMutation.isPending}
+                data-testid="button-save-whatsapp-phone"
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Save
+              </Button>
+            </div>
+          </div>
+
           {showPairingForm && (botStatus?.state === "disconnected" || !botStatus) && (
             <div className="rounded-md border p-4 space-y-3" data-testid="pairing-phone-form">
               <p className="text-sm font-medium">Enter your WhatsApp phone number</p>
