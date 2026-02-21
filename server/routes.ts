@@ -1379,7 +1379,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
   app.get("/api/docs/:id", requireAuth, async (req, res) => {
     try {
-      const doc = await storage.getDoc(req.params.id);
+      const doc = await storage.getDoc(String(req.params.id));
       if (!doc) return res.status(404).json({ error: "Doc not found" });
       res.json(doc);
     } catch (error) {
@@ -1403,7 +1403,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
   app.patch("/api/docs/:id", requireAuth, async (req, res) => {
     try {
       const partial = insertDocSchema.partial().parse(req.body);
-      const doc = await storage.updateDoc(req.params.id, partial);
+      const doc = await storage.updateDoc(String(req.params.id), partial);
       if (!doc) return res.status(404).json({ error: "Doc not found" });
       res.json(doc);
     } catch (error) {
@@ -1416,7 +1416,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
   app.delete("/api/docs/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteDoc(req.params.id);
+      await storage.deleteDoc(String(req.params.id));
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete doc" });
@@ -1449,7 +1449,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
   app.get("/api/node-setup/:id", requireAuth, async (req, res) => {
     try {
-      const session = await storage.getNodeSetupSession(req.params.id);
+      const session = await storage.getNodeSetupSession(String(req.params.id));
       if (!session) return res.status(404).json({ error: "Session not found" });
       res.json(session);
     } catch (error) {
@@ -1482,7 +1482,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
   app.patch("/api/node-setup/:id", requireAuth, async (req, res) => {
     try {
       const partial = insertNodeSetupSessionSchema.partial().parse(req.body);
-      const session = await storage.updateNodeSetupSession(req.params.id, partial);
+      const session = await storage.updateNodeSetupSession(String(req.params.id), partial);
       if (!session) return res.status(404).json({ error: "Session not found" });
       res.json(session);
     } catch (error) {
@@ -1613,7 +1613,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
   app.get("/api/hostinger/vms/:vmId/docker/:projectName/containers", requireAuth, async (req, res) => {
     try {
       const { hostinger } = await import("./hostinger");
-      const containers = await hostinger.getDockerContainers(Number(req.params.vmId), req.params.projectName);
+      const containers = await hostinger.getDockerContainers(Number(req.params.vmId), String(req.params.projectName));
       res.json(containers);
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to fetch containers" });
@@ -1623,7 +1623,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
   app.post("/api/hostinger/vms/:vmId/docker/:projectName/restart", requireAuth, async (req, res) => {
     try {
       const { hostinger } = await import("./hostinger");
-      await hostinger.restartDockerProject(Number(req.params.vmId), req.params.projectName);
+      await hostinger.restartDockerProject(Number(req.params.vmId), String(req.params.projectName));
       res.json({ success: true });
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to restart Docker project" });
@@ -1633,7 +1633,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
   app.post("/api/hostinger/vms/:vmId/docker/:projectName/start", requireAuth, async (req, res) => {
     try {
       const { hostinger } = await import("./hostinger");
-      await hostinger.startDockerProject(Number(req.params.vmId), req.params.projectName);
+      await hostinger.startDockerProject(Number(req.params.vmId), String(req.params.projectName));
       res.json({ success: true });
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to start Docker project" });
@@ -1643,7 +1643,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
   app.post("/api/hostinger/vms/:vmId/docker/:projectName/stop", requireAuth, async (req, res) => {
     try {
       const { hostinger } = await import("./hostinger");
-      await hostinger.stopDockerProject(Number(req.params.vmId), req.params.projectName);
+      await hostinger.stopDockerProject(Number(req.params.vmId), String(req.params.projectName));
       res.json({ success: true });
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to stop Docker project" });
@@ -1709,6 +1709,36 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       res.json(backups);
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to fetch backups" });
+    }
+  });
+
+  // ──────────── SSH Remote Gateway Control ────────────
+  app.post("/api/ssh/gateway/:action", requireAuth, async (req, res) => {
+    try {
+      const { executeSSHCommand, listAllowedCommands } = await import("./ssh");
+      const action = String(req.params.action);
+      const allowed = listAllowedCommands();
+      if (!allowed.includes(action)) {
+        return res.status(400).json({ error: `Invalid action: ${action}. Allowed: ${allowed.join(", ")}` });
+      }
+      const result = await executeSSHCommand(action);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || "SSH command failed" });
+    }
+  });
+
+  app.get("/api/ssh/gateway/actions", requireAuth, async (_req, res) => {
+    try {
+      const { listAllowedCommands, getSSHConfig } = await import("./ssh");
+      const config = getSSHConfig();
+      res.json({
+        actions: listAllowedCommands(),
+        configured: !!config,
+        host: config?.host || null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get SSH actions" });
     }
   });
 

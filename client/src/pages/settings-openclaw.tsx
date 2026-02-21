@@ -534,6 +534,38 @@ export default function SettingsOpenclaw() {
     refetchInterval: 30000,
   });
 
+  const sshActionsQuery = useQuery<{ actions: string[]; configured: boolean; host: string | null }>({
+    queryKey: ["/api/ssh/gateway/actions"],
+  });
+
+  const [sshResult, setSSHResult] = useState<{ success?: boolean; output?: string; error?: string; action?: string } | null>(null);
+  const [sshRunning, setSSHRunning] = useState<string | null>(null);
+
+  const sshMutation = useMutation({
+    mutationFn: async (action: string) => {
+      setSSHRunning(action);
+      const resp = await apiRequest("POST", `/api/ssh/gateway/${action}`);
+      return resp.json();
+    },
+    onSuccess: (data: any, action: string) => {
+      setSSHResult({ ...data, action });
+      setSSHRunning(null);
+      if (data.success) {
+        toast({ title: "Command succeeded", description: `Gateway ${action} completed successfully.` });
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: [`/api/gateway/probe?instanceId=${selectedInstanceId ?? ""}`] });
+        }, 3000);
+      } else {
+        toast({ title: "Command completed", description: data.error || data.output || "Check the output below.", variant: data.error ? "destructive" : "default" });
+      }
+    },
+    onError: (err: any, action: string) => {
+      setSSHResult({ success: false, error: err?.message || "SSH command failed", action });
+      setSSHRunning(null);
+      toast({ title: "SSH failed", description: err?.message || "Could not execute command on VPS.", variant: "destructive" });
+    },
+  });
+
   const isLoading = configLoading || dockerLoading || keysLoading;
 
   const [formValues, setFormValues] = useState({
@@ -876,6 +908,147 @@ export default function SettingsOpenclaw() {
                   Add your gateway token below to enable one-click authenticated access.
                 </p>
               )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {sshActionsQuery.data?.configured && (
+        <Card data-testid="card-ssh-gateway-control">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Terminal className="h-4 w-4" />
+                  Gateway Remote Control
+                </CardTitle>
+                <CardDescription>
+                  Manage the OpenClaw gateway service on your VPS via SSH.
+                  {sshActionsQuery.data?.host && (
+                    <span className="ml-1 font-mono text-xs">({sshActionsQuery.data.host})</span>
+                  )}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {probeGatewayQuery.data?.reachable ? (
+                  <Badge variant="default"><CheckCircle className="h-3 w-3 mr-1" />Online</Badge>
+                ) : (
+                  <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Offline</Badge>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => sshMutation.mutate("status")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-status"
+              >
+                {sshRunning === "status" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Eye className="h-3 w-3 mr-1" />}
+                Check Status
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => sshMutation.mutate("start")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-start"
+              >
+                {sshRunning === "start" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+                Start Gateway
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => sshMutation.mutate("stop")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-stop"
+              >
+                {sshRunning === "stop" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Square className="h-3 w-3 mr-1" />}
+                Stop Gateway
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => sshMutation.mutate("restart")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-restart"
+              >
+                {sshRunning === "restart" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <RotateCw className="h-3 w-3 mr-1" />}
+                Restart Gateway
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => sshMutation.mutate("diagnose")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-diagnose"
+              >
+                {sshRunning === "diagnose" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Wrench className="h-3 w-3 mr-1" />}
+                Diagnose
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => sshMutation.mutate("open-port")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-open-port"
+              >
+                {sshRunning === "open-port" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Shield className="h-3 w-3 mr-1" />}
+                Open Port 18789
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => sshMutation.mutate("bind-lan")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-bind-lan"
+              >
+                {sshRunning === "bind-lan" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Globe className="h-3 w-3 mr-1" />}
+                Set LAN Bind
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => sshMutation.mutate("check-config")}
+                disabled={!!sshRunning}
+                data-testid="button-ssh-check-config"
+              >
+                {sshRunning === "check-config" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Cog className="h-3 w-3 mr-1" />}
+                Check Config
+              </Button>
+            </div>
+
+            {sshResult && (
+              <div className={`rounded-md border p-3 ${sshResult.success ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"}`} data-testid="text-ssh-result">
+                <div className="flex items-center gap-2 mb-2">
+                  {sshResult.success ? (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-red-500" />
+                  )}
+                  <span className="text-sm font-medium">
+                    {sshResult.action} — {sshResult.success ? "Success" : "Failed"}
+                  </span>
+                </div>
+                {sshResult.output && (
+                  <pre className="bg-muted p-2 rounded text-xs overflow-x-auto font-mono whitespace-pre-wrap break-all max-h-48 overflow-y-auto" data-testid="code-ssh-output">
+                    {sshResult.output}
+                  </pre>
+                )}
+                {sshResult.error && (
+                  <p className="text-xs text-red-500 mt-1">{sshResult.error}</p>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
+              <p className="text-xs text-muted-foreground">
+                These controls execute predefined commands on your VPS via SSH. OpenClaw runs as a direct process (not Docker/systemd). Use <strong>Check Status</strong> to see running processes, <strong>Diagnose</strong> to investigate issues, or <strong>Open Port</strong> to fix firewall-blocked connections.
+              </p>
             </div>
           </CardContent>
         </Card>
