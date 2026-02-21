@@ -14,6 +14,8 @@ import * as fs from "fs";
 
 const AUTH_DIR = "./whatsapp-auth";
 const MAX_QR_RETRIES = 5;
+const RECONNECT_DELAY_MS = 5000;
+const MAX_RECONNECT_DELAY_MS = 60000;
 
 export interface BotStatus {
   state: "disconnected" | "connecting" | "qr_ready" | "pairing_code_ready" | "connected";
@@ -37,6 +39,8 @@ class WhatsAppBot extends EventEmitter {
   private qrCycleCount = 0;
   private usePairingCode = false;
   private pairingPhone: string | null = null;
+  private reconnectAttempts = 0;
+  private autoReconnect = true;
 
   getStatus(): BotStatus {
     return { ...this.status };
@@ -77,6 +81,11 @@ class WhatsAppBot extends EventEmitter {
   async start(): Promise<void> {
     if (this.isStarting) return;
     this.isStarting = true;
+    this.autoReconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.qrCycleCount = 0;
 
     try {
@@ -163,26 +172,29 @@ class WhatsAppBot extends EventEmitter {
         if (connection === "close") {
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+          const isRestartRequired = statusCode === DisconnectReason.restartRequired;
+          const isConnectionLost = statusCode === DisconnectReason.connectionLost;
+          const isTimedOut = statusCode === DisconnectReason.timedOut;
 
-          console.log(`[WhatsApp] Connection closed. Status: ${statusCode}. LoggedOut: ${isLoggedOut}`);
+          console.log(`[WhatsApp] Connection closed. Status: ${statusCode}. LoggedOut: ${isLoggedOut}. HasAuth: ${this.hasAuthState()}`);
 
           this.sock = null;
           this.isStarting = false;
 
           if (isLoggedOut) {
-            console.log("[WhatsApp] Logged out — clearing auth state and restarting...");
+            console.log("[WhatsApp] Logged out — clearing auth state. Will need new QR/pairing to reconnect.");
             this.clearAuthState();
+            this.reconnectAttempts = 0;
             this.status = {
               state: "disconnected",
               qrDataUrl: null,
               pairingCode: null,
               phone: null,
-              error: "Logged out from WhatsApp. Restarting...",
+              error: "Logged out from WhatsApp. Click Start to reconnect with a new QR code.",
             };
             this.emit("status", this.status);
-            this.reconnectTimer = setTimeout(() => this.start(), 3000);
-          } else if (this.qrCycleCount > MAX_QR_RETRIES * 6) {
-            console.log("[WhatsApp] Max QR retries reached. Bot stopped.");
+          } else if (this.qrCycleCount > MAX_QR_RETRIES * 6 && !this.hasAuthState()) {
+            console.log("[WhatsApp] Max QR retries reached with no session. Bot stopped.");
             this.status = {
               state: "disconnected",
               qrDataUrl: null,
@@ -191,6 +203,28 @@ class WhatsAppBot extends EventEmitter {
               error: "QR code expired after max retries. Try 'Link with Phone Number' instead.",
             };
             this.emit("status", this.status);
+          } else if (this.autoReconnect) {
+            const hasSession = this.hasAuthState();
+            this.reconnectAttempts++;
+            const delay = hasSession
+              ? Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, this.reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS)
+              : RECONNECT_DELAY_MS;
+
+            const reason = isRestartRequired ? "restart required" :
+              isConnectionLost ? "connection lost" :
+              isTimedOut ? "timed out" : `status ${statusCode}`;
+
+            console.log(`[WhatsApp] Auto-reconnecting in ${Math.round(delay / 1000)}s (attempt ${this.reconnectAttempts}, reason: ${reason}, hasSession: ${hasSession})`);
+
+            this.status = {
+              state: "connecting",
+              qrDataUrl: null,
+              pairingCode: null,
+              phone: this.status.phone,
+              error: `Reconnecting... (${reason})`,
+            };
+            this.emit("status", this.status);
+            this.reconnectTimer = setTimeout(() => this.start(), delay);
           } else {
             this.status = {
               state: "disconnected",
@@ -200,10 +234,10 @@ class WhatsAppBot extends EventEmitter {
               error: `Connection closed (${statusCode})`,
             };
             this.emit("status", this.status);
-            this.reconnectTimer = setTimeout(() => this.start(), 5000);
           }
         } else if (connection === "open") {
           this.qrCycleCount = 0;
+          this.reconnectAttempts = 0;
           this.usePairingCode = false;
           this.pairingPhone = null;
           const phone = sock.user?.id?.split(":")[0] || sock.user?.id?.split("@")[0] || null;
@@ -342,6 +376,7 @@ class WhatsAppBot extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    this.autoReconnect = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -359,6 +394,7 @@ class WhatsAppBot extends EventEmitter {
     this.qrCycleCount = 0;
     this.usePairingCode = false;
     this.pairingPhone = null;
+    this.reconnectAttempts = 0;
     console.log("[WhatsApp] Bot stopped");
   }
 
