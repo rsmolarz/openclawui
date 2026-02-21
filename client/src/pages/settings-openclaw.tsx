@@ -476,6 +476,7 @@ export default function SettingsOpenclaw() {
     gatewayMode: "local",
     gatewayToken: "",
     gatewayPassword: "",
+    websocketUrl: "",
     defaultLlm: "deepseek/deepseek-chat",
     fallbackLlm: "openrouter/auto",
     whatsappEnabled: false,
@@ -498,6 +499,7 @@ export default function SettingsOpenclaw() {
         gatewayMode: config.gatewayMode,
         gatewayToken: config.gatewayToken ?? "",
         gatewayPassword: config.gatewayPassword ?? "",
+        websocketUrl: config.websocketUrl ?? "",
         defaultLlm: config.defaultLlm,
         fallbackLlm: config.fallbackLlm,
         whatsappEnabled: config.whatsappEnabled,
@@ -510,7 +512,7 @@ export default function SettingsOpenclaw() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formValues) => {
-      const payload = { ...data, gatewayToken: data.gatewayToken || null, gatewayPassword: data.gatewayPassword || null };
+      const payload = { ...data, gatewayToken: data.gatewayToken || null, gatewayPassword: data.gatewayPassword || null, websocketUrl: data.websocketUrl || null };
       await apiRequest("POST", `/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, payload);
     },
     onSuccess: () => {
@@ -1429,6 +1431,20 @@ export default function SettingsOpenclaw() {
             </div>
             <p className="text-xs text-muted-foreground">
               The password used by the native dashboard for WebSocket authentication. Set via <code className="text-xs">openclaw config set gateway.password YOUR_PASSWORD</code> on your server.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="websocket_url">WebSocket URL</Label>
+            <Input
+              id="websocket_url"
+              value={formValues.websocketUrl}
+              onChange={(e) => setFormValues((p) => ({ ...p, websocketUrl: e.target.value }))}
+              placeholder="wss://187.77.192.215 or wss://your-server-ip"
+              data-testid="input-websocket-url"
+            />
+            <p className="text-xs text-muted-foreground">
+              The WebSocket URL the gateway uses for real-time connections. Found in the native dashboard under <strong>Gateway Access → WebSocket URL</strong>.
             </p>
           </div>
 
