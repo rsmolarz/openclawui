@@ -570,7 +570,18 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
         }
       }
 
-      if (!resp) return res.status(502).json({ error: "Failed to load OpenClaw canvas" });
+      if (!resp) {
+        res.setHeader("Content-Type", "text/html");
+        return res.status(502).send(`<!DOCTYPE html><html><head><title>Gateway Unreachable</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111;color:#ccc}
+.box{text-align:center;max-width:480px;padding:2rem;border:1px solid #333;border-radius:12px;background:#1a1a1a}
+h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
+.btn{display:inline-block;margin-top:1rem;padding:.5rem 1.5rem;background:#333;color:#ccc;border:none;border-radius:6px;cursor:pointer;text-decoration:none}</style></head><body><div class="box">
+<h1>Gateway Unreachable</h1>
+<p>Could not connect to the OpenClaw gateway on this VPS. The server may be down or port 18789 may be blocked by a firewall.</p>
+<p style="font-size:.85rem">Try using the <strong>SSH Remote Control</strong> buttons (Check Status, Diagnose, Open Port) in the dashboard to troubleshoot.</p>
+<a class="btn" href="javascript:window.close()">Close</a></div></body></html>`);
+      }
 
       const contentType = resp.headers.get("content-type") || "text/html";
       res.setHeader("Content-Type", contentType);
@@ -1808,6 +1819,56 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       res.json(backups);
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to fetch backups" });
+    }
+  });
+
+  app.post("/api/hostinger/auto-open-port", requireAuth, async (req, res) => {
+    try {
+      const { hostinger } = await import("./hostinger");
+      const port = String(req.body.port || "18789");
+      const vms = await hostinger.listVMs();
+      if (!vms.length) return res.status(404).json({ error: "No Hostinger VMs found" });
+
+      const firewalls = await hostinger.listFirewalls();
+      if (!firewalls.length) return res.status(404).json({ error: "No Hostinger firewalls found. Create one in the Hostinger panel first." });
+
+      const instanceId = req.body.instanceId as string | undefined;
+      let targetVmIp: string | null = null;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) targetVmIp = vps.vpsIp;
+      }
+
+      let targetFirewallId: number | null = null;
+      if (targetVmIp) {
+        for (const vm of vms) {
+          const vmIps = vm.ip_addresses?.map((ip: any) => ip.address) || [];
+          if (vmIps.includes(targetVmIp) && vm.firewall_group_id) {
+            targetFirewallId = vm.firewall_group_id;
+            break;
+          }
+        }
+      }
+
+      const targetFirewalls = targetFirewallId
+        ? firewalls.filter((fw: any) => fw.id === targetFirewallId)
+        : firewalls;
+
+      const results: Array<{ firewallId: number; firewallName: string; action: string }> = [];
+      for (const fw of targetFirewalls) {
+        const existing = fw.rules?.find((r: any) => r.port === port && r.protocol === "TCP" && r.source === "any");
+        if (existing) {
+          results.push({ firewallId: fw.id, firewallName: fw.name, action: "already_open" });
+          continue;
+        }
+        await hostinger.createFirewallRule(fw.id, { protocol: "TCP", port, source: "any" });
+        await hostinger.syncFirewall(fw.id);
+        results.push({ firewallId: fw.id, firewallName: fw.name, action: "opened_and_synced" });
+      }
+
+      res.json({ success: true, port, results });
+    } catch (error: any) {
+      res.status(502).json({ error: error.message || "Failed to open port via Hostinger API" });
     }
   });
 

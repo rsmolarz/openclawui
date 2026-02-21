@@ -1,7 +1,7 @@
 import { Client } from "ssh2";
 
-const SSH_TIMEOUT_MS = 15000;
-const CMD_TIMEOUT_MS = 20000;
+const SSH_TIMEOUT_MS = 30000;
+const CMD_TIMEOUT_MS = 30000;
 
 const ALLOWED_COMMANDS: Record<string, string> = {
   status: "ps aux | grep -E 'openclaw' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789 || echo 'Port 18789 not listening'",
@@ -87,7 +87,8 @@ export function listAllowedCommands(): string[] {
 
 export async function executeSSHCommand(
   action: string,
-  config?: SSHConnectionConfig
+  config?: SSHConnectionConfig,
+  retries = 1
 ): Promise<SSHResult> {
   const command = ALLOWED_COMMANDS[action];
   if (!command) {
@@ -99,6 +100,24 @@ export async function executeSSHCommand(
     return { success: false, output: "", error: "No SSH credentials configured. Add a VPS connection or set VPS_ROOT_PASSWORD secret." };
   }
 
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const result = await executeSSHOnce(command, action, sshConfig);
+    if (result.success || attempt === retries) return result;
+    if (result.error?.includes("timed out") || result.error?.includes("connection failed")) {
+      await new Promise(r => setTimeout(r, 3000));
+      continue;
+    }
+    return result;
+  }
+
+  return { success: false, output: "", error: "SSH failed after retries" };
+}
+
+function executeSSHOnce(
+  command: string,
+  action: string,
+  sshConfig: SSHConnectionConfig
+): Promise<SSHResult> {
   return new Promise<SSHResult>((resolve) => {
     const conn = new Client();
     let resolved = false;

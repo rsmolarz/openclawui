@@ -570,6 +570,29 @@ export default function SettingsOpenclaw() {
     },
   });
 
+  const [hostingerPortLoading, setHostingerPortLoading] = useState(false);
+  const hostingerOpenPortMutation = useMutation({
+    mutationFn: async () => {
+      setHostingerPortLoading(true);
+      const resp = await apiRequest("POST", "/api/hostinger/auto-open-port", { port: "18789", instanceId: selectedInstanceId });
+      return resp.json();
+    },
+    onSuccess: (data: any) => {
+      setHostingerPortLoading(false);
+      if (data.success) {
+        const actions = data.results?.map((r: any) => `${r.firewallName}: ${r.action}`).join(", ") || "Done";
+        toast({ title: "Firewall Updated", description: `Port ${data.port} — ${actions}` });
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: [`/api/gateway/probe?instanceId=${selectedInstanceId ?? ""}`] });
+        }, 5000);
+      }
+    },
+    onError: (err: any) => {
+      setHostingerPortLoading(false);
+      toast({ title: "Hostinger API Error", description: err?.message || "Could not open port via Hostinger API.", variant: "destructive" });
+    },
+  });
+
   const isLoading = configLoading || dockerLoading || keysLoading;
 
   const [formValues, setFormValues] = useState({
@@ -791,15 +814,20 @@ export default function SettingsOpenclaw() {
               </CardDescription>
             </div>
             <Button
-              variant="default"
+              variant={probeGatewayQuery.data?.reachable ? "default" : "outline"}
               onClick={() => {
+                if (!probeGatewayQuery.data?.reachable) {
+                  toast({ title: "Gateway Offline", description: "The gateway is not reachable. Use SSH Remote Control to diagnose and start it.", variant: "destructive" });
+                  return;
+                }
                 const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
                 window.open(proxyUrl, "_blank");
               }}
+              disabled={probeGatewayQuery.isLoading}
               data-testid="button-open-native-dashboard"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open Dashboard
+              {probeGatewayQuery.data?.reachable ? "Open Dashboard" : "Dashboard (Offline)"}
             </Button>
           </CardHeader>
           <CardContent>
@@ -999,7 +1027,17 @@ export default function SettingsOpenclaw() {
                 data-testid="button-ssh-open-port"
               >
                 {sshRunning === "open-port" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Shield className="h-3 w-3 mr-1" />}
-                Open Port 18789
+                Open Port (SSH)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => hostingerOpenPortMutation.mutate()}
+                disabled={hostingerPortLoading || !!sshRunning}
+                data-testid="button-hostinger-open-port"
+              >
+                {hostingerPortLoading ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Shield className="h-3 w-3 mr-1" />}
+                Open Port (Hostinger API)
               </Button>
               <Button
                 size="sm"
@@ -1048,7 +1086,7 @@ export default function SettingsOpenclaw() {
 
             <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
               <p className="text-xs text-muted-foreground">
-                These controls execute predefined commands on your VPS via SSH. OpenClaw runs as a direct process (not Docker/systemd). Use <strong>Check Status</strong> to see running processes, <strong>Diagnose</strong> to investigate issues, or <strong>Open Port</strong> to fix firewall-blocked connections.
+                These controls execute predefined commands on your VPS via SSH. Use <strong>Check Status</strong> to see running processes, <strong>Diagnose</strong> to investigate issues, or <strong>Open Port (SSH)</strong> to fix firewall from inside the VPS. If SSH is also blocked, use <strong>Open Port (Hostinger API)</strong> to open port 18789 via the Hostinger cloud panel API.
               </p>
             </div>
           </CardContent>
