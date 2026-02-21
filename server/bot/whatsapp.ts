@@ -1,5 +1,4 @@
 import baileysDefault, {
-  useMultiFileAuthState,
   DisconnectReason,
 } from "@whiskeysockets/baileys";
 import type { WASocket } from "@whiskeysockets/baileys";
@@ -10,9 +9,7 @@ import { randomBytes } from "crypto";
 import { storage } from "../storage";
 import { chat } from "./openrouter";
 import { EventEmitter } from "events";
-import * as fs from "fs";
-
-const AUTH_DIR = "./whatsapp-auth";
+import { useDbAuthState, hasDbAuthState, clearAllDbAuthState } from "./db-auth-state";
 const MAX_QR_RETRIES = 5;
 const RECONNECT_DELAY_MS = 5000;
 const MAX_RECONNECT_DELAY_MS = 60000;
@@ -47,19 +44,26 @@ class WhatsAppBot extends EventEmitter {
   }
 
   hasAuthState(): boolean {
+    return this._hasDbAuth;
+  }
+
+  private _hasDbAuth = false;
+
+  private async checkDbAuth(): Promise<boolean> {
     try {
-      return fs.existsSync(AUTH_DIR) && fs.readdirSync(AUTH_DIR).length > 0;
+      this._hasDbAuth = await hasDbAuthState();
+      return this._hasDbAuth;
     } catch {
       return false;
     }
   }
 
-  private clearAuthState(): void {
+  private _clearAuthFn: (() => Promise<void>) | null = null;
+
+  private async clearAuthState(): Promise<void> {
     try {
-      if (fs.existsSync(AUTH_DIR)) {
-        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-        console.log("[WhatsApp] Auth state cleared");
-      }
+      await clearAllDbAuthState();
+      this._hasDbAuth = false;
     } catch (err) {
       console.error("[WhatsApp] Failed to clear auth state:", err);
     }
@@ -72,8 +76,9 @@ class WhatsAppBot extends EventEmitter {
     }
     this.usePairingCode = true;
     this.pairingPhone = cleaned;
+    await this.checkDbAuth();
     if (this.hasAuthState()) {
-      this.clearAuthState();
+      await this.clearAuthState();
     }
     await this.start();
   }
@@ -92,7 +97,10 @@ class WhatsAppBot extends EventEmitter {
       this.status = { state: "connecting", qrDataUrl: null, pairingCode: null, phone: null, error: null };
       this.emit("status", this.status);
 
-      const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+      await this.checkDbAuth();
+      console.log(`[WhatsApp] Using database auth state (existing session: ${this._hasDbAuth})`);
+      const { state, saveCreds, clearAll } = await useDbAuthState();
+      this._clearAuthFn = clearAll;
 
       const sock = makeWASocket({
         auth: state,
@@ -183,7 +191,7 @@ class WhatsAppBot extends EventEmitter {
 
           if (isLoggedOut) {
             console.log("[WhatsApp] Logged out — clearing auth state. Will need new QR/pairing to reconnect.");
-            this.clearAuthState();
+            await this.clearAuthState();
             this.reconnectAttempts = 0;
             this.status = {
               state: "disconnected",
@@ -204,6 +212,7 @@ class WhatsAppBot extends EventEmitter {
             };
             this.emit("status", this.status);
           } else if (this.autoReconnect) {
+            await this.checkDbAuth();
             const hasSession = this.hasAuthState();
             this.reconnectAttempts++;
             const delay = hasSession
@@ -240,10 +249,11 @@ class WhatsAppBot extends EventEmitter {
           this.reconnectAttempts = 0;
           this.usePairingCode = false;
           this.pairingPhone = null;
+          this._hasDbAuth = true;
           const phone = sock.user?.id?.split(":")[0] || sock.user?.id?.split("@")[0] || null;
           this.status = { state: "connected", qrDataUrl: null, pairingCode: null, phone, error: null };
           this.emit("status", this.status);
-          console.log(`[WhatsApp] Connected as ${phone}`);
+          console.log(`[WhatsApp] Connected as ${phone} (session persisted to database)`);
         }
       });
 
