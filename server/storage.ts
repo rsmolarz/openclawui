@@ -80,6 +80,7 @@ export interface IStorage {
   getAllWhatsappSessions(): Promise<WhatsappSession[]>;
   upsertWhatsappSession(phone: string, data: Partial<InsertWhatsappSession>): Promise<WhatsappSession>;
   approveWhatsappSession(id: string): Promise<WhatsappSession | undefined>;
+  approveWhatsappSessionByCode(pairingCode: string): Promise<WhatsappSession | undefined>;
   deleteWhatsappSession(id: string): Promise<void>;
   updateWhatsappSessionLastMessage(phone: string): Promise<void>;
 
@@ -436,6 +437,22 @@ export class DatabaseStorage implements IStorage {
       .update(whatsappSessions)
       .set({ status: "approved", approvedAt: new Date() })
       .where(eq(whatsappSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approveWhatsappSessionByCode(pairingCode: string): Promise<WhatsappSession | undefined> {
+    const normalized = pairingCode.trim().toUpperCase();
+    const [session] = await db
+      .select()
+      .from(whatsappSessions)
+      .where(eq(whatsappSessions.pairingCode, normalized));
+    if (!session) return undefined;
+    if (session.status === "approved") return session;
+    const [updated] = await db
+      .update(whatsappSessions)
+      .set({ status: "approved", approvedAt: new Date() })
+      .where(eq(whatsappSessions.id, session.id))
       .returning();
     return updated;
   }

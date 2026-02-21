@@ -268,6 +268,72 @@ function LlmModelSelect({ value, onChange, testId }: { value: string; onChange: 
   );
 }
 
+function ApproveByCodeCard() {
+  const { toast } = useToast();
+  const [code, setCode] = useState("");
+
+  const approveMutation = useMutation({
+    mutationFn: async (pairingCode: string) => {
+      const resp = await apiRequest("POST", "/api/whatsapp/approve-by-code", { pairingCode });
+      return resp.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/pending"] });
+      toast({
+        title: "User approved",
+        description: `+${data.phone} now has access to OpenClaw AI.`,
+      });
+      setCode("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Approval failed",
+        description: error?.message || "No pending session found with that pairing code. Make sure the user has messaged the bot first.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Card data-testid="card-approve-by-code">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Key className="h-4 w-4" />
+          Approve by Pairing Code
+        </CardTitle>
+        <CardDescription>
+          Enter the pairing code a user received from the WhatsApp bot to grant them access.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-3">
+          <Input
+            placeholder="e.g. BA550751"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            className="font-mono tracking-wider max-w-[200px]"
+            maxLength={8}
+            data-testid="input-pairing-code"
+          />
+          <Button
+            onClick={() => approveMutation.mutate(code.trim())}
+            disabled={!code.trim() || approveMutation.isPending}
+            data-testid="button-approve-code"
+          >
+            {approveMutation.isPending ? (
+              <RotateCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <UserCheck className="h-4 w-4 mr-2" />
+            )}
+            Approve
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsOpenclaw() {
   const { toast } = useToast();
   const { selectedInstanceId } = useInstance();
@@ -1225,6 +1291,8 @@ export default function SettingsOpenclaw() {
           )}
         </CardContent>
       </Card>
+
+      <ApproveByCodeCard />
 
       {pendingWaSessions && pendingWaSessions.length > 0 && (
         <Card>

@@ -1243,6 +1243,28 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
+  app.post("/api/whatsapp/approve-by-code", requireAuth, async (req, res) => {
+    try {
+      const { pairingCode } = req.body;
+      if (!pairingCode || typeof pairingCode !== "string") {
+        return res.status(400).json({ error: "Pairing code is required" });
+      }
+      const session = await storage.approveWhatsappSessionByCode(pairingCode);
+      if (!session) {
+        return res.status(404).json({ error: "No pending session found with that pairing code" });
+      }
+      if (!isProductionRuntime) {
+        try {
+          const bot = await getWhatsappBot();
+          await bot.sendApprovalNotification(session.phone);
+        } catch {}
+      }
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve session by pairing code" });
+    }
+  });
+
   app.delete("/api/whatsapp/sessions/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteWhatsappSession(req.params.id as string);
