@@ -831,7 +831,15 @@ export default function SettingsOpenclaw() {
                   return;
                 }
                 if (currentInstance?.serverUrl) {
-                  window.open(currentInstance.serverUrl, "_blank");
+                  try {
+                    const dashUrl = new URL(currentInstance.serverUrl);
+                    if (config?.gatewayToken) {
+                      dashUrl.searchParams.set("token", config.gatewayToken);
+                    }
+                    window.open(dashUrl.toString(), "_blank");
+                  } catch {
+                    window.open(currentInstance.serverUrl, "_blank");
+                  }
                 } else {
                   const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
                   window.open(proxyUrl, "_blank");
