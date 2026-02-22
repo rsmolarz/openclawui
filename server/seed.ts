@@ -111,15 +111,26 @@ async function seedIntegrations() {
   ]);
 }
 
+const CORRECT_VPS_IP = "72.60.167.64";
+const CORRECT_SERVER_URL = `http://${CORRECT_VPS_IP}:18789`;
+const CORRECT_WS_URL = `ws://${CORRECT_VPS_IP}:18789`;
+
 async function ensureDefaultInstance(): Promise<string> {
   const existing = await db.select().from(openclawInstances).where(eq(openclawInstances.isDefault, true));
   if (existing.length > 0) {
-    return existing[0].id;
+    const inst = existing[0];
+    if (inst.serverUrl !== CORRECT_SERVER_URL) {
+      await db.update(openclawInstances)
+        .set({ serverUrl: CORRECT_SERVER_URL })
+        .where(eq(openclawInstances.id, inst.id));
+      console.log(`[Seed] Corrected instance serverUrl from ${inst.serverUrl} to ${CORRECT_SERVER_URL}`);
+    }
+    return inst.id;
   }
   const [instance] = await db.insert(openclawInstances).values({
     name: "Default Instance",
     description: "Primary OpenClaw server instance",
-    serverUrl: "http://72.60.167.64:18789",
+    serverUrl: CORRECT_SERVER_URL,
     status: "online",
     isDefault: true,
   }).returning();
@@ -134,9 +145,33 @@ async function backfillInstanceIds(defaultInstanceId: string) {
   console.log("Backfilled instanceId on existing config/VPS/docker rows");
 }
 
+async function correctVpsData(defaultInstanceId: string) {
+  const vpsRows = await db.select().from(vpsConnections).where(eq(vpsConnections.instanceId, defaultInstanceId));
+  if (vpsRows.length > 0 && vpsRows[0].vpsIp !== CORRECT_VPS_IP) {
+    await db.update(vpsConnections)
+      .set({ vpsIp: CORRECT_VPS_IP })
+      .where(eq(vpsConnections.id, vpsRows[0].id));
+    console.log(`[Seed] Corrected VPS IP from ${vpsRows[0].vpsIp} to ${CORRECT_VPS_IP}`);
+  }
+
+  const configRows = await db.select().from(openclawConfig).where(eq(openclawConfig.instanceId, defaultInstanceId));
+  if (configRows.length > 0) {
+    const cfg = configRows[0];
+    const updates: Record<string, any> = {};
+    if (cfg.websocketUrl !== CORRECT_WS_URL) updates.websocketUrl = CORRECT_WS_URL;
+    const token = process.env.OPENCLAW_GATEWAY_TOKEN;
+    if (token && cfg.gatewayToken !== token) updates.gatewayToken = token;
+    if (Object.keys(updates).length > 0) {
+      await db.update(openclawConfig).set(updates).where(eq(openclawConfig.id, cfg.id));
+      console.log(`[Seed] Corrected openclaw config:`, Object.keys(updates).join(", "));
+    }
+  }
+}
+
 export async function seed() {
   const defaultInstanceId = await ensureDefaultInstance();
   await backfillInstanceIds(defaultInstanceId);
+  await correctVpsData(defaultInstanceId);
   await seedIntegrations();
 
   const existingSettings = await db.select().from(settings);
