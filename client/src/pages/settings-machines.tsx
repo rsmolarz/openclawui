@@ -1,4 +1,4 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
@@ -336,6 +336,63 @@ export default function SettingsMachines() {
     queryKey: ["/api/machines"],
   });
 
+  interface PendingNode {
+    id: string;
+    hostname?: string;
+    ip?: string;
+    os?: string;
+    location?: string;
+    name?: string;
+  }
+
+  const { data: pendingData, isLoading: pendingLoading } = useQuery<{ pending: PendingNode[]; source: string }>({
+    queryKey: ["/api/nodes/pending", selectedInstanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/nodes/pending?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) return { pending: [], source: "error" };
+      return resp.json();
+    },
+    enabled: !!selectedInstanceId,
+    refetchInterval: 30000,
+  });
+
+  const pendingNodes = pendingData?.pending ?? [];
+
+  const approveMutation = useMutation({
+    mutationFn: async (nodeId: string) => {
+      const resp = await apiRequest("POST", `/api/nodes/approve?instanceId=${selectedInstanceId ?? ""}`, { node_id: nodeId });
+      return resp.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nodes/pending", selectedInstanceId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config", selectedInstanceId] });
+      toast({
+        title: "Node approved",
+        description: data.sshApproved
+          ? "Node has been approved on the gateway and added to your network."
+          : "Node has been approved locally. It will connect when the gateway syncs.",
+      });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to approve node.", variant: "destructive" });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (nodeId: string) => {
+      await apiRequest("POST", `/api/nodes/reject?instanceId=${selectedInstanceId ?? ""}`, { node_id: nodeId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nodes/pending", selectedInstanceId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config", selectedInstanceId] });
+      toast({ title: "Node rejected", description: "Node has been removed from the pending list." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to reject node.", variant: "destructive" });
+    },
+  });
+
   const { data: probeResult } = useQuery<{ reachable: boolean; error?: string; serverUrl?: string }>({
     queryKey: ["/api/gateway/probe", selectedInstanceId],
     queryFn: async () => {
@@ -636,6 +693,111 @@ export default function SettingsMachines() {
       </div>
 
       <QuickStartGuide instanceId={selectedInstanceId} />
+
+      {pendingNodes.length > 0 && (
+        <Card data-testid="card-pending-nodes">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Network className="h-4 w-4" />
+                  Pending Node Approvals
+                </CardTitle>
+                <CardDescription>
+                  {pendingNodes.length} node{pendingNodes.length !== 1 ? "s" : ""} waiting for approval.
+                  {pendingData?.source === "gateway" && (
+                    <Badge variant="secondary" className="ml-2 text-[10px]">Live from gateway</Badge>
+                  )}
+                  {pendingData?.source === "local" && (
+                    <Badge variant="outline" className="ml-2 text-[10px]">Cached locally</Badge>
+                  )}
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/nodes/pending", selectedInstanceId] })}
+                data-testid="button-refresh-pending"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingNodes.map((node) => (
+                <div
+                  key={node.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                  data-testid={`row-pending-node-${node.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-500/10">
+                        <Clock className="h-4 w-4 text-amber-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium" data-testid={`text-pending-hostname-${node.id}`}>
+                          {node.hostname || node.name || node.id}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="text-[10px]">{node.id}</Badge>
+                          {node.ip && node.ip !== "Unknown" && (
+                            <span className="text-xs text-muted-foreground">{node.ip}</span>
+                          )}
+                          {node.os && node.os !== "Unknown" && (
+                            <span className="text-xs text-muted-foreground">{node.os}</span>
+                          )}
+                          {node.location && node.location !== "Unknown" && (
+                            <span className="text-xs text-muted-foreground">{node.location}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => rejectMutation.mutate(node.id)}
+                      disabled={rejectMutation.isPending || approveMutation.isPending}
+                      data-testid={`button-reject-node-${node.id}`}
+                    >
+                      <ShieldX className="h-4 w-4 mr-1.5" />
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => approveMutation.mutate(node.id)}
+                      disabled={approveMutation.isPending || rejectMutation.isPending}
+                      data-testid={`button-approve-node-${node.id}`}
+                    >
+                      {approveMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4 mr-1.5" />
+                      )}
+                      Approve
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {pendingLoading && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Checking for pending nodes on the gateway...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {machines && machines.length > 0 ? (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">

@@ -26,6 +26,8 @@ const ALLOWED_COMMANDS: Record<string, string> = {
   "gateway-start-lan": "rm -f /tmp/oc.log; nohup openclaw gateway run --bind lan --port 18789 --force --verbose > /tmp/oc.log 2>&1 & echo 'Started PID:' $! && sleep 15 && echo '---PROCS---' && ps aux | grep openclaw | grep -v grep && echo '---PORTS---' && ss -tlnp && echo '---LOG---' && cat /tmp/oc.log",
   "read-oc-log": "cat /tmp/oc.log 2>/dev/null || echo 'No log'",
   "list-nodes": "openclaw node list 2>/dev/null || openclaw nodes 2>/dev/null || echo 'Could not list nodes'",
+  "list-pending-nodes": "cat /root/.openclaw/devices/pending.json 2>/dev/null || echo '[]'",
+  "list-paired-nodes": "cat /root/.openclaw/devices/paired.json 2>/dev/null || echo '[]'",
   "gateway-info": "openclaw gateway status 2>/dev/null; echo '---TOKEN---'; openclaw gateway token 2>/dev/null || echo 'No token command'; echo '---VERSION---'; openclaw --version 2>/dev/null",
   "check-systemd": "systemctl list-units --type=service | grep -i openclaw; echo '---SERVICE---'; systemctl cat openclaw 2>/dev/null || systemctl cat openclaw-gateway 2>/dev/null || echo 'No systemd service found'; echo '---STATUS---'; systemctl status openclaw 2>/dev/null || systemctl status openclaw-gateway 2>/dev/null || echo 'No systemd status'; echo '---SUPERVISOR---'; supervisorctl status 2>/dev/null || echo 'No supervisor'; echo '---PM2---'; pm2 list 2>/dev/null || echo 'No pm2'",
   "fix-systemd-binding": "SVC=$(systemctl list-unit-files | grep -i openclaw | awk '{print $1}' | head -1); if [ -n \"$SVC\" ]; then systemctl stop $SVC; SVCFILE=$(systemctl show -p FragmentPath $SVC | cut -d= -f2); if [ -f \"$SVCFILE\" ]; then sed -i 's/--host 127.0.0.1/--host 0.0.0.0/g' $SVCFILE; sed -i 's/--host localhost/--host 0.0.0.0/g' $SVCFILE; systemctl daemon-reload; systemctl start $SVC; sleep 3; echo \"Updated and restarted $SVC\"; cat $SVCFILE; echo '---PORTS---'; ss -tlnp | grep 18789; else echo \"Service file not found for $SVC\"; fi; else echo 'No openclaw systemd service found'; fi",
@@ -83,6 +85,102 @@ export function getSSHConfig(overrides?: Partial<SSHConnectionConfig>): SSHConne
 
 export function listAllowedCommands(): string[] {
   return Object.keys(ALLOWED_COMMANDS);
+}
+
+export function buildApproveNodeCommand(nodeId: string): string {
+  const safeId = nodeId.replace(/[^a-zA-Z0-9_\-]/g, "");
+  if (!safeId || safeId.length < 2 || safeId.length > 128) {
+    throw new Error("Invalid node ID for approval");
+  }
+  return `python3 -c "
+import json, os, sys
+pending_path = '/root/.openclaw/devices/pending.json'
+paired_path = '/root/.openclaw/devices/paired.json'
+node_id = '${safeId}'
+if not os.path.exists(pending_path):
+    print(json.dumps({'error': 'No pending.json found'})); sys.exit(1)
+with open(pending_path) as f:
+    pending = json.load(f)
+if isinstance(pending, dict):
+    pending = list(pending.values()) if pending else []
+node = None
+remaining = []
+for n in pending:
+    nid = n.get('id','') if isinstance(n, dict) else str(n)
+    if nid == node_id:
+        node = n
+    else:
+        remaining.append(n)
+if not node:
+    print(json.dumps({'error': 'Node not found in pending'})); sys.exit(1)
+paired = []
+if os.path.exists(paired_path):
+    with open(paired_path) as f:
+        paired = json.load(f)
+    if isinstance(paired, dict):
+        paired = list(paired.values()) if paired else []
+paired.append(node)
+os.makedirs(os.path.dirname(pending_path), exist_ok=True)
+with open(pending_path, 'w') as f:
+    json.dump(remaining, f, indent=2)
+with open(paired_path, 'w') as f:
+    json.dump(paired, f, indent=2)
+print(json.dumps({'success': True, 'node': node, 'remaining_pending': len(remaining), 'total_paired': len(paired)}))
+"`;
+}
+
+export function buildRejectNodeCommand(nodeId: string): string {
+  const safeId = nodeId.replace(/[^a-zA-Z0-9_\-]/g, "");
+  if (!safeId || safeId.length < 2 || safeId.length > 128) {
+    throw new Error("Invalid node ID for rejection");
+  }
+  return `python3 -c "
+import json, os, sys
+pending_path = '/root/.openclaw/devices/pending.json'
+node_id = '${safeId}'
+if not os.path.exists(pending_path):
+    print(json.dumps({'error': 'No pending.json found'})); sys.exit(1)
+with open(pending_path) as f:
+    pending = json.load(f)
+if isinstance(pending, dict):
+    pending = list(pending.values()) if pending else []
+remaining = []
+removed = False
+for n in pending:
+    nid = n.get('id','') if isinstance(n, dict) else str(n)
+    if nid == node_id:
+        removed = True
+    else:
+        remaining.append(n)
+if not removed:
+    print(json.dumps({'error': 'Node not found in pending'})); sys.exit(1)
+with open(pending_path, 'w') as f:
+    json.dump(remaining, f, indent=2)
+print(json.dumps({'success': True, 'remaining_pending': len(remaining)}))
+"`;
+}
+
+export async function executeRawSSHCommand(
+  command: string,
+  config?: SSHConnectionConfig,
+  retries = 1
+): Promise<SSHResult> {
+  const sshConfig = config || getDefaultConfig();
+  if (!sshConfig) {
+    return { success: false, output: "", error: "No SSH credentials configured." };
+  }
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const result = await executeSSHOnce(command, "raw", sshConfig);
+    if (result.success || attempt === retries) return result;
+    if (result.error?.includes("timed out") || result.error?.includes("connection failed")) {
+      await new Promise(r => setTimeout(r, 3000));
+      continue;
+    }
+    return result;
+  }
+
+  return { success: false, output: "", error: "SSH failed after retries" };
 }
 
 export async function executeSSHCommand(

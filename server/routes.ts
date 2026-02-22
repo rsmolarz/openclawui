@@ -1204,9 +1204,43 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
   app.get("/api/nodes/pending", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
-      if (!instanceId) return res.json({ pending: [] });
+      if (!instanceId) return res.json({ pending: [], source: "none" });
+
+      const vps = instanceId ? await storage.getVpsConnection(instanceId) : null;
+      if (vps?.vpsIp) {
+        try {
+          const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+          const sshConfig = buildSSHConfigFromVps(vps);
+          const result = await executeSSHCommand("list-pending-nodes", sshConfig);
+          if (result.success && result.output) {
+            try {
+              let parsed = JSON.parse(result.output.trim());
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                parsed = Object.values(parsed);
+              }
+              if (Array.isArray(parsed)) {
+                const normalized = parsed.map((n: any, idx: number) => {
+                  if (typeof n === "string") return { id: n, hostname: n, ip: "Unknown", os: "Unknown", location: "Unknown" };
+                  const entry = { ...n };
+                  if (!entry.id) entry.id = entry.hostname || entry.name || `node-${idx}`;
+                  return entry;
+                });
+                await storage.upsertOpenclawConfig(instanceId, { pendingNodes: normalized });
+                return res.json({ pending: normalized, source: "gateway" });
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+
       const config = await storage.getOpenclawConfig(instanceId);
-      res.json({ pending: (config?.pendingNodes as any[]) ?? [] });
+      const localPending = ((config?.pendingNodes as any[]) ?? []).map((n: any, idx: number) => {
+        if (typeof n === "string") return { id: n, hostname: n };
+        const entry = { ...n };
+        if (!entry.id) entry.id = entry.hostname || entry.name || `node-${idx}`;
+        return entry;
+      });
+      res.json({ pending: localPending, source: "local" });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch pending nodes" });
     }
@@ -1217,22 +1251,113 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const instanceId = await resolveInstanceId(req);
       if (!instanceId) return res.status(400).json({ error: "No instance specified" });
       const { node_id } = req.body;
+      if (!node_id) return res.status(400).json({ error: "node_id is required" });
+
+      const vps = await storage.getVpsConnection(instanceId);
+      let sshApproved = false;
+      let approvedNode: any = null;
+
+      if (vps?.vpsIp) {
+        try {
+          const { executeRawSSHCommand, buildSSHConfigFromVps, buildApproveNodeCommand } = await import("./ssh");
+          const sshConfig = buildSSHConfigFromVps(vps);
+          const cmd = buildApproveNodeCommand(node_id);
+          const result = await executeRawSSHCommand(cmd, sshConfig);
+          if (result.success && result.output) {
+            try {
+              const parsed = JSON.parse(result.output.trim());
+              if (parsed.success) {
+                sshApproved = true;
+                approvedNode = parsed.node;
+              } else if (parsed.error) {
+                console.log(`[nodes] SSH approve returned: ${parsed.error}`);
+              }
+            } catch {}
+          }
+        } catch (sshErr: any) {
+          console.log(`[nodes] SSH approve failed: ${sshErr.message}`);
+        }
+      }
+
+      let localFound = false;
+      const config = await storage.getOpenclawConfig(instanceId);
+      if (config && config.pendingNodes) {
+        const pending = config.pendingNodes as any[];
+        const idx = pending.findIndex((n: any) => (typeof n === "string" ? n === node_id : n.id === node_id));
+        if (idx >= 0) {
+          localFound = true;
+          if (!approvedNode) approvedNode = pending[idx];
+          pending.splice(idx, 1);
+          await storage.upsertOpenclawConfig(instanceId, {
+            pendingNodes: pending,
+            nodesApproved: (config.nodesApproved ?? 0) + 1,
+          });
+        }
+      }
+
+      if (!sshApproved && !localFound) {
+        return res.status(404).json({ error: "Node not found in pending list" });
+      }
+
+      if ((sshApproved || localFound) && approvedNode && typeof approvedNode === "object") {
+        const nodeName = approvedNode.hostname || approvedNode.name || approvedNode.id || node_id;
+        try {
+          await storage.createMachine({
+            name: nodeName,
+            hostname: approvedNode.hostname || nodeName,
+            ipAddress: approvedNode.ip || approvedNode.ipAddress || null,
+            os: approvedNode.os || null,
+            location: approvedNode.location || null,
+            status: "connected",
+            displayName: approvedNode.displayName || nodeName,
+          });
+        } catch {}
+      }
+
+      res.json({ success: true, sshApproved, node: approvedNode });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve node" });
+    }
+  });
+
+  app.post("/api/nodes/reject", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const { node_id } = req.body;
+      if (!node_id) return res.status(400).json({ error: "node_id is required" });
+
+      const vps = await storage.getVpsConnection(instanceId);
+      let sshRejected = false;
+
+      if (vps?.vpsIp) {
+        try {
+          const { executeRawSSHCommand, buildSSHConfigFromVps, buildRejectNodeCommand } = await import("./ssh");
+          const sshConfig = buildSSHConfigFromVps(vps);
+          const cmd = buildRejectNodeCommand(node_id);
+          const result = await executeRawSSHCommand(cmd, sshConfig);
+          if (result.success && result.output) {
+            try {
+              const parsed = JSON.parse(result.output.trim());
+              if (parsed.success) sshRejected = true;
+            } catch {}
+          }
+        } catch {}
+      }
+
       const config = await storage.getOpenclawConfig(instanceId);
       if (config && config.pendingNodes) {
         const pending = config.pendingNodes as any[];
         const idx = pending.findIndex((n: any) => (typeof n === "string" ? n === node_id : n.id === node_id));
         if (idx >= 0) {
           pending.splice(idx, 1);
-          await storage.upsertOpenclawConfig(instanceId, {
-            pendingNodes: pending,
-            nodesApproved: (config.nodesApproved ?? 0) + 1,
-          });
-          return res.json({ success: true });
+          await storage.upsertOpenclawConfig(instanceId, { pendingNodes: pending });
         }
       }
-      res.status(404).json({ error: "Node not found" });
+
+      res.json({ success: true, sshRejected });
     } catch (error) {
-      res.status(500).json({ error: "Failed to approve node" });
+      res.status(500).json({ error: "Failed to reject node" });
     }
   });
 
