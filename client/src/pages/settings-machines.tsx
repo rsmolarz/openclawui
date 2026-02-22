@@ -499,10 +499,14 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
     }
   }
 
-  const installCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
-  const exportCmd = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"`;
+  const installCmdLinux = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
+  const installCmdWindows = "npm install -g openclaw@latest --ignore-scripts";
+  const exportCmdLinux = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"`;
   const nodeRunCmd = `openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
-  const fullStep2 = `${exportCmd} && ${nodeRunCmd}`;
+  const fullStep2Linux = `${exportCmdLinux} && ${nodeRunCmd}`;
+  const fullStep2Windows = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"\n${nodeRunCmd}`;
+
+  const [quickStartOs, setQuickStartOs] = useState<"linux" | "windows">("linux");
 
   const copyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -512,9 +516,31 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
   return (
     <Card data-testid="card-quick-start">
       <CardContent className="pt-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <Terminal className="h-5 w-5 text-muted-foreground shrink-0" />
-          <h3 className="text-sm font-semibold">Connect a Node in 3 Steps</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Terminal className="h-5 w-5 text-muted-foreground shrink-0" />
+            <h3 className="text-sm font-semibold">Connect a Node in 3 Steps</h3>
+          </div>
+          <div className="flex items-center gap-1 rounded-md border p-0.5" data-testid="toggle-quick-start-os">
+            <Button
+              size="sm"
+              variant={quickStartOs === "linux" ? "default" : "ghost"}
+              className="h-6 px-2 text-xs"
+              onClick={() => setQuickStartOs("linux")}
+              data-testid="button-quick-start-linux"
+            >
+              Linux / macOS
+            </Button>
+            <Button
+              size="sm"
+              variant={quickStartOs === "windows" ? "default" : "ghost"}
+              className="h-6 px-2 text-xs"
+              onClick={() => setQuickStartOs("windows")}
+              data-testid="button-quick-start-windows"
+            >
+              Windows
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -525,17 +551,21 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
                 <strong>Install the CLI</strong> on the machine you want to connect:
               </p>
               <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid="text-install-cmd">{installCmd}</code>
-                <Button size="icon" variant="ghost" onClick={() => copyText(installCmd)} className="shrink-0" data-testid="button-copy-install">
+                <code className="text-xs font-mono break-all" data-testid="text-install-cmd">
+                  {quickStartOs === "linux" ? installCmdLinux : installCmdWindows}
+                </code>
+                <Button size="icon" variant="ghost" onClick={() => copyText(quickStartOs === "linux" ? installCmdLinux : installCmdWindows)} className="shrink-0" data-testid="button-copy-install">
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
-                <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                <p className="text-xs text-muted-foreground">
-                  <strong>Windows:</strong> Run this inside WSL2, not PowerShell. Install WSL2 first with <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">wsl --install</code> if needed.
-                </p>
-              </div>
+              {quickStartOs === "windows" && (
+                <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
+                  <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    Run this in <strong>PowerShell</strong>. The <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">--ignore-scripts</code> flag prevents native compilation errors on Windows.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -543,11 +573,13 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
             <div className="flex-1 min-w-0 space-y-1.5">
               <p className="text-sm text-muted-foreground">
-                <strong>Set your gateway token and connect</strong> — copy and paste this single command:
+                <strong>Set your gateway token and connect</strong> — copy and paste {quickStartOs === "windows" ? "these commands" : "this command"}:
               </p>
               <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                <code className="text-xs font-mono break-all" data-testid="text-full-connect-cmd">{fullStep2}</code>
-                <Button size="icon" variant="ghost" onClick={() => copyText(fullStep2)} className="shrink-0" data-testid="button-copy-connect">
+                <code className="text-xs font-mono break-all" style={{ whiteSpace: quickStartOs === "windows" ? "pre-wrap" : undefined }} data-testid="text-full-connect-cmd">
+                  {quickStartOs === "linux" ? fullStep2Linux : fullStep2Windows}
+                </code>
+                <Button size="icon" variant="ghost" onClick={() => copyText(quickStartOs === "linux" ? fullStep2Linux : fullStep2Windows)} className="shrink-0" data-testid="button-copy-connect">
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
