@@ -53,8 +53,8 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
   const linuxExportAndConnect = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
   const linuxServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
 
-  const psInstallCmd = `npm install -g openclaw@latest`;
-  const psExportAndConnect = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"; openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
+  const psInstallCmd = `npm install -g openclaw@latest --ignore-scripts`;
+  const psExportAndConnect = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"\nopenclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
   const psServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
 
   const wslInstallCmd = `wsl -e bash -c "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard"`;
@@ -147,9 +147,13 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
               <div className="flex-1 min-w-0 space-y-1.5">
                 <p className="text-sm font-medium">Quick Connect (one-time)</p>
-                <p className="text-xs text-muted-foreground">Runs the node in the current {shellLabel} session.</p>
+                <p className="text-xs text-muted-foreground">
+                  {isWindows && shellMode === "powershell"
+                    ? "Paste BOTH lines into PowerShell (run them one at a time or paste together)."
+                    : `Runs the node in the current ${shellLabel} session.`}
+                </p>
                 <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                  <code className="text-xs font-mono break-all" data-testid={`text-connect-cmd-${machine.id}`}>{exportAndConnect}</code>
+                  <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid={`text-connect-cmd-${machine.id}`}>{exportAndConnect}</pre>
                   <Button size="icon" variant="ghost" onClick={() => copyText(exportAndConnect)} className="shrink-0 h-7 w-7" data-testid={`button-copy-connect-${machine.id}`}>
                     <Copy className="h-3 w-3" />
                   </Button>
