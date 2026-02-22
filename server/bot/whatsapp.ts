@@ -207,9 +207,16 @@ class WhatsAppBot extends EventEmitter {
         printQRInTerminal: false,
         markOnlineOnConnect: true,
         generateHighQualityLinkPreview: false,
+        getMessage: async (key: any) => {
+          return { conversation: "" };
+        },
       });
 
       this.sock = sock;
+
+      sock.ev.on("messaging-history.set", ({ chats, contacts, messages, isLatest }: any) => {
+        console.log(`[WhatsApp] History sync: ${chats?.length || 0} chats, ${contacts?.length || 0} contacts, ${messages?.length || 0} messages, isLatest=${isLatest}`);
+      });
 
       sock.ev.on("creds.update", async () => {
         try {
@@ -392,27 +399,48 @@ class WhatsAppBot extends EventEmitter {
       });
 
       sock.ev.on("messages.upsert", async (m: any) => {
-        if (m.type !== "notify") return;
+        const messageType = m.type;
+        const messageCount = m.messages?.length || 0;
+        console.log(`[WhatsApp] messages.upsert event: type=${messageType}, count=${messageCount}`);
+
+        if (messageType !== "notify" && messageType !== "append") return;
 
         for (const msg of m.messages) {
-          if (msg.key.fromMe) continue;
-          if (!msg.message) continue;
+          const jid = msg.key?.remoteJid;
+          const fromMe = msg.key?.fromMe;
+          const hasMessage = !!msg.message;
+
+          if (fromMe) continue;
+          if (!hasMessage) {
+            continue;
+          }
+
+          if (!jid || jid === "status@broadcast") continue;
 
           const text =
             msg.message.conversation ||
             msg.message.extendedTextMessage?.text ||
             msg.message.imageMessage?.caption ||
+            msg.message.videoMessage?.caption ||
+            msg.message.buttonsResponseMessage?.selectedDisplayText ||
+            msg.message.listResponseMessage?.title ||
+            msg.message.templateButtonReplyMessage?.selectedDisplayText ||
             "";
 
-          if (!text.trim()) continue;
+          if (!text.trim()) {
+            console.log(`[WhatsApp] Non-text message from ${jid} (type: ${Object.keys(msg.message).join(", ")})`);
+            continue;
+          }
 
-          const jid = msg.key.remoteJid;
-          if (!jid || jid === "status@broadcast") continue;
-
-          const senderPhone = jid.replace("@s.whatsapp.net", "").replace("@g.us", "");
+          const isGroup = jid.endsWith("@g.us");
+          const senderPhone = isGroup
+            ? (msg.key.participant || jid).replace("@s.whatsapp.net", "").replace("@g.us", "")
+            : jid.replace("@s.whatsapp.net", "");
           const pushName = msg.pushName || undefined;
 
-          await this.handleMessage(jid, senderPhone, text.trim(), pushName);
+          console.log(`[WhatsApp] Text message from ${senderPhone} (${pushName || "unknown"}) in ${isGroup ? "group" : "DM"}: "${text.trim().substring(0, 80)}"`);
+
+          await this.handleMessage(isGroup ? jid : jid, senderPhone, text.trim(), pushName);
         }
       });
     } catch (error) {
