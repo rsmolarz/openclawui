@@ -617,11 +617,23 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const baseUrl = `${workingProto}//${host}:${port}`;
       const pathDir = canvasPath.endsWith("/") ? canvasPath : canvasPath.substring(0, canvasPath.lastIndexOf("/") + 1);
       const baseDirUrl = `${baseUrl}${pathDir}`;
-      const rewritten = body
+      let rewritten = body
         .replace(/(href|src|action)="\/(?!\/)/g, `$1="${baseUrl}/`)
         .replace(/(href|src|action)="\.\/([^"]*)/g, `$1="${baseDirUrl}$2`)
         .replace(/url\(["']?\/(?!\/)/g, `url("${baseUrl}/`)
         .replace(/url\(["']?\.\//g, `url("${baseDirUrl}`);
+
+      if (contentType.includes("html") && canvasPath === "/") {
+        const infoScript = `<script>
+(function(){
+  var banner=document.createElement('div');
+  banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(90deg,#1e293b,#334155);color:#e2e8f0;padding:6px 16px;font:12px system-ui,sans-serif;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #475569';
+  banner.innerHTML='<span>Read-only preview. For full interactive access, use the SSH tunnel command from your dashboard settings.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>';
+  document.addEventListener('DOMContentLoaded',function(){document.body.prepend(banner)});
+})();
+</script>`;
+        rewritten = rewritten.replace(/<head>/i, `<head>${infoScript}`);
+      }
 
       res.send(rewritten);
     } catch (error) {

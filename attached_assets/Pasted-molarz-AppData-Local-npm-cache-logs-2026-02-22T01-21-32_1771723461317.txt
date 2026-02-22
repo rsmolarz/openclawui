@@ -1,0 +1,40 @@
+molarz\AppData\Local\npm-cache\_logs\2026-02-22T01_21_32_772Z-debug-0.log
+(openvino_env) PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_TOKEN="b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"; openclaw node run --host 72.60.167.64 --port 18789
+node:internal/modules/cjs/loader:1451
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\openclaw.mjs'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1448:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.13.1
+(openvino_env) PS C:\WINDOWS\system32> openclaw node install --host 72.60.167.64 --port 18789 --token "b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"
+node:internal/modules/cjs/loader:1451
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\openclaw.mjs'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1448:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.13.1
+(openvino_env) PS C:\WINDOWS\system32>

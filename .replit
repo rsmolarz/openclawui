@@ -9,6 +9,11 @@ channel = "stable-24_05"
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 18789
+externalPort = 3001
+exposeLocalhost = true
+
 [env]
 PORT = "5000"
 

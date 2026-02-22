@@ -820,7 +820,7 @@ export default function SettingsOpenclaw() {
                 Native OpenClaw Dashboard
               </CardTitle>
               <CardDescription>
-                Access the built-in OpenClaw dashboard running on your gateway server.
+                View your gateway dashboard. The proxied view shows the UI layout; for full interactive access, use the SSH tunnel below.
               </CardDescription>
             </div>
             <Button
@@ -830,20 +830,8 @@ export default function SettingsOpenclaw() {
                   toast({ title: "Gateway Not Reachable", description: "Could not reach the gateway. Check that the gateway is running and ports are open. Try SSH controls below to diagnose.", variant: "destructive" });
                   return;
                 }
-                if (currentInstance?.serverUrl) {
-                  try {
-                    const dashUrl = new URL(currentInstance.serverUrl);
-                    if (config?.gatewayToken) {
-                      dashUrl.searchParams.set("token", config.gatewayToken);
-                    }
-                    window.open(dashUrl.toString(), "_blank");
-                  } catch {
-                    window.open(currentInstance.serverUrl, "_blank");
-                  }
-                } else {
-                  const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
-                  window.open(proxyUrl, "_blank");
-                }
+                const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
+                window.open(proxyUrl, "_blank");
               }}
               disabled={probeGatewayQuery.isLoading}
               data-testid="button-open-native-dashboard"
@@ -955,6 +943,49 @@ export default function SettingsOpenclaw() {
                   Add your gateway token below to enable one-click authenticated access.
                 </p>
               )}
+              <div className="mt-3 p-3 bg-muted/50 rounded-lg border" data-testid="ssh-tunnel-tip">
+                <p className="text-sm font-medium mb-1 flex items-center gap-1.5">
+                  <Terminal className="h-4 w-4" />
+                  Full Interactive Access via SSH Tunnel
+                </p>
+                <p className="text-xs text-muted-foreground mb-2">
+                  The gateway requires a secure context (HTTPS or localhost). Run this command in your terminal to create a local tunnel, then open the dashboard at localhost:
+                </p>
+                <div className="flex items-center gap-2 mb-2">
+                  <code className="bg-background px-2 py-1.5 rounded text-xs flex-1 truncate border font-mono" data-testid="text-ssh-tunnel-cmd">
+                    {(() => {
+                      try {
+                        const u = new URL(currentInstance.serverUrl!);
+                        const p = u.port || config?.gatewayPort || 18789;
+                        return `ssh -L ${p}:localhost:${p} root@${u.hostname}`;
+                      } catch { return "ssh -L 18789:localhost:18789 root@your-vps-ip"; }
+                    })()}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      try {
+                        const u = new URL(currentInstance.serverUrl!);
+                        const p = u.port || config?.gatewayPort || 18789;
+                        navigator.clipboard.writeText(`ssh -L ${p}:localhost:${p} root@${u.hostname}`);
+                      } catch {}
+                      toast({ title: "Copied", description: "SSH tunnel command copied. Run this in your terminal, then open localhost in your browser." });
+                    }}
+                    data-testid="button-copy-ssh-tunnel"
+                  >
+                    <Copy className="h-3 w-3 mr-1" /> Copy
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Then open: <code className="text-xs font-mono bg-background px-1 py-0.5 rounded border">http://localhost:{(() => {
+                    try {
+                      const u = new URL(currentInstance.serverUrl!);
+                      return u.port || config?.gatewayPort || 18789;
+                    } catch { return 18789; }
+                  })()}{config?.gatewayToken ? `?token=${config.gatewayToken.slice(0, 6)}...` : ""}</code>
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
