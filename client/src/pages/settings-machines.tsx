@@ -332,7 +332,8 @@ function NodeCard({
                   <span>
                     Online
                     {healthResult.results[0]?.latencyMs != null && ` (${healthResult.results[0].latencyMs}ms)`}
-                    {healthResult.results[0]?.method === "gateway" && " via gateway"}
+                    {healthResult.results[0]?.method === "gateway" && " via gateway API"}
+                    {healthResult.results[0]?.method === "gateway-ssh" && " via gateway paired list"}
                     {healthResult.results[0]?.method === "tcp" && " via direct TCP"}
                   </span>
                 </>
@@ -428,6 +429,11 @@ function LiveGatewayBanner({ instanceId }: { instanceId: string | null }) {
                   <>
                     <span className="text-xs text-muted-foreground" data-testid="text-live-paired">
                       <strong>{liveStatus.pairedCount}</strong> paired node{liveStatus.pairedCount !== 1 ? "s" : ""}
+                      {liveStatus.paired?.length > 0 && (
+                        <span className="ml-1">
+                          ({liveStatus.paired.map((n: any) => n.displayName || n.hostname || n.clientId || n.id).join(", ")})
+                        </span>
+                      )}
                     </span>
                     {liveStatus.pendingCount > 0 && (
                       <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/50" data-testid="badge-live-pending">
@@ -1238,13 +1244,18 @@ export default function SettingsMachines() {
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{node.hostname || node.name || node.id}</p>
+                      <p className="text-sm font-medium truncate">{node.displayName || node.hostname || node.name || node.clientId || node.id}</p>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="text-[10px]">{node.id}</Badge>
+                        {node.platform && (
+                          <Badge variant="secondary" className="text-[10px]">{node.platform}</Badge>
+                        )}
+                        {node.role && (
+                          <Badge variant="outline" className="text-[10px]">{node.role}</Badge>
+                        )}
                         {node.ip && node.ip !== "Unknown" && (
                           <span className="text-[10px] text-muted-foreground">{node.ip}</span>
                         )}
-                        {node.os && node.os !== "Unknown" && (
+                        {node.os && node.os !== "Unknown" && !node.platform && (
                           <span className="text-[10px] text-muted-foreground">{node.os}</span>
                         )}
                       </div>

@@ -860,6 +860,39 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const results: { method: string; reachable: boolean; latencyMs?: number; error?: string }[] = [];
 
       if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps?.vpsIp) {
+          try {
+            const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+            const sshConfig = buildSSHConfigFromVps(vps);
+            const start = Date.now();
+            const pairedResult = await executeSSHCommand("list-paired-nodes", sshConfig);
+            const latency = Date.now() - start;
+
+            if (pairedResult.success && pairedResult.output) {
+              try {
+                let parsed = JSON.parse(pairedResult.output.trim());
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+                if (Array.isArray(parsed)) {
+                  const mIdentifiers = [machine.hostname, machine.name, machine.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
+                  const match = parsed.find((n: any) => {
+                    const nIds = [n.displayName, n.hostname, n.name, n.clientId, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
+                    return mIdentifiers.some((mid) => nIds.includes(mid));
+                  });
+
+                  if (match) {
+                    results.push({ method: "gateway-ssh", reachable: true, latencyMs: latency });
+                    await storage.updateMachine(machine.id, { status: "connected", lastSeen: new Date() });
+                    return res.json({ nodeId: machine.id, status: "connected", lastChecked: new Date().toISOString(), results });
+                  } else {
+                    results.push({ method: "gateway-ssh", reachable: false, error: "Node not found in gateway paired list" });
+                  }
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+
         const instance = await storage.getInstance(instanceId);
         const config = await storage.getOpenclawConfig(instanceId);
         const token = config?.gatewayToken || instance?.apiKey;
@@ -882,6 +915,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
                 const match = allNodes.find((n: any) =>
                   (machine.hostname && (n.hostname === machine.hostname || n.host === machine.hostname)) ||
                   (machine.name && (n.name === machine.name || n.displayName === machine.name)) ||
+                  (machine.displayName && (n.displayName === machine.displayName || n.name === machine.displayName)) ||
                   (machine.ipAddress && (n.ip === machine.ipAddress || n.ipAddress === machine.ipAddress || n.address === machine.ipAddress))
                 );
                 if (match) {
@@ -1457,15 +1491,18 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
   app.get("/api/nodes/live-status", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
-      if (!instanceId) return res.json({ gateway: "unknown", paired: [], pending: [], error: "No instance" });
+      if (!instanceId) return res.json({ gateway: "unknown", paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: "No instance" });
 
       const vps = await storage.getVpsConnection(instanceId);
-      if (!vps?.vpsIp) return res.json({ gateway: "unknown", paired: [], pending: [], error: "No VPS configured" });
+      if (!vps?.vpsIp) return res.json({ gateway: "unknown", paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: "No VPS configured" });
+
+      const config = await storage.getOpenclawConfig(instanceId);
+      const gatewayPort = config?.gatewayPort || 18789;
 
       const { executeSSHCommand, executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const statusCmd = "ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep 18789 || echo 'not-listening'";
+      const statusCmd = `ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep ${gatewayPort} || echo 'not-listening'`;
       const statusResult = await executeRawSSHCommand(statusCmd, sshConfig);
       const gatewayRunning = statusResult.success && statusResult.output && !statusResult.output.includes("not-listening") && statusResult.output.includes("openclaw");
 
@@ -1480,7 +1517,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
             if (Array.isArray(parsed)) {
               paired = parsed.map((n: any, idx: number) => {
                 if (typeof n === "string") return { id: n, hostname: n };
-                return { id: n.id || n.hostname || `node-${idx}`, ...n };
+                return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
               });
             }
           } catch {}
@@ -1496,21 +1533,28 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
             if (Array.isArray(parsed)) {
               pending = parsed.map((n: any, idx: number) => {
                 if (typeof n === "string") return { id: n, hostname: n };
-                return { id: n.id || n.hostname || `node-${idx}`, ...n };
+                return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
               });
             }
           } catch {}
         }
       } catch {}
 
-      if (paired.length > 0) {
-        const machines = await storage.getMachines();
-        const pairedIds = new Set(paired.map((n: any) => (n.hostname || n.id || "").toLowerCase()));
-        for (const m of machines) {
-          const mHost = (m.hostname || m.name || "").toLowerCase();
-          if (mHost && pairedIds.has(mHost) && m.status !== "connected") {
-            await storage.updateMachine(m.id, { status: "connected" });
-          }
+      const machines = await storage.getMachines();
+      const pairedIdentifiers = new Set<string>();
+      for (const n of paired) {
+        const ids = [n.displayName, n.hostname, n.name, n.clientId, n.id].filter(Boolean);
+        ids.forEach((id: string) => pairedIdentifiers.add(id.toLowerCase()));
+      }
+
+      for (const m of machines) {
+        const mIdentifiers = [m.hostname, m.name, m.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
+        const isPaired = mIdentifiers.some((id) => pairedIdentifiers.has(id));
+
+        if (isPaired && m.status !== "connected") {
+          await storage.updateMachine(m.id, { status: "connected", lastSeen: new Date() });
+        } else if (!isPaired && gatewayRunning && m.status === "connected") {
+          await storage.updateMachine(m.id, { status: "disconnected" });
         }
       }
 
@@ -1523,7 +1567,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         gatewayProcess: gatewayRunning,
       });
     } catch (error: any) {
-      res.status(500).json({ gateway: "error", paired: [], pending: [], error: error.message });
+      res.status(500).json({ gateway: "error", paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message });
     }
   });
 
