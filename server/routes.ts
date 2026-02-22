@@ -1668,7 +1668,13 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         }
       }
       const bot = await getWhatsappBot();
-      bot.start();
+      const status = bot.getStatus();
+      if (status.state === "disconnected" && status.error) {
+        console.log("[WhatsApp] Start called with error state, doing fresh start");
+        await bot.startFresh();
+      } else {
+        bot.start();
+      }
       res.json({ success: true, message: "WhatsApp bot starting..." });
     } catch (error) {
       res.status(500).json({ error: "Failed to start WhatsApp bot" });

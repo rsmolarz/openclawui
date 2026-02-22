@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles, Loader2 } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
@@ -1402,8 +1402,26 @@ export default function SettingsOpenclaw() {
           )}
 
           {botStatus?.error && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
-              <p className="text-sm text-destructive" data-testid="text-bot-error">{botStatus.error}</p>
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-4 space-y-3" data-testid="whatsapp-error-banner">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
+                <p className="text-sm font-medium text-destructive" data-testid="text-bot-error">Bot Disconnected</p>
+              </div>
+              <p className="text-xs text-destructive/80">{botStatus.error}</p>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => startBotMutation.mutate()}
+                disabled={startBotMutation.isPending}
+                data-testid="button-reconnect"
+              >
+                {startBotMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                {startBotMutation.isPending ? "Reconnecting..." : "Reconnect Now"}
+              </Button>
             </div>
           )}
 

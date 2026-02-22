@@ -124,28 +124,56 @@ app.use((req, res, next) => {
     console.error("[Hostinger] Auto port check skipped:", err);
   }
 
-  try {
-    const instances = await storage.getInstances();
-    const firstInstance = instances[0];
-    const config = firstInstance ? await storage.getOpenclawConfig(String(firstInstance.id)) : undefined;
-    if (config?.whatsappEnabled) {
-      const { whatsappBot } = await import("./bot/whatsapp");
-      const hasSession = await whatsappBot.checkAndLoadAuthState();
-      if (hasSession) {
-        console.log("[OpenClaw] WhatsApp has existing session, auto-reconnecting...");
-        try {
-          await whatsappBot.start();
-          console.log("[OpenClaw] WhatsApp auto-reconnect initiated successfully");
-        } catch (startErr) {
-          console.error("[OpenClaw] WhatsApp auto-reconnect failed:", startErr);
+  (async () => {
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const instances = await storage.getInstances();
+        const firstInstance = instances[0];
+        const config = firstInstance ? await storage.getOpenclawConfig(String(firstInstance.id)) : undefined;
+        if (config?.whatsappEnabled) {
+          const { whatsappBot } = await import("./bot/whatsapp");
+          const hasSession = await whatsappBot.checkAndLoadAuthState();
+          if (hasSession) {
+            console.log("[OpenClaw] WhatsApp has existing session, auto-reconnecting...");
+            try {
+              await whatsappBot.start();
+              console.log("[OpenClaw] WhatsApp auto-reconnect initiated successfully");
+            } catch (startErr) {
+              console.error("[OpenClaw] WhatsApp auto-reconnect failed:", startErr);
+            }
+          } else {
+            console.log("[OpenClaw] WhatsApp enabled but no session found. Waiting for user to pair via dashboard.");
+          }
         }
-      } else {
-        console.log("[OpenClaw] WhatsApp enabled but no session found. Waiting for user to pair via dashboard.");
+        break;
+      } catch (err) {
+        console.error(`[OpenClaw] WhatsApp auto-start attempt ${attempt}/${maxRetries} failed:`, err);
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+        }
       }
     }
-  } catch (err) {
-    console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);
-  }
+  })();
+
+  setInterval(async () => {
+    try {
+      const instances = await storage.getInstances();
+      const firstInstance = instances[0];
+      const config = firstInstance ? await storage.getOpenclawConfig(String(firstInstance.id)) : undefined;
+      if (!config?.whatsappEnabled) return;
+
+      const { whatsappBot } = await import("./bot/whatsapp");
+      const status = whatsappBot.getStatus();
+      if (status.state === "disconnected" && !status.error) {
+        const hasSession = await whatsappBot.checkAndLoadAuthState();
+        if (hasSession) {
+          console.log("[OpenClaw] Health check: bot is disconnected with valid session, auto-reconnecting...");
+          await whatsappBot.start();
+        }
+      }
+    } catch {}
+  }, 120000);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
