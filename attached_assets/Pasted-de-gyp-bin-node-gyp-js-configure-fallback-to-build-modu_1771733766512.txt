@@ -1,0 +1,32 @@
+de-gyp\bin\node-gyp.js configure --fallback-to-build --module=C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\node_modules\@discordjs\opus\prebuild\node-v137-napi-v3-win32-x64-unknown-unknown\opus.node --module_name=opus --module_path=C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\node_modules\@discordjs\opus\prebuild\node-v137-napi-v3-win32-x64-unknown-unknown --napi_version=10 --node_abi_napi=napi --napi_build_version=3 --node_napi_label=napi-v3' (1)
+npm error node-pre-gyp ERR! stack     at ChildProcess.<anonymous> (C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\node_modules\@discordjs\node-pre-gyp\lib\util\compile.js:85:20)
+npm error node-pre-gyp ERR! stack     at ChildProcess.emit (node:events:508:28)
+npm error node-pre-gyp ERR! stack     at maybeClose (node:internal/child_process:1101:16)
+npm error node-pre-gyp ERR! stack     at ChildProcess._handle.onexit (node:internal/child_process:305:5)
+npm error node-pre-gyp ERR! System Windows_NT 10.0.26200
+npm error node-pre-gyp ERR! command "C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\JosephRyanSmolarz\\AppData\\Roaming\\npm\\node_modules\\openclaw\\node_modules\\@discordjs\\node-pre-gyp\\bin\\node-pre-gyp" "install" "--fallback-to-build"
+npm error node-pre-gyp ERR! cwd C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\node_modules\@discordjs\opus
+npm error node-pre-gyp ERR! node -v v24.13.1
+npm error node-pre-gyp ERR! node-pre-gyp -v v0.4.5
+npm error node-pre-gyp ERR! not ok
+npm error A complete log of this run can be found in: C:\Users\JosephRyanSmolarz\AppData\Local\npm-cache\_logs\2026-02-22T04_13_08_882Z-debug-0.log
+(openvino_env) PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_TOKEN="b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"; openclaw node run --host 72.60.167.64 --port 18789
+node:internal/modules/cjs/loader:1451
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\openclaw.mjs'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1448:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.13.1
+(openvino_env) PS C:\WINDOWS\system32>
