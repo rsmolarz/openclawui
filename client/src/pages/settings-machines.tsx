@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network, Link2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
@@ -41,6 +41,120 @@ const STATUS_OPTIONS = [
   { value: "disconnected", label: "Disconnected", icon: WifiOff },
 ] as const;
 
+function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken }: { machine: Machine; gatewayHost: string; gatewayPort: number; gatewayToken: string }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  const isWindows = machine.os?.toLowerCase().includes("windows") || machine.os?.toLowerCase() === "windows";
+  const nodeName = machine.hostname || machine.name;
+
+  const installCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
+  const exportAndConnect = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
+  const serviceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
+
+  const copyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied", description: "Command copied to clipboard." });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant={machine.status === "disconnected" ? "default" : "outline"}
+          data-testid={`button-connect-${machine.id}`}
+        >
+          <Link2 className="h-3.5 w-3.5 mr-1.5" />
+          {machine.status === "disconnected" ? "Reconnect" : "Connect"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Monitor className="h-5 w-5" />
+            Connect "{machine.displayName || machine.name}"
+          </DialogTitle>
+          <DialogDescription>
+            Run these commands on <strong>{nodeName}</strong> to connect it to your gateway.
+            {isWindows && " Use WSL2 (not PowerShell)."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {isWindows && (
+            <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-2.5 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-medium text-amber-700 dark:text-amber-400">Windows Machine Detected</p>
+                <p className="text-muted-foreground mt-0.5">
+                  Open WSL2 terminal first. If WSL2 is not installed, run <code className="bg-muted px-1 py-0.5 rounded font-mono">wsl --install</code> in PowerShell as Admin, then restart.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <p className="text-sm font-medium">Install OpenClaw CLI</p>
+                <p className="text-xs text-muted-foreground">Skip if already installed.</p>
+                <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                  <code className="text-xs font-mono break-all" data-testid={`text-install-cmd-${machine.id}`}>{installCmd}</code>
+                  <Button size="icon" variant="ghost" onClick={() => copyText(installCmd)} className="shrink-0 h-7 w-7" data-testid={`button-copy-install-${machine.id}`}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <p className="text-sm font-medium">Quick Connect (one-time)</p>
+                <p className="text-xs text-muted-foreground">Runs the node in the current terminal session.</p>
+                <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                  <code className="text-xs font-mono break-all" data-testid={`text-connect-cmd-${machine.id}`}>{exportAndConnect}</code>
+                  <Button size="icon" variant="ghost" onClick={() => copyText(exportAndConnect)} className="shrink-0 h-7 w-7" data-testid={`button-copy-connect-${machine.id}`}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/70 text-primary-foreground text-xs font-bold">3</span>
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <p className="text-sm font-medium">
+                  Auto-start on boot
+                  <Badge variant="secondary" className="ml-2 text-[10px]">Optional</Badge>
+                </p>
+                <p className="text-xs text-muted-foreground">Installs as a system service so the node reconnects automatically.</p>
+                <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                  <code className="text-xs font-mono break-all" data-testid={`text-service-cmd-${machine.id}`}>{serviceInstall}</code>
+                  <Button size="icon" variant="ghost" onClick={() => copyText(serviceInstall)} className="shrink-0 h-7 w-7" data-testid={`button-copy-service-${machine.id}`}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {!gatewayToken && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-2.5 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                Gateway token is not configured. Set it in{" "}
+                <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">OpenClaw Config</Link> first.
+              </p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function NodeCard({
   machine,
   onDelete,
@@ -48,6 +162,9 @@ function NodeCard({
   onHealthCheck,
   isCheckingHealth,
   healthResult,
+  gatewayHost,
+  gatewayPort,
+  gatewayToken,
 }: {
   machine: Machine;
   onDelete: (id: string) => void;
@@ -55,6 +172,9 @@ function NodeCard({
   onHealthCheck: (id: string) => void;
   isCheckingHealth: boolean;
   healthResult?: { status: string; lastChecked: string; results: { method: string; reachable: boolean; latencyMs?: number; error?: string }[]; noChecksPossible?: boolean } | null;
+  gatewayHost: string;
+  gatewayPort: number;
+  gatewayToken: string;
 }) {
   const effectiveStatus = healthResult?.status || machine.status;
   return (
@@ -153,6 +273,10 @@ function NodeCard({
                 : "Never"}
             </p>
           </div>
+        </div>
+
+        <div className="mt-3">
+          <ConnectCommandDialog machine={machine} gatewayHost={gatewayHost} gatewayPort={gatewayPort} gatewayToken={gatewayToken} />
         </div>
 
         {healthResult && (
@@ -337,6 +461,34 @@ export default function SettingsMachines() {
   const { data: machines, isLoading } = useQuery<Machine[]>({
     queryKey: ["/api/machines"],
   });
+
+  const { data: gwConfig } = useQuery<{ gatewayToken?: string; gatewayPort?: number }>({
+    queryKey: ["/api/openclaw/config", selectedInstanceId],
+    enabled: !!selectedInstanceId,
+  });
+
+  const { data: gwInstance } = useQuery<{ serverUrl?: string }>({
+    queryKey: ["/api/instances", selectedInstanceId, "gw"],
+    queryFn: async () => {
+      const resp = await fetch(`/api/instances`, { credentials: "include" });
+      if (!resp.ok) return {};
+      const list = await resp.json();
+      return list.find((i: any) => i.id === selectedInstanceId) || {};
+    },
+    enabled: !!selectedInstanceId,
+  });
+
+  const gatewayToken = gwConfig?.gatewayToken || "";
+  const gatewayPort = gwConfig?.gatewayPort || 18789;
+  let gatewayHost = "<gateway-ip>";
+  if (gwInstance?.serverUrl) {
+    try {
+      const url = new URL(gwInstance.serverUrl);
+      gatewayHost = url.hostname;
+    } catch {
+      gatewayHost = gwInstance.serverUrl.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
+    }
+  }
 
   interface PendingNode {
     id: string;
@@ -1007,6 +1159,9 @@ export default function SettingsMachines() {
                 onHealthCheck={handleHealthCheck}
                 isCheckingHealth={checkingHealthIds.has(machine.id)}
                 healthResult={healthResults[machine.id] || null}
+                gatewayHost={gatewayHost}
+                gatewayPort={gatewayPort}
+                gatewayToken={gatewayToken}
               />
             ))}
           </div>
