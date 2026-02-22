@@ -283,4 +283,41 @@ export const hostinger = {
     const data = await hostingerFetch(`/api/vps/v1/virtual-machines/${vmId}/backups`);
     return Array.isArray(data) ? data : data?.data || [];
   },
+
+  async ensurePortsOpen(requiredPorts: string[] = ["22", "18789"]): Promise<{ checked: boolean; results: Array<{ port: string; action: string; firewallName: string }> }> {
+    try {
+      if (!process.env.HOSTINGER_API_KEY) {
+        return { checked: false, results: [] };
+      }
+      const vms = await this.listVMs();
+      if (!vms.length) return { checked: false, results: [] };
+      const firewalls = await this.listFirewalls();
+      if (!firewalls.length) return { checked: false, results: [] };
+
+      const results: Array<{ port: string; action: string; firewallName: string }> = [];
+      let needsSync = new Set<number>();
+
+      for (const fw of firewalls) {
+        for (const port of requiredPorts) {
+          const existing = fw.rules?.find((r: any) => r.port === port && r.protocol === "TCP" && r.source === "any");
+          if (existing) {
+            results.push({ port, action: "already_open", firewallName: fw.name });
+          } else {
+            await this.createFirewallRule(fw.id, { protocol: "TCP", port, source: "any" });
+            needsSync.add(fw.id);
+            results.push({ port, action: "opened", firewallName: fw.name });
+          }
+        }
+      }
+
+      for (const fwId of needsSync) {
+        await this.syncFirewall(fwId);
+      }
+
+      return { checked: true, results };
+    } catch (err) {
+      console.error("[Hostinger] Auto port check failed:", err);
+      return { checked: false, results: [] };
+    }
+  },
 };

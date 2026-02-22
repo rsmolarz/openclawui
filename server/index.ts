@@ -110,6 +110,21 @@ app.use((req, res, next) => {
   await registerRoutes(httpServer, app);
 
   try {
+    const { hostinger } = await import("./hostinger");
+    const portResult = await hostinger.ensurePortsOpen(["22", "18789"]);
+    if (portResult.checked) {
+      const opened = portResult.results.filter(r => r.action === "opened");
+      if (opened.length > 0) {
+        log(`Auto-opened firewall ports: ${opened.map(r => `${r.port} on ${r.firewallName}`).join(", ")}`, "hostinger");
+      } else {
+        log("Firewall ports 22 & 18789 already open", "hostinger");
+      }
+    }
+  } catch (err) {
+    console.error("[Hostinger] Auto port check skipped:", err);
+  }
+
+  try {
     const instances = await storage.getInstances();
     const firstInstance = instances[0];
     const config = firstInstance ? await storage.getOpenclawConfig(String(firstInstance.id)) : undefined;
