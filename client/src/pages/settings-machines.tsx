@@ -330,6 +330,8 @@ export default function SettingsMachines() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [healthResults, setHealthResults] = useState<Record<string, any>>({});
   const [checkingHealthIds, setCheckingHealthIds] = useState<Set<string>>(new Set());
+  const [sshNodeResult, setSSHNodeResult] = useState<{ output?: string; error?: string } | null>(null);
+  const [sshNodeRunning, setSSHNodeRunning] = useState(false);
   const { selectedInstanceId } = useInstance();
 
   const { data: machines, isLoading } = useQuery<Machine[]>({
@@ -357,6 +359,41 @@ export default function SettingsMachines() {
   });
 
   const pendingNodes = pendingData?.pending ?? [];
+
+  const { data: pairedData, isLoading: pairedLoading } = useQuery<{ paired: PendingNode[]; source: string }>({
+    queryKey: ["/api/nodes/paired", selectedInstanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/nodes/paired?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) return { paired: [], source: "error" };
+      return resp.json();
+    },
+    enabled: !!selectedInstanceId,
+    refetchInterval: 60000,
+  });
+
+  const pairedNodes = pairedData?.paired ?? [];
+
+  const runSSHNodeCommand = async (action: string) => {
+    setSSHNodeRunning(true);
+    setSSHNodeResult(null);
+    try {
+      const resp = await apiRequest("POST", `/api/ssh/gateway/${action}`, { instanceId: selectedInstanceId });
+      const data = await resp.json();
+      setSSHNodeResult({ output: data.output, error: data.error });
+      if (data.success) {
+        toast({ title: "Command completed", description: `${action} executed successfully.` });
+        queryClient.invalidateQueries({ queryKey: ["/api/nodes/pending", selectedInstanceId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/nodes/paired", selectedInstanceId] });
+      } else {
+        toast({ title: "Command failed", description: data.error || "SSH command did not succeed.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      setSSHNodeResult({ error: err.message || "Command failed" });
+      toast({ title: "Error", description: err.message || "Failed to execute SSH command.", variant: "destructive" });
+    } finally {
+      setSSHNodeRunning(false);
+    }
+  };
 
   const approveMutation = useMutation({
     mutationFn: async (nodeId: string) => {
@@ -799,19 +836,180 @@ export default function SettingsMachines() {
         </Card>
       )}
 
+      <Card data-testid="card-gateway-nodes">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Signal className="h-4 w-4" />
+                Gateway Node Management
+              </CardTitle>
+              <CardDescription>
+                View and troubleshoot nodes directly on your gateway server via SSH.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ["/api/nodes/paired", selectedInstanceId] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/nodes/pending", selectedInstanceId] });
+                }}
+                disabled={pairedLoading || pendingLoading}
+                data-testid="button-refresh-gateway-nodes"
+              >
+                {(pairedLoading || pendingLoading) ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md bg-muted/50 p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Paired Nodes</p>
+              <p className="text-lg font-bold" data-testid="text-paired-count">{pairedNodes.length}</p>
+              {pairedData?.source === "gateway" && (
+                <Badge variant="secondary" className="text-[10px] mt-1">Live</Badge>
+              )}
+            </div>
+            <div className="rounded-md bg-muted/50 p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Pending Approval</p>
+              <p className="text-lg font-bold" data-testid="text-pending-count">{pendingNodes.length}</p>
+              {pendingData?.source === "gateway" && (
+                <Badge variant="secondary" className="text-[10px] mt-1">Live</Badge>
+              )}
+            </div>
+          </div>
+
+          {pairedNodes.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Paired Nodes on Gateway</p>
+              {pairedNodes.map((node) => (
+                <div
+                  key={node.id}
+                  className="flex items-center justify-between gap-3 p-2.5 rounded-md bg-muted/30"
+                  data-testid={`row-paired-node-${node.id}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-green-500/10">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{node.hostname || node.name || node.id}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-[10px]">{node.id}</Badge>
+                        {node.ip && node.ip !== "Unknown" && (
+                          <span className="text-[10px] text-muted-foreground">{node.ip}</span>
+                        )}
+                        {node.os && node.os !== "Unknown" && (
+                          <span className="text-[10px] text-muted-foreground">{node.os}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant="default" className="text-[10px] shrink-0">Paired</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t pt-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">SSH Troubleshooting</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runSSHNodeCommand("list-nodes")}
+                disabled={sshNodeRunning}
+                data-testid="button-ssh-list-nodes"
+              >
+                {sshNodeRunning ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Terminal className="h-3 w-3 mr-1.5" />}
+                List Nodes
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runSSHNodeCommand("check-config")}
+                disabled={sshNodeRunning}
+                data-testid="button-ssh-check-config"
+              >
+                {sshNodeRunning ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Info className="h-3 w-3 mr-1.5" />}
+                Check Config
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runSSHNodeCommand("gateway-info")}
+                disabled={sshNodeRunning}
+                data-testid="button-ssh-gateway-info"
+              >
+                {sshNodeRunning ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Activity className="h-3 w-3 mr-1.5" />}
+                Gateway Info
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runSSHNodeCommand("check-node-json")}
+                disabled={sshNodeRunning}
+                data-testid="button-ssh-check-node-json"
+              >
+                {sshNodeRunning ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Info className="h-3 w-3 mr-1.5" />}
+                Node JSON
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runSSHNodeCommand("diagnose")}
+                disabled={sshNodeRunning}
+                data-testid="button-ssh-diagnose"
+              >
+                {sshNodeRunning ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <AlertCircle className="h-3 w-3 mr-1.5" />}
+                Diagnose
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runSSHNodeCommand("view-log")}
+                disabled={sshNodeRunning}
+                data-testid="button-ssh-view-log"
+              >
+                {sshNodeRunning ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Terminal className="h-3 w-3 mr-1.5" />}
+                View Log
+              </Button>
+            </div>
+            {sshNodeResult && (
+              <div className="mt-3 rounded-md bg-muted/50 p-3" data-testid="ssh-node-output">
+                <pre className="text-xs font-mono whitespace-pre-wrap break-all max-h-64 overflow-y-auto">
+                  {sshNodeResult.output || sshNodeResult.error || "No output"}
+                </pre>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {machines && machines.length > 0 ? (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-          {machines.map((machine) => (
-            <NodeCard
-              key={machine.id}
-              machine={machine}
-              onDelete={(id) => deleteMutation.mutate(id)}
-              onStatusChange={(id, status) => updateMutation.mutate({ id, status })}
-              onHealthCheck={handleHealthCheck}
-              isCheckingHealth={checkingHealthIds.has(machine.id)}
-              healthResult={healthResults[machine.id] || null}
-            />
-          ))}
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tracked Nodes</h2>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+            {machines.map((machine) => (
+              <NodeCard
+                key={machine.id}
+                machine={machine}
+                onDelete={(id) => deleteMutation.mutate(id)}
+                onStatusChange={(id, status) => updateMutation.mutate({ id, status })}
+                onHealthCheck={handleHealthCheck}
+                isCheckingHealth={checkingHealthIds.has(machine.id)}
+                healthResult={healthResults[machine.id] || null}
+              />
+            ))}
+          </div>
         </div>
       ) : (
         <Card>
@@ -819,7 +1017,7 @@ export default function SettingsMachines() {
             <Monitor className="h-12 w-12 text-muted-foreground mb-3" />
             <h3 className="text-sm font-semibold mb-1">No nodes tracked yet</h3>
             <p className="text-xs text-muted-foreground text-center max-w-xs">
-              Connect a node using the steps above, then add it here to keep track.
+              Connect a node using the steps above, or use "Sync from Gateway" to import nodes.
             </p>
           </CardContent>
         </Card>

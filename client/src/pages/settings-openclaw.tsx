@@ -504,16 +504,40 @@ export default function SettingsOpenclaw() {
   const [useSSH, setUseSSH] = useState(true);
   const [showManualSteps, setShowManualSteps] = useState(false);
 
-  const probeGatewayQuery = useQuery<{ reachable: boolean; status?: number; error?: string }>({
+  const httpProbeQuery = useQuery<{ reachable: boolean; status?: number; error?: string }>({
     queryKey: [`/api/gateway/probe?instanceId=${selectedInstanceId ?? ""}`],
     enabled: !!selectedInstanceId && !!currentInstance?.serverUrl,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
+    retry: false,
   });
+
+  const sshProbeQuery = useQuery<{ reachable: boolean; method?: string; host?: string; output?: string; error?: string }>({
+    queryKey: ["/api/gateway/probe-ssh", selectedInstanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/gateway/probe-ssh?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) return { reachable: false, error: "Request failed" };
+      return resp.json();
+    },
+    enabled: !!selectedInstanceId && !httpProbeQuery.data?.reachable,
+    refetchInterval: 60000,
+    retry: false,
+  });
+
+  const probeGatewayQuery = {
+    data: httpProbeQuery.data?.reachable
+      ? httpProbeQuery.data
+      : sshProbeQuery.data?.reachable
+      ? { reachable: true, status: 0, error: undefined }
+      : httpProbeQuery.data ?? sshProbeQuery.data ?? undefined,
+    isLoading: httpProbeQuery.isLoading || (sshProbeQuery.isLoading && !httpProbeQuery.data?.reachable),
+  };
+
+  const gatewayStatusMethod = httpProbeQuery.data?.reachable ? "http" : sshProbeQuery.data?.reachable ? "ssh" : null;
 
   const sshActionsQuery = useQuery<{ actions: string[]; configured: boolean; host: string | null }>({
     queryKey: ["/api/ssh/gateway/actions", selectedInstanceId],
     queryFn: async () => {
-      const resp = await fetch(`/api/ssh/gateway/actions?instanceId=${selectedInstanceId || ""}`);
+      const resp = await fetch(`/api/ssh/gateway/actions?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
       return resp.json();
     },
   });
@@ -751,7 +775,7 @@ export default function SettingsOpenclaw() {
               <p className="text-xs text-muted-foreground font-medium">Gateway</p>
             </div>
             <Badge variant={probeGatewayQuery.data?.reachable ? "default" : probeGatewayQuery.isLoading ? "secondary" : "destructive"}>
-              {probeGatewayQuery.isLoading ? "checking..." : probeGatewayQuery.data?.reachable ? "online" : "offline"}
+              {probeGatewayQuery.isLoading ? "checking..." : probeGatewayQuery.data?.reachable ? (gatewayStatusMethod === "ssh" ? "online (via SSH)" : "online") : "offline"}
             </Badge>
           </CardContent>
         </Card>
@@ -802,8 +826,8 @@ export default function SettingsOpenclaw() {
             <Button
               variant={probeGatewayQuery.data?.reachable ? "default" : "outline"}
               onClick={() => {
-                if (!probeGatewayQuery.data?.reachable) {
-                  toast({ title: "Gateway Offline", description: "The gateway is not reachable. Use SSH Remote Control to diagnose and start it.", variant: "destructive" });
+                if (!probeGatewayQuery.data?.reachable && !httpProbeQuery.data?.reachable) {
+                  toast({ title: "Gateway Not Reachable", description: "Could not reach the gateway. Check that the gateway is running and ports are open. Try SSH controls below to diagnose.", variant: "destructive" });
                   return;
                 }
                 const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
@@ -937,16 +961,22 @@ export default function SettingsOpenclaw() {
                 </CardTitle>
                 <CardDescription>
                   Manage the OpenClaw gateway service on your VPS via SSH.
-                  {sshActionsQuery.data?.host && (
-                    <span className="ml-1 font-mono text-xs">({sshActionsQuery.data.host})</span>
-                  )}
+                  {(() => {
+                    try {
+                      if (currentInstance?.serverUrl) {
+                        const host = new URL(currentInstance.serverUrl).hostname;
+                        return <span className="ml-1 font-mono text-xs">({host})</span>;
+                      }
+                    } catch {}
+                    return sshActionsQuery.data?.host ? <span className="ml-1 font-mono text-xs">({sshActionsQuery.data.host})</span> : null;
+                  })()}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 {probeGatewayQuery.isLoading ? (
                   <Badge variant="secondary"><RotateCw className="h-3 w-3 mr-1 animate-spin" />Checking...</Badge>
                 ) : probeGatewayQuery.data?.reachable ? (
-                  <Badge variant="default"><CheckCircle className="h-3 w-3 mr-1" />Online</Badge>
+                  <Badge variant="default"><CheckCircle className="h-3 w-3 mr-1" />{gatewayStatusMethod === "ssh" ? "Online (SSH)" : "Online"}</Badge>
                 ) : (
                   <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Offline</Badge>
                 )}

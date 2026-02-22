@@ -531,6 +531,30 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
+  app.get("/api/gateway/probe-ssh", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ reachable: false, error: "No instance specified" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps) return res.json({ reachable: false, error: "No VPS configured", method: "ssh" });
+
+      const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+      const result = await executeSSHCommand("status", sshConfig);
+      const output = result.output || "";
+      const isRunning = output.includes("openclaw") || output.includes("18789");
+      res.json({
+        reachable: isRunning,
+        method: "ssh",
+        host: vps.vpsIp,
+        output: output.substring(0, 500),
+        error: isRunning ? undefined : "Gateway process not detected via SSH",
+      });
+    } catch (error: any) {
+      res.json({ reachable: false, method: "ssh", error: error.message || "SSH probe failed" });
+    }
+  });
+
   // Gateway proxy: proxy the native OpenClaw canvas UI (browser can't add Auth headers to window.open)
   app.get("/api/gateway/canvas", requireAuth, async (req, res) => {
     try {
@@ -1358,6 +1382,43 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       res.json({ success: true, sshRejected });
     } catch (error) {
       res.status(500).json({ error: "Failed to reject node" });
+    }
+  });
+
+  app.get("/api/nodes/paired", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json({ paired: [], source: "none" });
+
+      const vps = instanceId ? await storage.getVpsConnection(instanceId) : null;
+      if (vps?.vpsIp) {
+        try {
+          const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+          const sshConfig = buildSSHConfigFromVps(vps);
+          const result = await executeSSHCommand("list-paired-nodes", sshConfig);
+          if (result.success && result.output) {
+            try {
+              let parsed = JSON.parse(result.output.trim());
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                parsed = Object.values(parsed);
+              }
+              if (Array.isArray(parsed)) {
+                const normalized = parsed.map((n: any, idx: number) => {
+                  if (typeof n === "string") return { id: n, hostname: n, ip: "Unknown", os: "Unknown" };
+                  const entry = { ...n };
+                  if (!entry.id) entry.id = entry.hostname || entry.name || `node-${idx}`;
+                  return entry;
+                });
+                return res.json({ paired: normalized, source: "gateway" });
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+
+      res.json({ paired: [], source: "local" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch paired nodes" });
     }
   });
 
