@@ -44,13 +44,27 @@ const STATUS_OPTIONS = [
 function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken }: { machine: Machine; gatewayHost: string; gatewayPort: number; gatewayToken: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [shellMode, setShellMode] = useState<"powershell" | "wsl">("powershell");
 
   const isWindows = machine.os?.toLowerCase().includes("windows") || machine.os?.toLowerCase() === "windows";
   const nodeName = machine.hostname || machine.name;
 
-  const installCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
-  const exportAndConnect = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
-  const serviceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
+  const linuxInstallCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
+  const linuxExportAndConnect = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
+  const linuxServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
+
+  const psInstallCmd = `irm https://openclaw.ai/install.ps1 | iex`;
+  const psExportAndConnect = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"; openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
+  const psServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
+
+  const wslInstallCmd = `wsl -e bash -c "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard"`;
+  const wslExportAndConnect = `wsl -e bash -c 'export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}'`;
+  const wslServiceInstall = `wsl -e bash -c 'openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"'`;
+
+  const installCmd = isWindows ? (shellMode === "powershell" ? psInstallCmd : wslInstallCmd) : linuxInstallCmd;
+  const exportAndConnect = isWindows ? (shellMode === "powershell" ? psExportAndConnect : wslExportAndConnect) : linuxExportAndConnect;
+  const serviceInstall = isWindows ? (shellMode === "powershell" ? psServiceInstall : wslServiceInstall) : linuxServiceInstall;
+  const shellLabel = isWindows ? (shellMode === "powershell" ? "PowerShell" : "WSL2") : "Terminal";
 
   const copyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -77,18 +91,35 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
           </DialogTitle>
           <DialogDescription>
             Run these commands on <strong>{nodeName}</strong> to connect it to your gateway.
-            {isWindows && " Use WSL2 (not PowerShell)."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {isWindows && (
-            <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-2.5 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <p className="font-medium text-amber-700 dark:text-amber-400">Windows Machine Detected</p>
-                <p className="text-muted-foreground mt-0.5">
-                  Open WSL2 terminal first. If WSL2 is not installed, run <code className="bg-muted px-1 py-0.5 rounded font-mono">wsl --install</code> in PowerShell as Admin, then restart.
-                </p>
+            <div className="space-y-2">
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-2.5 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-medium text-amber-700 dark:text-amber-400">Windows Machine</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Choose your shell below. PowerShell is easiest — no WSL required.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-1.5 rounded-md bg-muted/50 p-1">
+                <button
+                  onClick={() => setShellMode("powershell")}
+                  className={`flex-1 text-xs font-medium rounded px-3 py-1.5 transition-colors ${shellMode === "powershell" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  data-testid="button-shell-powershell"
+                >
+                  PowerShell
+                </button>
+                <button
+                  onClick={() => setShellMode("wsl")}
+                  className={`flex-1 text-xs font-medium rounded px-3 py-1.5 transition-colors ${shellMode === "wsl" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  data-testid="button-shell-wsl"
+                >
+                  WSL2
+                </button>
               </div>
             </div>
           )}
@@ -98,7 +129,11 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
               <div className="flex-1 min-w-0 space-y-1.5">
                 <p className="text-sm font-medium">Install OpenClaw CLI</p>
-                <p className="text-xs text-muted-foreground">Skip if already installed.</p>
+                <p className="text-xs text-muted-foreground">
+                  Skip if already installed.
+                  {isWindows && shellMode === "powershell" && " Run PowerShell as Administrator."}
+                  {isWindows && shellMode === "wsl" && " This runs the installer inside WSL2."}
+                </p>
                 <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
                   <code className="text-xs font-mono break-all" data-testid={`text-install-cmd-${machine.id}`}>{installCmd}</code>
                   <Button size="icon" variant="ghost" onClick={() => copyText(installCmd)} className="shrink-0 h-7 w-7" data-testid={`button-copy-install-${machine.id}`}>
@@ -112,7 +147,7 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
               <div className="flex-1 min-w-0 space-y-1.5">
                 <p className="text-sm font-medium">Quick Connect (one-time)</p>
-                <p className="text-xs text-muted-foreground">Runs the node in the current terminal session.</p>
+                <p className="text-xs text-muted-foreground">Runs the node in the current {shellLabel} session.</p>
                 <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
                   <code className="text-xs font-mono break-all" data-testid={`text-connect-cmd-${machine.id}`}>{exportAndConnect}</code>
                   <Button size="icon" variant="ghost" onClick={() => copyText(exportAndConnect)} className="shrink-0 h-7 w-7" data-testid={`button-copy-connect-${machine.id}`}>
