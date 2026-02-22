@@ -53,7 +53,7 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
   const linuxExportAndConnect = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
   const linuxServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
 
-  const psInstallCmd = `irm https://openclaw.ai/install.ps1 | iex`;
+  const psInstallCmd = `npm install -g openclaw@latest`;
   const psExportAndConnect = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"; openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
   const psServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
 
@@ -130,7 +130,7 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
               <div className="flex-1 min-w-0 space-y-1.5">
                 <p className="text-sm font-medium">Install OpenClaw CLI</p>
                 <p className="text-xs text-muted-foreground">
-                  Skip if already installed.
+                  Skip if already installed. Requires Node.js.
                   {isWindows && shellMode === "powershell" && " Run PowerShell as Administrator."}
                   {isWindows && shellMode === "wsl" && " This runs the installer inside WSL2."}
                 </p>
