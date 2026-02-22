@@ -260,23 +260,35 @@ export const hostinger = {
   },
 
   async listFirewalls(): Promise<HostingerFirewall[]> {
-    const data = await hostingerFetch("/api/vps/v1/firewalls");
+    const data = await hostingerFetch("/api/vps/v1/firewall");
     return Array.isArray(data) ? data : data?.data || [];
   },
 
   async getFirewall(firewallId: number): Promise<HostingerFirewall> {
-    return hostingerFetch(`/api/vps/v1/firewalls/${firewallId}`);
+    return hostingerFetch(`/api/vps/v1/firewall/${firewallId}`);
   },
 
   async createFirewallRule(firewallId: number, rule: { protocol: string; port: string; source: string; source_detail?: string }): Promise<any> {
-    return hostingerFetch(`/api/vps/v1/firewalls/${firewallId}/rules`, {
+    return hostingerFetch(`/api/vps/v1/firewall/${firewallId}/rules`, {
       method: "POST",
       body: JSON.stringify(rule),
     });
   },
 
-  async syncFirewall(firewallId: number): Promise<any> {
-    return hostingerFetch(`/api/vps/v1/firewalls/${firewallId}/sync`, { method: "POST" });
+  async syncFirewall(firewallId: number, virtualMachineId?: number): Promise<any> {
+    if (virtualMachineId) {
+      return hostingerFetch(`/api/vps/v1/firewall/${firewallId}/sync/${virtualMachineId}`, { method: "POST" });
+    }
+    const vms = await this.listVMs();
+    const results = [];
+    for (const vm of vms) {
+      try {
+        const result = await hostingerFetch(`/api/vps/v1/firewall/${firewallId}/sync/${vm.id}`, { method: "POST" });
+        results.push(result);
+      } catch (e) {
+      }
+    }
+    return results.length === 1 ? results[0] : results;
   },
 
   async listBackups(vmId: number): Promise<HostingerBackup[]> {

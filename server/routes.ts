@@ -1923,7 +1923,8 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
   app.post("/api/hostinger/firewalls/:firewallId/sync", requireAuth, async (req, res) => {
     try {
       const { hostinger } = await import("./hostinger");
-      await hostinger.syncFirewall(Number(req.params.firewallId));
+      const vmId = req.body.virtualMachineId ? Number(req.body.virtualMachineId) : undefined;
+      await hostinger.syncFirewall(Number(req.params.firewallId), vmId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(502).json({ error: error.message || "Failed to sync firewall" });
@@ -1972,6 +1973,17 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         ? firewalls.filter((fw: any) => fw.id === targetFirewallId)
         : firewalls;
 
+      let targetVmId: number | undefined;
+      if (targetVmIp) {
+        for (const vm of vms) {
+          const vmIps = vm.ip_addresses?.map((ip: any) => ip.address) || [];
+          if (vmIps.includes(targetVmIp)) {
+            targetVmId = vm.id;
+            break;
+          }
+        }
+      }
+
       const results: Array<{ firewallId: number; firewallName: string; action: string }> = [];
       for (const fw of targetFirewalls) {
         const existing = fw.rules?.find((r: any) => r.port === port && r.protocol === "TCP" && r.source === "any");
@@ -1980,7 +1992,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
           continue;
         }
         await hostinger.createFirewallRule(fw.id, { protocol: "TCP", port, source: "any" });
-        await hostinger.syncFirewall(fw.id);
+        await hostinger.syncFirewall(fw.id, targetVmId);
         results.push({ firewallId: fw.id, firewallName: fw.name, action: "opened_and_synced" });
       }
 
