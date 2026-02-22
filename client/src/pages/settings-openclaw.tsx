@@ -830,8 +830,12 @@ export default function SettingsOpenclaw() {
                   toast({ title: "Gateway Not Reachable", description: "Could not reach the gateway. Check that the gateway is running and ports are open. Try SSH controls below to diagnose.", variant: "destructive" });
                   return;
                 }
-                const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
-                window.open(proxyUrl, "_blank");
+                if (currentInstance?.serverUrl) {
+                  window.open(currentInstance.serverUrl, "_blank");
+                } else {
+                  const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
+                  window.open(proxyUrl, "_blank");
+                }
               }}
               disabled={probeGatewayQuery.isLoading}
               data-testid="button-open-native-dashboard"

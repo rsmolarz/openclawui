@@ -615,9 +615,13 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const body = await resp.text();
 
       const baseUrl = `${workingProto}//${host}:${port}`;
+      const pathDir = canvasPath.endsWith("/") ? canvasPath : canvasPath.substring(0, canvasPath.lastIndexOf("/") + 1);
+      const baseDirUrl = `${baseUrl}${pathDir}`;
       const rewritten = body
         .replace(/(href|src|action)="\/(?!\/)/g, `$1="${baseUrl}/`)
-        .replace(/url\(["']?\/(?!\/)/g, `url("${baseUrl}/`);
+        .replace(/(href|src|action)="\.\/([^"]*)/g, `$1="${baseDirUrl}$2`)
+        .replace(/url\(["']?\/(?!\/)/g, `url("${baseUrl}/`)
+        .replace(/url\(["']?\.\//g, `url("${baseDirUrl}`);
 
       res.send(rewritten);
     } catch (error) {
