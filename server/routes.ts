@@ -571,8 +571,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const port = parseInt(parsedUrl.port) || (config?.gatewayPort ?? 18789);
 
       const rawPath = req.query.path?.toString() || "/";
-      const allowedPrefixes = ["/", "/__openclaw__/", "/assets/"];
-      const canvasPath = allowedPrefixes.some(p => rawPath.startsWith(p)) ? rawPath : "/";
+      const canvasPath = rawPath.startsWith("/") ? rawPath : "/";
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -612,23 +611,39 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       res.setHeader("Content-Type", contentType);
       res.status(resp.status);
 
+      if (!contentType.includes("text") && !contentType.includes("json") && !contentType.includes("javascript") && !contentType.includes("xml") && !contentType.includes("svg")) {
+        const arrayBuf = await resp.arrayBuffer();
+        return res.send(Buffer.from(arrayBuf));
+      }
+
       const body = await resp.text();
 
-      const baseUrl = `${workingProto}//${host}:${port}`;
-      const pathDir = canvasPath.endsWith("/") ? canvasPath : canvasPath.substring(0, canvasPath.lastIndexOf("/") + 1);
-      const baseDirUrl = `${baseUrl}${pathDir}`;
+      const proxyBase = `/api/gateway/canvas?instanceId=${instanceId}&path=`;
+
       let rewritten = body
-        .replace(/(href|src|action)="\/(?!\/)/g, `$1="${baseUrl}/`)
-        .replace(/(href|src|action)="\.\/([^"]*)/g, `$1="${baseDirUrl}$2`)
-        .replace(/url\(["']?\/(?!\/)/g, `url("${baseUrl}/`)
-        .replace(/url\(["']?\.\//g, `url("${baseDirUrl}`);
+        .replace(/\s+crossorigin\b/gi, '')
+        .replace(/(href|src|action)="\/(?!\/)/g, `$1="${proxyBase}/`)
+        .replace(/(href|src|action)="\.\/([^"]*)/g, (_m: string, attr: string, rest: string) => {
+          const pathDir2 = canvasPath.endsWith("/") ? canvasPath : canvasPath.substring(0, canvasPath.lastIndexOf("/") + 1);
+          return `${attr}="${proxyBase}${pathDir2}${rest}`;
+        })
+        .replace(/url\(["']?\/(?!\/)/g, `url("${proxyBase}/`)
+        .replace(/url\(["']?\.\//g, () => {
+          const pathDir2 = canvasPath.endsWith("/") ? canvasPath : canvasPath.substring(0, canvasPath.lastIndexOf("/") + 1);
+          return `url("${proxyBase}${pathDir2}`;
+        });
+
+      if (contentType.includes("javascript") || contentType.includes("css")) {
+        const baseUrl = `${workingProto}//${host}:${port}`;
+        rewritten = rewritten.replace(new RegExp(baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(/[^"\'\\s]*)', 'g'), (_m: string, p: string) => `${proxyBase}${p}`);
+      }
 
       if (contentType.includes("html") && canvasPath === "/") {
         const infoScript = `<script>
 (function(){
   var banner=document.createElement('div');
   banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(90deg,#1e293b,#334155);color:#e2e8f0;padding:6px 16px;font:12px system-ui,sans-serif;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #475569';
-  banner.innerHTML='<span>Read-only preview. For full interactive access, use the SSH tunnel command from your dashboard settings.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>';
+  banner.innerHTML='<span>Read-only preview &mdash; proxied from your VPS. For full interactive access, use the SSH tunnel command from your dashboard settings.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>';
   document.addEventListener('DOMContentLoaded',function(){document.body.prepend(banner)});
 })();
 </script>`;
