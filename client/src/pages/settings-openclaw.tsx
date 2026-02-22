@@ -859,38 +859,36 @@ export default function SettingsOpenclaw() {
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
-              {config?.gatewayToken && (
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-muted-foreground min-w-24">Dashboard URL:</span>
-                  <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate" data-testid="text-dashboard-url">
-                    {(() => {
-                      try {
-                        const u = new URL(currentInstance.serverUrl!);
-                        const p = u.port || config?.gatewayPort || 18789;
-                        return `${u.protocol}//${u.hostname}:${p}/__openclaw__/canvas/ (Bearer auth)`;
-                      } catch { return `${currentInstance.serverUrl}/__openclaw__/canvas/ (Bearer auth)`; }
-                    })()}
-                  </code>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      try {
-                        const u = new URL(currentInstance.serverUrl!);
-                        const p = u.port || config?.gatewayPort || 18789;
-                        const dashUrl = `${u.protocol}//${u.hostname}:${p}/__openclaw__/canvas/`;
-                        navigator.clipboard.writeText(dashUrl);
-                      } catch {
-                        navigator.clipboard.writeText(`${currentInstance.serverUrl}/__openclaw__/canvas/`);
-                      }
-                      toast({ title: "Copied", description: "Canvas URL copied. Requires Bearer token header for auth." });
-                    }}
-                    data-testid="button-copy-dashboard-url"
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-muted-foreground min-w-24">Dashboard URL:</span>
+                <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate" data-testid="text-dashboard-url">
+                  {(() => {
+                    try {
+                      const u = new URL(currentInstance.serverUrl!);
+                      const p = u.port || config?.gatewayPort || 18789;
+                      return `${u.protocol}//${u.hostname}:${p}/`;
+                    } catch { return `${currentInstance.serverUrl}/`; }
+                  })()}
+                  {config?.gatewayToken ? " (Bearer auth)" : ""}
+                </code>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    try {
+                      const u = new URL(currentInstance.serverUrl!);
+                      const p = u.port || config?.gatewayPort || 18789;
+                      navigator.clipboard.writeText(`${u.protocol}//${u.hostname}:${p}/`);
+                    } catch {
+                      navigator.clipboard.writeText(`${currentInstance.serverUrl}/`);
+                    }
+                    toast({ title: "Copied", description: "Dashboard URL copied." });
+                  }}
+                  data-testid="button-copy-dashboard-url"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
               <div className="flex items-center gap-3 text-sm">
                 <span className="text-muted-foreground min-w-24">WebSocket URL:</span>
                 <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate" data-testid="text-websocket-url-display">

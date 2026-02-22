@@ -570,8 +570,9 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       const host = parsedUrl.hostname;
       const port = parseInt(parsedUrl.port) || (config?.gatewayPort ?? 18789);
 
-      const rawPath = req.query.path?.toString() || "/__openclaw__/canvas/";
-      const canvasPath = rawPath.startsWith("/__openclaw__/") ? rawPath : "/__openclaw__/canvas/";
+      const rawPath = req.query.path?.toString() || "/";
+      const allowedPrefixes = ["/", "/__openclaw__/", "/assets/"];
+      const canvasPath = allowedPrefixes.some(p => rawPath.startsWith(p)) ? rawPath : "/";
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
