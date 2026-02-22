@@ -294,6 +294,7 @@ class WhatsAppBot extends EventEmitter {
           const isConnectionLost = statusCode === DisconnectReason.connectionLost;
           const isTimedOut = statusCode === DisconnectReason.timedOut;
           const isBadSession = statusCode === DisconnectReason.badSession;
+          const isConflict = statusCode === 440 || errorMsg.includes("conflict");
 
           console.log(`[WhatsApp] Connection closed: status=${statusCode}, reason="${errorMsg}", loggedOut=${isLoggedOut}`);
 
@@ -301,7 +302,19 @@ class WhatsAppBot extends EventEmitter {
           this.sock = null;
           this.isStarting = false;
 
-          if (isLoggedOut || isBadSession) {
+          if (isConflict) {
+            console.log("[WhatsApp] Conflict detected — another session replaced this one. Stopping to avoid reconnect loop.");
+            this.autoReconnect = false;
+            this.reconnectAttempts = 0;
+            this.status = {
+              state: "disconnected",
+              qrDataUrl: null,
+              pairingCode: null,
+              phone: this.status.phone,
+              error: "Another WhatsApp session replaced this connection. Click Start to reconnect (make sure only one instance is running).",
+            };
+            this.emit("status", this.status);
+          } else if (isLoggedOut || isBadSession) {
             console.log("[WhatsApp] Session invalid — clearing auth state");
             await this.clearAuthState();
             this.reconnectAttempts = 0;
