@@ -1363,56 +1363,186 @@ export default function SettingsOpenclaw() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            {botStatus?.state === "disconnected" || !botStatus ? (
-              <>
+          {botStatus?.state === "connected" && (
+            <div className="rounded-md bg-green-500/10 border border-green-500/20 p-4" data-testid="whatsapp-connected-info">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">WhatsApp Connected</p>
+                  <p className="text-xs text-muted-foreground">
+                    The bot is running{botStatus.phone ? ` on +${botStatus.phone}` : ""}. When someone messages this number, they will receive a pairing code. Approve them in the <strong>Pending Approvals</strong> section below.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => restartBotMutation.mutate()}
+                    disabled={restartBotMutation.isPending}
+                    data-testid="button-restart-bot"
+                  >
+                    <RotateCw className="h-4 w-4 mr-1" />
+                    Restart
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => stopBotMutation.mutate()}
+                    disabled={stopBotMutation.isPending}
+                    data-testid="button-stop-bot"
+                  >
+                    <Square className="h-4 w-4 mr-1" />
+                    Stop
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {botStatus?.error && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
+              <p className="text-sm text-destructive" data-testid="text-bot-error">{botStatus.error}</p>
+            </div>
+          )}
+
+          {botStatus?.state === "connecting" && (
+            <div className="flex flex-col items-center gap-3 p-8 rounded-lg border-2 border-dashed border-muted-foreground/20" data-testid="whatsapp-connecting">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="text-sm font-medium">Connecting to WhatsApp...</p>
+              <p className="text-xs text-muted-foreground">Generating QR code, usually takes 2-3 seconds.</p>
+            </div>
+          )}
+
+          {botStatus?.state === "qr_ready" && botStatus.qrDataUrl && (
+            <div className="flex flex-col items-center gap-4 p-6 rounded-lg border-2 border-primary/30 bg-primary/5" data-testid="whatsapp-qr-display">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <p className="text-sm font-semibold">Scan this QR code with WhatsApp</p>
+              </div>
+              <div className="bg-white p-3 rounded-xl shadow-lg">
+                <img
+                  src={botStatus.qrDataUrl}
+                  alt="WhatsApp QR Code"
+                  className="rounded-md"
+                  style={{ width: 280, height: 280 }}
+                  data-testid="img-whatsapp-qr"
+                />
+              </div>
+              <div className="text-xs text-muted-foreground text-center max-w-sm space-y-1">
+                <p>Open <strong>WhatsApp</strong> on your phone</p>
+                <p><strong>Settings</strong> → <strong>Linked Devices</strong> → <strong>Link a Device</strong></p>
+                <p>Point your camera at this QR code</p>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <Button variant="outline" size="sm" onClick={() => restartBotMutation.mutate()} disabled={restartBotMutation.isPending} data-testid="button-refresh-qr">
+                  <RotateCw className="h-4 w-4 mr-1" />
+                  New QR Code
+                </Button>
+                <button className="text-xs underline text-primary" onClick={() => { stopBotMutation.mutate(); setShowPairingForm(true); }} data-testid="button-switch-to-pairing">
+                  Link with phone number instead
+                </button>
+              </div>
+            </div>
+          )}
+
+          {botStatus?.state === "pairing_code_ready" && botStatus.pairingCode && (
+            <div className="flex flex-col items-center gap-4 p-6 rounded-lg border-2 border-primary/30 bg-primary/5" data-testid="pairing-code-display">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <p className="text-sm font-semibold">Enter this code in WhatsApp</p>
+              </div>
+              <div className="text-5xl font-mono font-bold tracking-[0.3em] select-all bg-white dark:bg-muted px-6 py-4 rounded-xl shadow-lg" data-testid="text-pairing-code">
+                {botStatus.pairingCode}
+              </div>
+              <div className="text-xs text-muted-foreground text-center max-w-sm space-y-1">
+                <p>On your phone: <strong>WhatsApp</strong> → <strong>Settings</strong> → <strong>Linked Devices</strong></p>
+                <p>Tap <strong>Link a Device</strong> → <strong>Link with phone number instead</strong></p>
+                <p>Type the code shown above</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => restartBotMutation.mutate()} disabled={restartBotMutation.isPending} data-testid="button-refresh-pairing">
+                <RotateCw className="h-4 w-4 mr-1" />
+                Get New Code
+              </Button>
+            </div>
+          )}
+
+          {showPairingForm && (botStatus?.state === "disconnected" || botStatus?.state === "connecting" || !botStatus) && (
+            <div className="rounded-lg border-2 border-dashed border-muted-foreground/20 p-6 space-y-3" data-testid="pairing-phone-form">
+              <p className="text-sm font-semibold">Enter your WhatsApp phone number</p>
+              <p className="text-xs text-muted-foreground">
+                Use international format without the + sign (e.g. <strong>48123456789</strong> for Poland, <strong>13405140344</strong> for US)
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="13405140344"
+                  value={pairingPhoneInput}
+                  onChange={(e) => setPairingPhoneInput(e.target.value)}
+                  className="max-w-xs"
+                  data-testid="input-pairing-phone"
+                />
                 <Button
+                  onClick={() => {
+                    if (pairingPhoneInput.trim()) {
+                      pairWithPhoneMutation.mutate(pairingPhoneInput.trim());
+                    }
+                  }}
+                  disabled={!pairingPhoneInput.trim() || pairWithPhoneMutation.isPending}
+                  data-testid="button-submit-pairing"
+                >
+                  {pairWithPhoneMutation.isPending ? "Requesting..." : "Get Pairing Code"}
+                </Button>
+              </div>
+              <button className="text-xs underline text-primary" onClick={() => { setShowPairingForm(false); }} data-testid="button-back-to-qr">
+                Back to QR Code option
+              </button>
+            </div>
+          )}
+
+          {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && !showPairingForm && (
+            <div className="space-y-4">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                <button
                   onClick={() => startBotMutation.mutate()}
                   disabled={startBotMutation.isPending || pairWithPhoneMutation.isPending}
+                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="button-start-bot"
                 >
-                  <Play className="h-4 w-4 mr-2" />
-                  {startBotMutation.isPending ? "Starting..." : "Start Bot (QR)"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowPairingForm(!showPairingForm)}
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                    {startBotMutation.isPending ? (
+                      <Loader2 className="h-7 w-7 text-primary animate-spin" />
+                    ) : (
+                      <MessageSquare className="h-7 w-7 text-primary" />
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold">{startBotMutation.isPending ? "Generating QR..." : "Generate QR Code"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Scan with your phone camera</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setShowPairingForm(true)}
                   disabled={pairWithPhoneMutation.isPending}
+                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="button-pair-phone"
                 >
-                  <Smartphone className="h-4 w-4 mr-2" />
-                  Link with Phone Number
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="destructive"
-                  onClick={() => stopBotMutation.mutate()}
-                  disabled={stopBotMutation.isPending}
-                  data-testid="button-stop-bot"
-                >
-                  <Square className="h-4 w-4 mr-2" />
-                  {stopBotMutation.isPending ? "Stopping..." : "Stop Bot"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => restartBotMutation.mutate()}
-                  disabled={restartBotMutation.isPending}
-                  data-testid="button-restart-bot"
-                >
-                  <RotateCw className="h-4 w-4 mr-2" />
-                  Restart
-                </Button>
-              </>
-            )}
-            {botStatus?.phone && (
-              <div className="flex items-center gap-2 ml-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground" data-testid="text-bot-phone">+{botStatus.phone}</span>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                    <Smartphone className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold">Link with Phone Number</p>
+                    <p className="text-xs text-muted-foreground mt-1">Enter a pairing code manually</p>
+                  </div>
+                </button>
               </div>
-            )}
-          </div>
+              <div className="rounded-md bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground text-center">
+                  In WhatsApp: <strong>Settings</strong> → <strong>Linked Devices</strong> → <strong>Link a Device</strong>
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-md border p-4 space-y-2" data-testid="whatsapp-phone-config">
             <Label htmlFor="whatsappPhone" className="text-sm font-medium">Bot Phone Number</Label>
@@ -1437,101 +1567,6 @@ export default function SettingsOpenclaw() {
               </Button>
             </div>
           </div>
-
-          {botStatus?.state === "connecting" && (
-            <div className="flex flex-col items-center gap-3 p-6 rounded-md bg-muted/50" data-testid="whatsapp-connecting">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground font-medium">Connecting to WhatsApp...</p>
-              <p className="text-xs text-muted-foreground">Waiting for QR code or pairing code. This usually takes a few seconds.</p>
-            </div>
-          )}
-
-          {showPairingForm && (botStatus?.state === "disconnected" || botStatus?.state === "connecting" || !botStatus) && (
-            <div className="rounded-md border p-4 space-y-3" data-testid="pairing-phone-form">
-              <p className="text-sm font-medium">Enter your WhatsApp phone number</p>
-              <p className="text-xs text-muted-foreground">
-                Use international format without the + sign (e.g. <strong>48123456789</strong> for Poland, <strong>13405140344</strong> for US)
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="13405140344"
-                  value={pairingPhoneInput}
-                  onChange={(e) => setPairingPhoneInput(e.target.value)}
-                  className="max-w-xs"
-                  data-testid="input-pairing-phone"
-                />
-                <Button
-                  onClick={() => {
-                    if (pairingPhoneInput.trim()) {
-                      pairWithPhoneMutation.mutate(pairingPhoneInput.trim());
-                    }
-                  }}
-                  disabled={!pairingPhoneInput.trim() || pairWithPhoneMutation.isPending}
-                  data-testid="button-submit-pairing"
-                >
-                  {pairWithPhoneMutation.isPending ? "Requesting..." : "Get Pairing Code"}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && !showPairingForm && (
-            <div className="rounded-md bg-muted/50 p-4 space-y-2" data-testid="whatsapp-setup-guide">
-              <p className="text-sm font-medium">How to connect WhatsApp:</p>
-              <div className="text-sm text-muted-foreground space-y-2">
-                <p><strong>Option 1 — QR Code:</strong> Click <strong>Start Bot (QR)</strong>, then scan the QR code with WhatsApp.</p>
-                <p><strong>Option 2 — Phone Number (recommended):</strong> Click <strong>Link with Phone Number</strong>, enter your number, and type the pairing code into WhatsApp.</p>
-                <p className="text-xs mt-2">In WhatsApp: <strong>Settings</strong> → <strong>Linked Devices</strong> → <strong>Link a Device</strong> → <strong>Link with phone number instead</strong></p>
-              </div>
-            </div>
-          )}
-
-          {botStatus?.state === "connected" && (
-            <div className="rounded-md bg-muted/50 p-3" data-testid="whatsapp-connected-info">
-              <p className="text-sm text-muted-foreground">
-                The bot is running. When someone messages this WhatsApp number, they will receive a pairing code. Approve them in the <strong>Pending Approvals</strong> section below to grant AI access.
-              </p>
-            </div>
-          )}
-
-          {botStatus?.error && (
-            <div className="rounded-md bg-destructive/10 p-3">
-              <p className="text-sm text-destructive" data-testid="text-bot-error">{botStatus.error}</p>
-            </div>
-          )}
-
-          {botStatus?.state === "pairing_code_ready" && botStatus.pairingCode && (
-            <div className="flex flex-col items-center gap-3 p-6 rounded-md bg-muted/50" data-testid="pairing-code-display">
-              <p className="text-sm text-muted-foreground font-medium">Enter this code in WhatsApp</p>
-              <div className="text-4xl font-mono font-bold tracking-widest select-all" data-testid="text-pairing-code">
-                {botStatus.pairingCode}
-              </div>
-              <div className="text-xs text-muted-foreground text-center max-w-sm space-y-1">
-                <p>On your phone, open <strong>WhatsApp</strong> → <strong>Settings</strong> → <strong>Linked Devices</strong></p>
-                <p>Tap <strong>Link a Device</strong> → <strong>Link with phone number instead</strong></p>
-                <p>Type the code shown above to complete linking</p>
-              </div>
-            </div>
-          )}
-
-          {botStatus?.state === "qr_ready" && botStatus.qrDataUrl && (
-            <div className="flex flex-col items-center gap-3 p-4 rounded-md bg-muted/50" data-testid="whatsapp-qr-display">
-              <p className="text-sm text-muted-foreground font-medium">Scan this QR code with WhatsApp</p>
-              <img
-                src={botStatus.qrDataUrl}
-                alt="WhatsApp QR Code"
-                className="rounded-md border"
-                style={{ width: 260, height: 260 }}
-                data-testid="img-whatsapp-qr"
-              />
-              <p className="text-xs text-muted-foreground text-center max-w-xs">
-                Open WhatsApp on your phone → <strong>Settings</strong> → <strong>Linked Devices</strong> → scan this QR code.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                QR not working? <button className="underline text-primary" onClick={() => { stopBotMutation.mutate(); setShowPairingForm(true); }} data-testid="button-switch-to-pairing">Try linking with phone number instead</button>
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 

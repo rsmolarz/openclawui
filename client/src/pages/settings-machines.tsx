@@ -51,15 +51,15 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
 
   const linuxInstallCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
   const linuxExportAndConnect = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
-  const linuxServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
+  const linuxServiceInstall = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"`;
 
   const psInstallCmd = `npm install -g openclaw@latest --ignore-scripts`;
   const psExportAndConnect = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"\nopenclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
-  const psServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"`;
+  const psServiceInstall = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"\nopenclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"`;
 
   const wslInstallCmd = `wsl -e bash -c "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard"`;
   const wslExportAndConnect = `wsl -e bash -c 'export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}'`;
-  const wslServiceInstall = `wsl -e bash -c 'openclaw node install --host ${gatewayHost} --port ${gatewayPort} --token "${gatewayToken}"'`;
+  const wslServiceInstall = `wsl -e bash -c 'export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"'`;
 
   const installCmd = isWindows ? (shellMode === "powershell" ? psInstallCmd : wslInstallCmd) : linuxInstallCmd;
   const exportAndConnect = isWindows ? (shellMode === "powershell" ? psExportAndConnect : wslExportAndConnect) : linuxExportAndConnect;
