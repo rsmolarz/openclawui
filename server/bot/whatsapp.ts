@@ -552,6 +552,19 @@ class WhatsAppBot extends EventEmitter {
     await this.start();
   }
 
+  async logout(): Promise<void> {
+    await this.stop();
+    await this.clearAuthState();
+    console.log("[WhatsApp] Logged out — auth state cleared. Ready for fresh QR.");
+  }
+
+  async startFresh(): Promise<void> {
+    await this.stop();
+    await this.clearAuthState();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await this.start();
+  }
+
   isConnected(): boolean {
     return this.status.state === "connected";
   }

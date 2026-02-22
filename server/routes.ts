@@ -1726,6 +1726,37 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
     }
   });
 
+  app.post("/api/whatsapp/logout", async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (instanceId) {
+        await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: false });
+      }
+      const bot = await getWhatsappBot();
+      await bot.logout();
+      res.json({ success: true, message: "WhatsApp session cleared. You can now generate a fresh QR code." });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to logout WhatsApp" });
+    }
+  });
+
+  app.post("/api/whatsapp/start-fresh", async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (instanceId) {
+        const config = await storage.getOpenclawConfig(instanceId);
+        if (!config?.whatsappEnabled) {
+          await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: true });
+        }
+      }
+      const bot = await getWhatsappBot();
+      await bot.startFresh();
+      res.json({ success: true, message: "Starting fresh WhatsApp connection..." });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to start fresh WhatsApp connection" });
+    }
+  });
+
   app.get("/api/whatsapp/sessions", requireAuth, async (_req, res) => {
     try {
       const sessions = await storage.getAllWhatsappSessions();

@@ -399,11 +399,11 @@ export default function SettingsOpenclaw() {
 
   const startBotMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/whatsapp/start");
+      await apiRequest("POST", "/api/whatsapp/start-fresh");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/status"] });
-      toast({ title: "Bot starting", description: "WhatsApp bot is connecting..." });
+      toast({ title: "Bot starting", description: "Generating fresh QR code..." });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to start bot.", variant: "destructive" });
