@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
@@ -380,7 +380,11 @@ export default function SettingsOpenclaw() {
 
   const { data: botStatus, isLoading: botStatusLoading } = useQuery<BotStatus>({
     queryKey: ["/api/whatsapp/status"],
-    refetchInterval: 3000,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      if (state === "connecting" || state === "qr_ready" || state === "pairing_code_ready") return 1500;
+      return 3000;
+    },
   });
 
   const { data: whatsappSessions } = useQuery<WhatsappSession[]>({
@@ -1434,15 +1438,23 @@ export default function SettingsOpenclaw() {
             </div>
           </div>
 
-          {showPairingForm && (botStatus?.state === "disconnected" || !botStatus) && (
+          {botStatus?.state === "connecting" && (
+            <div className="flex flex-col items-center gap-3 p-6 rounded-md bg-muted/50" data-testid="whatsapp-connecting">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground font-medium">Connecting to WhatsApp...</p>
+              <p className="text-xs text-muted-foreground">Waiting for QR code or pairing code. This usually takes a few seconds.</p>
+            </div>
+          )}
+
+          {showPairingForm && (botStatus?.state === "disconnected" || botStatus?.state === "connecting" || !botStatus) && (
             <div className="rounded-md border p-4 space-y-3" data-testid="pairing-phone-form">
               <p className="text-sm font-medium">Enter your WhatsApp phone number</p>
               <p className="text-xs text-muted-foreground">
-                Use international format without the + sign (e.g. <strong>48123456789</strong> for Poland, <strong>1234567890</strong> for US)
+                Use international format without the + sign (e.g. <strong>48123456789</strong> for Poland, <strong>13405140344</strong> for US)
               </p>
               <div className="flex gap-2">
                 <Input
-                  placeholder="48123456789"
+                  placeholder="13405140344"
                   value={pairingPhoneInput}
                   onChange={(e) => setPairingPhoneInput(e.target.value)}
                   className="max-w-xs"
@@ -1452,7 +1464,6 @@ export default function SettingsOpenclaw() {
                   onClick={() => {
                     if (pairingPhoneInput.trim()) {
                       pairWithPhoneMutation.mutate(pairingPhoneInput.trim());
-                      setShowPairingForm(false);
                     }
                   }}
                   disabled={!pairingPhoneInput.trim() || pairWithPhoneMutation.isPending}
@@ -1504,7 +1515,7 @@ export default function SettingsOpenclaw() {
           )}
 
           {botStatus?.state === "qr_ready" && botStatus.qrDataUrl && (
-            <div className="flex flex-col items-center gap-3 p-4 rounded-md bg-muted/50">
+            <div className="flex flex-col items-center gap-3 p-4 rounded-md bg-muted/50" data-testid="whatsapp-qr-display">
               <p className="text-sm text-muted-foreground font-medium">Scan this QR code with WhatsApp</p>
               <img
                 src={botStatus.qrDataUrl}
