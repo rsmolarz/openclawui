@@ -49,6 +49,7 @@ const settingsItems = [
 
 const infraItems = [
   { title: "Instances", url: "/settings/instances", icon: Layers },
+  { title: "Dashboard", url: "/settings/dashboard", icon: LayoutDashboard },
   { title: "VPS Monitoring", url: "/vps-monitor", icon: Activity },
   { title: "VPS Connection", url: "/settings/vps", icon: Server },
   { title: "OpenClaw Config", url: "/settings/openclaw", icon: Cog },
