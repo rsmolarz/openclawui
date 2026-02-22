@@ -130,12 +130,13 @@ app.use((req, res, next) => {
     const config = firstInstance ? await storage.getOpenclawConfig(String(firstInstance.id)) : undefined;
     if (config?.whatsappEnabled) {
       const { whatsappBot } = await import("./bot/whatsapp");
-      if (whatsappBot.hasAuthState()) {
-        console.log("[OpenClaw] WhatsApp is enabled and has auth state, reconnecting bot...");
+      const hasSession = await whatsappBot.checkAndLoadAuthState();
+      if (hasSession) {
+        console.log("[OpenClaw] WhatsApp has existing session, auto-reconnecting...");
+        whatsappBot.start();
       } else {
-        console.log("[OpenClaw] WhatsApp is enabled, starting bot for QR pairing...");
+        console.log("[OpenClaw] WhatsApp enabled but no session found. Waiting for user to pair via dashboard.");
       }
-      whatsappBot.start();
     }
   } catch (err) {
     console.error("[OpenClaw] Failed to auto-start WhatsApp bot:", err);

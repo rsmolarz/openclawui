@@ -6,24 +6,38 @@ import { waAuthState } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 async function dbGet(key: string): Promise<any | null> {
-  const rows = await db.select().from(waAuthState).where(eq(waAuthState.key, key));
-  if (rows.length === 0) return null;
-  return JSON.parse(rows[0].value, BufferJSON.reviver);
+  try {
+    const rows = await db.select().from(waAuthState).where(eq(waAuthState.key, key));
+    if (rows.length === 0) return null;
+    return JSON.parse(rows[0].value, BufferJSON.reviver);
+  } catch (err) {
+    console.error(`[WhatsApp Auth] Failed to read key "${key}":`, err);
+    return null;
+  }
 }
 
 async function dbSet(key: string, value: any): Promise<void> {
-  const serialized = JSON.stringify(value, BufferJSON.replacer);
-  await db
-    .insert(waAuthState)
-    .values({ key, value: serialized, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: waAuthState.key,
-      set: { value: serialized, updatedAt: new Date() },
-    });
+  try {
+    const serialized = JSON.stringify(value, BufferJSON.replacer);
+    await db
+      .insert(waAuthState)
+      .values({ key, value: serialized, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: waAuthState.key,
+        set: { value: serialized, updatedAt: new Date() },
+      });
+  } catch (err) {
+    console.error(`[WhatsApp Auth] Failed to write key "${key}":`, err);
+    throw err;
+  }
 }
 
 async function dbDelete(key: string): Promise<void> {
-  await db.delete(waAuthState).where(eq(waAuthState.key, key));
+  try {
+    await db.delete(waAuthState).where(eq(waAuthState.key, key));
+  } catch (err) {
+    console.error(`[WhatsApp Auth] Failed to delete key "${key}":`, err);
+  }
 }
 
 export async function useDbAuthState(): Promise<{
@@ -31,7 +45,17 @@ export async function useDbAuthState(): Promise<{
   saveCreds: () => Promise<void>;
   clearAll: () => Promise<void>;
 }> {
-  const creds: AuthenticationCreds = (await dbGet("creds")) || initAuthCreds();
+  const existingCreds = await dbGet("creds");
+  const creds: AuthenticationCreds = existingCreds || initAuthCreds();
+  const isNewSession = !existingCreds;
+
+  if (isNewSession) {
+    console.log("[WhatsApp Auth] No existing credentials found, initialized new session");
+  } else {
+    console.log("[WhatsApp Auth] Loaded existing credentials from database");
+  }
+
+  let saveCount = 0;
 
   return {
     state: {
@@ -52,35 +76,51 @@ export async function useDbAuthState(): Promise<{
           return data;
         },
         set: async (data: any) => {
+          const ops: Promise<void>[] = [];
           for (const category in data) {
             for (const id in data[category]) {
               const value = data[category][id];
               const key = `${category}-${id}`;
               if (value) {
-                await dbSet(key, value);
+                ops.push(dbSet(key, value));
               } else {
-                await dbDelete(key);
+                ops.push(dbDelete(key));
               }
             }
           }
+          await Promise.all(ops);
         },
       },
     },
     saveCreds: async () => {
-      await dbSet("creds", creds);
+      saveCount++;
+      try {
+        await dbSet("creds", creds);
+        if (saveCount <= 3 || saveCount % 10 === 0) {
+          console.log(`[WhatsApp Auth] Credentials saved to database (save #${saveCount})`);
+        }
+      } catch (err) {
+        console.error(`[WhatsApp Auth] CRITICAL: Failed to save credentials (save #${saveCount}):`, err);
+      }
     },
     clearAll: async () => {
       await db.delete(waAuthState);
+      console.log("[WhatsApp Auth] All auth state cleared from database");
     },
   };
 }
 
 export async function hasDbAuthState(): Promise<boolean> {
-  const rows = await db.select().from(waAuthState).where(eq(waAuthState.key, "creds"));
-  return rows.length > 0;
+  try {
+    const rows = await db.select().from(waAuthState).where(eq(waAuthState.key, "creds"));
+    return rows.length > 0;
+  } catch (err) {
+    console.error("[WhatsApp Auth] Failed to check auth state:", err);
+    return false;
+  }
 }
 
 export async function clearAllDbAuthState(): Promise<void> {
   await db.delete(waAuthState);
-  console.log("[WhatsApp] All auth state cleared from database");
+  console.log("[WhatsApp Auth] All auth state cleared from database");
 }

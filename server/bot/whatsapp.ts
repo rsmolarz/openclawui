@@ -47,6 +47,10 @@ class WhatsAppBot extends EventEmitter {
     return this._hasDbAuth;
   }
 
+  async checkAndLoadAuthState(): Promise<boolean> {
+    return this.checkDbAuth();
+  }
+
   private _hasDbAuth = false;
 
   private async checkDbAuth(): Promise<boolean> {
