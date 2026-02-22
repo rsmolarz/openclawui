@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network, Link2 } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network, Link2, Zap, Server } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
@@ -347,6 +347,122 @@ function NodeCard({
   );
 }
 
+interface LiveStatusData {
+  gateway: "online" | "offline" | "error" | "unknown";
+  paired: Array<{ id: string; hostname?: string; name?: string; ip?: string; os?: string }>;
+  pending: Array<{ id: string; hostname?: string; name?: string; ip?: string; os?: string }>;
+  pairedCount: number;
+  pendingCount: number;
+  error?: string;
+}
+
+function LiveGatewayBanner({ instanceId }: { instanceId: string | null }) {
+  const { toast } = useToast();
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+
+  const { data: liveStatus, isLoading: liveLoading, isFetching: liveFetching, refetch: refetchLive } = useQuery<LiveStatusData>({
+    queryKey: ["/api/nodes/live-status", instanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/nodes/live-status?instanceId=${instanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) throw new Error("Failed to check gateway");
+      const data = await resp.json();
+      setLastChecked(new Date());
+      return data;
+    },
+    enabled: !!instanceId,
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+
+  const handleRefresh = async () => {
+    try {
+      await refetchLive();
+      queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nodes/paired", instanceId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nodes/pending", instanceId] });
+      toast({ title: "Status refreshed", description: "Node statuses synced with the live gateway." });
+    } catch {
+      toast({ title: "Refresh failed", description: "Could not reach the gateway server.", variant: "destructive" });
+    }
+  };
+
+  if (!instanceId) return null;
+
+  const isOnline = liveStatus?.gateway === "online";
+  const isOffline = liveStatus?.gateway === "offline";
+
+  return (
+    <Card className={`border-2 ${isOnline ? "border-green-500/30 bg-green-500/5" : isOffline ? "border-red-500/30 bg-red-500/5" : "border-muted"}`} data-testid="card-live-gateway-status">
+      <CardContent className="pt-5 pb-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isOnline ? "bg-green-500/20" : isOffline ? "bg-red-500/20" : "bg-muted"}`}>
+              {liveLoading || liveFetching ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : isOnline ? (
+                <Zap className="h-5 w-5 text-green-600 dark:text-green-400" />
+              ) : isOffline ? (
+                <WifiOff className="h-5 w-5 text-red-600 dark:text-red-400" />
+              ) : (
+                <Server className="h-5 w-5 text-muted-foreground" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold" data-testid="text-gateway-status">
+                  {liveLoading ? "Checking gateway..." : isOnline ? "Gateway Online" : isOffline ? "Gateway Offline" : "Gateway Status Unknown"}
+                </h3>
+                {isOnline && (
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                {liveStatus && !liveLoading && (
+                  <>
+                    <span className="text-xs text-muted-foreground" data-testid="text-live-paired">
+                      <strong>{liveStatus.pairedCount}</strong> paired node{liveStatus.pairedCount !== 1 ? "s" : ""}
+                    </span>
+                    {liveStatus.pendingCount > 0 && (
+                      <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/50" data-testid="badge-live-pending">
+                        {liveStatus.pendingCount} pending
+                      </Badge>
+                    )}
+                    {lastChecked && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Checked {lastChecked.toLocaleTimeString()}
+                      </span>
+                    )}
+                  </>
+                )}
+                {liveStatus?.error && (
+                  <span className="text-xs text-red-500">{liveStatus.error}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <Button
+            variant={isOnline ? "outline" : "default"}
+            size="sm"
+            onClick={handleRefresh}
+            disabled={liveFetching}
+            data-testid="button-refresh-live-status"
+          >
+            {liveFetching ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {liveFetching ? "Checking..." : "Refresh Live Status"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
   const { toast } = useToast();
 
@@ -457,14 +573,10 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
             <div className="flex-1 min-w-0 space-y-1.5">
               <p className="text-sm text-muted-foreground">
-                <strong>Approve the node</strong> from the native dashboard — it will appear as pending automatically.
+                <strong>Approve the node</strong> — it will appear in the "Pending Node Approvals" section below. Click <strong>Approve</strong> to add it to your network.
               </p>
               <p className="text-xs text-muted-foreground">
-                Open your{" "}
-                <Link href="/settings/openclaw" className="text-primary underline-offset-4 hover:underline">
-                  native dashboard
-                </Link>{" "}
-                to approve pending nodes.
+                Pending nodes are detected automatically. Hit <strong>Refresh Live Status</strong> above if you don't see it right away.
               </p>
             </div>
           </div>
@@ -915,6 +1027,8 @@ export default function SettingsMachines() {
         </Dialog>
         </div>
       </div>
+
+      <LiveGatewayBanner instanceId={selectedInstanceId} />
 
       <QuickStartGuide instanceId={selectedInstanceId} />
 

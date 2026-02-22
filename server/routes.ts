@@ -1454,6 +1454,79 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
     }
   });
 
+  app.get("/api/nodes/live-status", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json({ gateway: "unknown", paired: [], pending: [], error: "No instance" });
+
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps?.vpsIp) return res.json({ gateway: "unknown", paired: [], pending: [], error: "No VPS configured" });
+
+      const { executeSSHCommand, executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+
+      const statusCmd = "ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep 18789 || echo 'not-listening'";
+      const statusResult = await executeRawSSHCommand(statusCmd, sshConfig);
+      const gatewayRunning = statusResult.success && statusResult.output && !statusResult.output.includes("not-listening") && statusResult.output.includes("openclaw");
+
+      let paired: any[] = [];
+      let pending: any[] = [];
+      try {
+        const pairedResult = await executeSSHCommand("list-paired-nodes", sshConfig);
+        if (pairedResult.success && pairedResult.output) {
+          try {
+            let parsed = JSON.parse(pairedResult.output.trim());
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+            if (Array.isArray(parsed)) {
+              paired = parsed.map((n: any, idx: number) => {
+                if (typeof n === "string") return { id: n, hostname: n };
+                return { id: n.id || n.hostname || `node-${idx}`, ...n };
+              });
+            }
+          } catch {}
+        }
+      } catch {}
+
+      try {
+        const pendingResult = await executeSSHCommand("list-pending-nodes", sshConfig);
+        if (pendingResult.success && pendingResult.output) {
+          try {
+            let parsed = JSON.parse(pendingResult.output.trim());
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+            if (Array.isArray(parsed)) {
+              pending = parsed.map((n: any, idx: number) => {
+                if (typeof n === "string") return { id: n, hostname: n };
+                return { id: n.id || n.hostname || `node-${idx}`, ...n };
+              });
+            }
+          } catch {}
+        }
+      } catch {}
+
+      if (paired.length > 0) {
+        const machines = await storage.getMachines();
+        const pairedIds = new Set(paired.map((n: any) => (n.hostname || n.id || "").toLowerCase()));
+        for (const m of machines) {
+          const mHost = (m.hostname || m.name || "").toLowerCase();
+          if (mHost && pairedIds.has(mHost) && m.status !== "connected") {
+            await storage.updateMachine(m.id, { status: "connected" });
+          }
+        }
+      }
+
+      res.json({
+        gateway: gatewayRunning ? "online" : "offline",
+        paired,
+        pending,
+        pairedCount: paired.length,
+        pendingCount: pending.length,
+        gatewayProcess: gatewayRunning,
+      });
+    } catch (error: any) {
+      res.status(500).json({ gateway: "error", paired: [], pending: [], error: error.message });
+    }
+  });
+
   app.get("/api/llm-api-keys", requireAuth, async (_req, res) => {
     try {
       const keys = await storage.getLlmApiKeys();

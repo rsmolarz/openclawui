@@ -820,25 +820,38 @@ export default function SettingsOpenclaw() {
                 Native OpenClaw Dashboard
               </CardTitle>
               <CardDescription>
-                View your gateway dashboard. The proxied view shows the UI layout; for full interactive access, use the SSH tunnel below.
+                Access your gateway's native dashboard. The dashboard requires a secure context (localhost), so use the SSH tunnel command to open it locally.
               </CardDescription>
             </div>
-            <Button
-              variant={probeGatewayQuery.data?.reachable ? "default" : "outline"}
-              onClick={() => {
-                if (!probeGatewayQuery.data?.reachable && !httpProbeQuery.data?.reachable) {
-                  toast({ title: "Gateway Not Reachable", description: "Could not reach the gateway. Check that the gateway is running and ports are open. Try SSH controls below to diagnose.", variant: "destructive" });
-                  return;
-                }
-                const proxyUrl = `/api/gateway/canvas?instanceId=${selectedInstanceId}`;
-                window.open(proxyUrl, "_blank");
-              }}
-              disabled={probeGatewayQuery.isLoading}
-              data-testid="button-open-native-dashboard"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              {probeGatewayQuery.data?.reachable ? "Open Dashboard" : "Dashboard (Offline)"}
-            </Button>
+            <div className="flex items-center gap-2">
+              {probeGatewayQuery.data?.reachable ? (
+                <Badge variant="default" className="bg-green-600 text-white" data-testid="badge-gateway-status">
+                  <span className="relative flex h-2 w-2 mr-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" /></span>
+                  Reachable
+                </Badge>
+              ) : (
+                <Badge variant="destructive" data-testid="badge-gateway-status">Offline</Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  try {
+                    const u = new URL(currentInstance.serverUrl!);
+                    const p = u.port || config?.gatewayPort || 18789;
+                    const cmd = `ssh -L ${p}:localhost:${p} root@${u.hostname}`;
+                    navigator.clipboard.writeText(cmd);
+                    toast({ title: "SSH Tunnel Command Copied", description: "Run this in your terminal, then open localhost:" + p + " in your browser for full dashboard access." });
+                  } catch {
+                    toast({ title: "Error", description: "Could not generate SSH command.", variant: "destructive" });
+                  }
+                }}
+                data-testid="button-copy-ssh-quick"
+              >
+                <Terminal className="h-3.5 w-3.5 mr-1.5" />
+                Copy SSH Tunnel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-3">
