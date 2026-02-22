@@ -115,6 +115,9 @@ const CORRECT_VPS_IP = "72.60.167.64";
 const CORRECT_SERVER_URL = `http://${CORRECT_VPS_IP}:18789`;
 const CORRECT_WS_URL = `ws://${CORRECT_VPS_IP}:18789`;
 
+const DOCKER_INSTANCE_NAME = "Hostinger Docker (OpenClaw)";
+const DOCKER_SERVER_URL = `http://${CORRECT_VPS_IP}:45002`;
+
 async function ensureDefaultInstance(): Promise<string> {
   const existing = await db.select().from(openclawInstances).where(eq(openclawInstances.isDefault, true));
   if (existing.length > 0) {
@@ -135,6 +138,57 @@ async function ensureDefaultInstance(): Promise<string> {
     isDefault: true,
   }).returning();
   console.log("Created default OpenClaw instance:", instance.id);
+  return instance.id;
+}
+
+async function ensureDockerInstance(): Promise<string | null> {
+  const existing = await db.select().from(openclawInstances).where(eq(openclawInstances.name, DOCKER_INSTANCE_NAME));
+  if (existing.length > 0) {
+    const inst = existing[0];
+    if (inst.serverUrl !== DOCKER_SERVER_URL) {
+      await db.update(openclawInstances)
+        .set({ serverUrl: DOCKER_SERVER_URL })
+        .where(eq(openclawInstances.id, inst.id));
+      console.log(`[Seed] Corrected Docker instance serverUrl to ${DOCKER_SERVER_URL}`);
+    }
+    return inst.id;
+  }
+  const [instance] = await db.insert(openclawInstances).values({
+    name: DOCKER_INSTANCE_NAME,
+    description: "Hostinger-managed OpenClaw Docker container on port 45002",
+    serverUrl: DOCKER_SERVER_URL,
+    status: "online",
+    isDefault: false,
+  }).returning();
+  console.log("[Seed] Created Docker OpenClaw instance:", instance.id);
+
+  await db.insert(vpsConnections).values({
+    instanceId: instance.id,
+    vpsIp: CORRECT_VPS_IP,
+    vpsPort: 22,
+    sshUser: "root",
+    isConnected: true,
+  });
+
+  await db.insert(openclawConfig).values({
+    instanceId: instance.id,
+    gatewayPort: 45002,
+    gatewayBind: "lan",
+    gatewayMode: "docker",
+    gatewayStatus: "online",
+    websocketUrl: `ws://${CORRECT_VPS_IP}:45002`,
+    dockerProject: "openclaw-nnfs",
+  });
+
+  await db.insert(dockerServices).values({
+    instanceId: instance.id,
+    serviceName: "openclaw-nnfs-openclaw-1",
+    status: "running",
+    port: 45002,
+    image: "ghcr.io/hostinger/hvps-openclaw:latest",
+  });
+
+  console.log("[Seed] Seeded VPS, config, and docker data for Docker instance");
   return instance.id;
 }
 
@@ -170,6 +224,7 @@ async function correctVpsData(defaultInstanceId: string) {
 
 export async function seed() {
   const defaultInstanceId = await ensureDefaultInstance();
+  await ensureDockerInstance();
   await backfillInstanceIds(defaultInstanceId);
   await correctVpsData(defaultInstanceId);
   await seedIntegrations();
