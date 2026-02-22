@@ -133,7 +133,12 @@ app.use((req, res, next) => {
       const hasSession = await whatsappBot.checkAndLoadAuthState();
       if (hasSession) {
         console.log("[OpenClaw] WhatsApp has existing session, auto-reconnecting...");
-        whatsappBot.start();
+        try {
+          await whatsappBot.start();
+          console.log("[OpenClaw] WhatsApp auto-reconnect initiated successfully");
+        } catch (startErr) {
+          console.error("[OpenClaw] WhatsApp auto-reconnect failed:", startErr);
+        }
       } else {
         console.log("[OpenClaw] WhatsApp enabled but no session found. Waiting for user to pair via dashboard.");
       }
@@ -162,7 +167,47 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
+  const gracefulShutdown = async (signal: string) => {
+    log(`Received ${signal}, shutting down gracefully...`);
+    try {
+      const { whatsappBot } = await import("./bot/whatsapp");
+      if (whatsappBot.isConnected() || whatsappBot.getStatus().state !== "disconnected") {
+        log("Stopping WhatsApp bot (session preserved in database)...");
+        await whatsappBot.stopGracefully();
+      }
+    } catch {}
+    httpServer.close(() => {
+      log("HTTP server closed");
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 3000);
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
   const port = parseInt(process.env.PORT || "5000", 10);
+
+  let portRetries = 0;
+  const MAX_PORT_RETRIES = 2;
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE" && portRetries < MAX_PORT_RETRIES) {
+      portRetries++;
+      log(`Port ${port} in use (attempt ${portRetries}/${MAX_PORT_RETRIES}) — waiting for release...`);
+      setTimeout(() => {
+        httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+          log(`serving on port ${port} (after retry)`);
+        });
+      }, 2000 * portRetries);
+    } else if (err.code === "EADDRINUSE") {
+      console.error(`Port ${port} still in use after ${MAX_PORT_RETRIES} retries. Exiting.`);
+      process.exit(1);
+    } else {
+      console.error("Server error:", err);
+      process.exit(1);
+    }
+  });
+
   httpServer.listen(
     {
       port,

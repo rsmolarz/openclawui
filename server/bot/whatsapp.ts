@@ -117,7 +117,13 @@ class WhatsAppBot extends EventEmitter {
 
       this.sock = sock;
 
-      sock.ev.on("creds.update", saveCreds);
+      sock.ev.on("creds.update", async () => {
+        try {
+          await saveCreds();
+        } catch (err) {
+          console.error("[WhatsApp] CRITICAL: Failed to save credentials:", err);
+        }
+      });
 
       sock.ev.on("connection.update", async (update: any) => {
         const { connection, lastDisconnect, qr } = update;
@@ -401,6 +407,22 @@ class WhatsAppBot extends EventEmitter {
       await this.sock.sendPresenceUpdate("paused", jid);
     } catch {
     }
+  }
+
+  async stopGracefully(): Promise<void> {
+    this.autoReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.sock) {
+      try {
+        this.sock.end(undefined);
+      } catch {}
+      this.sock = null;
+    }
+    this.isStarting = false;
+    console.log("[WhatsApp] Graceful shutdown complete (session preserved in database)");
   }
 
   async stop(): Promise<void> {
