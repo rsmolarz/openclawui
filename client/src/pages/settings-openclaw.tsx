@@ -550,22 +550,32 @@ export default function SettingsOpenclaw() {
   const hostingerOpenPortMutation = useMutation({
     mutationFn: async () => {
       setHostingerPortLoading(true);
-      const resp = await apiRequest("POST", "/api/hostinger/auto-open-port", { port: "18789", instanceId: selectedInstanceId });
-      return resp.json();
-    },
-    onSuccess: (data: any) => {
-      setHostingerPortLoading(false);
-      if (data.success) {
-        const actions = data.results?.map((r: any) => `${r.firewallName}: ${r.action}`).join(", ") || "Done";
-        toast({ title: "Firewall Updated", description: `Port ${data.port} — ${actions}` });
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: [`/api/gateway/probe?instanceId=${selectedInstanceId ?? ""}`] });
-        }, 5000);
+      const portsToOpen = ["22", "18789"];
+      const allResults: any[] = [];
+      for (const port of portsToOpen) {
+        const resp = await apiRequest("POST", "/api/hostinger/auto-open-port", { port, instanceId: selectedInstanceId });
+        const data = await resp.json();
+        allResults.push({ port, ...data });
       }
+      return allResults;
+    },
+    onSuccess: (results: any[]) => {
+      setHostingerPortLoading(false);
+      const summary = results
+        .filter((r) => r.success)
+        .map((r) => {
+          const actions = r.results?.map((a: any) => a.action).join(", ") || "done";
+          return `Port ${r.port}: ${actions}`;
+        })
+        .join(" | ");
+      toast({ title: "Firewall Updated", description: summary || "Ports opened successfully." });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: [`/api/gateway/probe?instanceId=${selectedInstanceId ?? ""}`] });
+      }, 5000);
     },
     onError: (err: any) => {
       setHostingerPortLoading(false);
-      toast({ title: "Hostinger API Error", description: err?.message || "Could not open port via Hostinger API.", variant: "destructive" });
+      toast({ title: "Hostinger API Error", description: err?.message || "Could not open ports via Hostinger API.", variant: "destructive" });
     },
   });
 
@@ -1013,7 +1023,7 @@ export default function SettingsOpenclaw() {
                 data-testid="button-hostinger-open-port"
               >
                 {hostingerPortLoading ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Shield className="h-3 w-3 mr-1" />}
-                Open Port (Hostinger API)
+                Open Ports (Hostinger API)
               </Button>
               <Button
                 size="sm"
@@ -1062,7 +1072,7 @@ export default function SettingsOpenclaw() {
 
             <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
               <p className="text-xs text-muted-foreground">
-                These controls execute predefined commands on your VPS via SSH. Use <strong>Check Status</strong> to see running processes, <strong>Diagnose</strong> to investigate issues, or <strong>Open Port (SSH)</strong> to fix firewall from inside the VPS. If SSH is also blocked, use <strong>Open Port (Hostinger API)</strong> to open port 18789 via the Hostinger cloud panel API.
+                These controls execute predefined commands on your VPS via SSH. Use <strong>Check Status</strong> to see running processes, <strong>Diagnose</strong> to investigate issues, or <strong>Open Port (SSH)</strong> to fix firewall from inside the VPS. If SSH is also blocked, use <strong>Open Ports (Hostinger API)</strong> to open ports 22 (SSH) and 18789 (gateway) via the Hostinger cloud panel API.
               </p>
             </div>
           </CardContent>

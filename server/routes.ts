@@ -837,7 +837,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
                     latencyMs: latency,
                   });
                   const newStatus = isOnline ? "connected" : "disconnected";
-                  await storage.updateMachine(machine.id, { status: newStatus, lastSeen: isOnline ? new Date() : machine.lastSeen });
+                  await storage.updateMachine(machine.id, { status: newStatus, lastSeen: isOnline ? new Date() : (machine.lastSeen ?? undefined) });
                   return res.json({
                     nodeId: machine.id,
                     status: newStatus,

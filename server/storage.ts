@@ -31,7 +31,7 @@ export interface IStorage {
   getMachines(): Promise<Machine[]>;
   getMachine(id: string): Promise<Machine | undefined>;
   createMachine(machine: InsertMachine): Promise<Machine>;
-  updateMachine(id: string, data: Partial<InsertMachine>): Promise<Machine | undefined>;
+  updateMachine(id: string, data: Partial<InsertMachine> & { lastSeen?: Date }): Promise<Machine | undefined>;
   deleteMachine(id: string): Promise<void>;
 
   getApiKeys(): Promise<ApiKey[]>;
@@ -156,7 +156,7 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateMachine(id: string, data: Partial<InsertMachine>): Promise<Machine | undefined> {
+  async updateMachine(id: string, data: Partial<InsertMachine> & { lastSeen?: Date }): Promise<Machine | undefined> {
     const [updated] = await db
       .update(machines)
       .set(data)
