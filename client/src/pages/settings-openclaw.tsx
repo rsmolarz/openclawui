@@ -841,10 +841,8 @@ export default function SettingsOpenclaw() {
                 size="sm"
                 onClick={() => {
                   try {
-                    const u = new URL(currentInstance.serverUrl!);
-                    const p = u.port || config?.gatewayPort || 18789;
-                    const dashUrl = `${u.protocol}//${u.hostname}:${p}/`;
-                    window.open(dashUrl, "_blank", "noopener,noreferrer");
+                    const proxyUrl = `/gateway-proxy/${currentInstance.id}/`;
+                    window.open(proxyUrl, "_blank", "noopener,noreferrer");
                   } catch {
                     toast({ title: "Error", description: "Could not open dashboard URL.", variant: "destructive" });
                   }

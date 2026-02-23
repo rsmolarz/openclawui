@@ -109,6 +109,9 @@ app.use((req, res, next) => {
   await seed();
   await registerRoutes(httpServer, app);
 
+  const { setupGatewayProxy } = await import("./gateway-proxy");
+  setupGatewayProxy(app, httpServer);
+
   try {
     const { hostinger } = await import("./hostinger");
     const portResult = await hostinger.ensurePortsOpen(["22", "18789"]);
