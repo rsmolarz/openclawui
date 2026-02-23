@@ -48,21 +48,7 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken,
 
   const isWindows = machine.os?.toLowerCase().includes("windows") || machine.os?.toLowerCase() === "windows";
   const nodeName = machine.hostname || machine.name;
-  const effectiveVpsIp = vpsIp || gatewayHost;
-
-  const relayScript = `const net = require('net');
-const server = net.createServer((client) => {
-  const remote = net.createConnection({ host: '${effectiveVpsIp}', port: ${gatewayPort} }, () => {});
-  client.pipe(remote);
-  remote.pipe(client);
-  remote.on('error', () => client.destroy());
-  client.on('error', () => remote.destroy());
-  remote.on('close', () => client.destroy());
-  client.on('close', () => remote.destroy());
-});
-server.listen(18790, '127.0.0.1', () => console.log('Relay listening on 127.0.0.1:18790'));`;
-
-  const psSaveRelayCmd = `@"\n${relayScript}\n"@ | Set-Content "$env:USERPROFILE\\.openclaw\\relay.js"`;
+  const proxyHost = window.location.hostname;
 
   const linuxInstallCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
   const linuxTokenCmd = `openclaw config set gateway.auth.token "${gatewayToken}"`;
@@ -71,14 +57,13 @@ server.listen(18790, '127.0.0.1', () => console.log('Relay listening on 127.0.0.
 
   const psInstallCmd = `npm install -g openclaw@latest --ignore-scripts`;
   const psTokenCmd = `openclaw config set gateway.auth.token "${gatewayToken}"`;
-  const psRelayStartCmd = `node $env:USERPROFILE\\.openclaw\\relay.js`;
-  const psNodeConnectCmd = `openclaw node run --host 127.0.0.1 --port 18790 --display-name "${nodeName}"`;
-  const psPermanentCmd = `$action = New-ScheduledTaskAction -Execute "node" -Argument "$env:USERPROFILE\\.openclaw\\relay.js"\n$trigger = New-ScheduledTaskTrigger -AtStartup\nRegister-ScheduledTask -TaskName "OpenClaw Relay" -Action $action -Trigger $trigger -RunLevel Highest\n\nopenclaw node install --host 127.0.0.1 --port 18790 --display-name "${nodeName}"`;
+  const psConnectCmd = `openclaw node run --host ${proxyHost} --port 443 --tls --display-name "${nodeName}"`;
+  const psServiceInstall = `openclaw node install --host ${proxyHost} --port 443 --tls --display-name "${nodeName}"`;
 
   const wslInstallCmd = `wsl -e bash -c "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard"`;
   const wslTokenCmd = `wsl -e bash -c 'openclaw config set gateway.auth.token ${gatewayToken}'`;
-  const wslConnectCmd = `wsl -e bash -c 'openclaw node run --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"'`;
-  const wslServiceInstall = `wsl -e bash -c 'openclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"'`;
+  const wslConnectCmd = `wsl -e bash -c 'openclaw node run --host ${proxyHost} --port 443 --tls --display-name "${nodeName}"'`;
+  const wslServiceInstall = `wsl -e bash -c 'openclaw node install --host ${proxyHost} --port 443 --tls --display-name "${nodeName}"'`;
 
   const copyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -159,69 +144,16 @@ server.listen(18790, '127.0.0.1', () => console.log('Relay listening on 127.0.0.
 
           {isWindows && shellMode === "powershell" ? (
             <div className="space-y-3">
+              <div className="rounded-md bg-green-500/10 border border-green-500/20 p-2.5 flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  Connects via secure WSS through the dashboard proxy — no relay or port forwarding needed.
+                </p>
+              </div>
               {renderStep(1, "Install OpenClaw CLI", "Skip if already installed. Run PowerShell as Administrator. Requires Node.js.", psInstallCmd, "install-cmd")}
               {renderStep(2, "Set gateway token", "Configure the CLI with your gateway authentication token.", psTokenCmd, "token-cmd")}
-
-              <div className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <p className="text-sm font-medium">Create TCP relay script</p>
-                  <p className="text-xs text-muted-foreground">
-                    This creates a relay that forwards local connections to your VPS gateway at {effectiveVpsIp}:{gatewayPort}.
-                  </p>
-                  <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                    <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid={`text-relay-save-${machine.id}`}>{psSaveRelayCmd}</pre>
-                    <Button size="icon" variant="ghost" onClick={() => copyText(psSaveRelayCmd)} className="shrink-0" data-testid={`button-copy-relay-save-${machine.id}`}>
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <p className="text-sm font-medium">Start relay and connect</p>
-                  <p className="text-xs text-muted-foreground">Open two PowerShell terminals. Start the relay in one, then connect the node in the other.</p>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Terminal 1: Start relay</p>
-                      <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                        <code className="text-xs font-mono break-all" data-testid={`text-relay-start-${machine.id}`}>{psRelayStartCmd}</code>
-                        <Button size="icon" variant="ghost" onClick={() => copyText(psRelayStartCmd)} className="shrink-0" data-testid={`button-copy-relay-start-${machine.id}`}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Terminal 2: Connect node</p>
-                      <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                        <code className="text-xs font-mono break-all" data-testid={`text-node-connect-${machine.id}`}>{psNodeConnectCmd}</code>
-                        <Button size="icon" variant="ghost" onClick={() => copyText(psNodeConnectCmd)} className="shrink-0" data-testid={`button-copy-node-connect-${machine.id}`}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/70 text-primary-foreground text-xs font-bold">5</span>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <p className="text-sm font-medium">
-                    Make permanent
-                    <Badge variant="secondary" className="ml-2 text-[10px]">Optional</Badge>
-                  </p>
-                  <p className="text-xs text-muted-foreground">Install the relay as a scheduled task and the node as a service so they auto-start on boot.</p>
-                  <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                    <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid={`text-permanent-cmd-${machine.id}`}>{psPermanentCmd}</pre>
-                    <Button size="icon" variant="ghost" onClick={() => copyText(psPermanentCmd)} className="shrink-0" data-testid={`button-copy-permanent-${machine.id}`}>
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              {renderStep(3, "Connect node", "Connects securely through the dashboard proxy via WSS (TLS).", psConnectCmd, "connect-cmd")}
+              {renderStep(4, "Auto-start on boot", "Installs as a Windows service so the node reconnects automatically.", psServiceInstall, "service-cmd", true)}
             </div>
           ) : isWindows && shellMode === "wsl" ? (
             <div className="space-y-3">
@@ -695,12 +627,16 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
     }
   }
 
+  const proxyHost = typeof window !== "undefined" ? window.location.hostname : gatewayHost;
+
   const installCmdLinux = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
   const installCmdWindows = "npm install -g openclaw@latest --ignore-scripts";
-  const exportCmdLinux = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"`;
-  const nodeRunCmd = `openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
-  const fullStep2Linux = `${exportCmdLinux} && ${nodeRunCmd}`;
-  const fullStep2Windows = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"\n${nodeRunCmd}`;
+  const tokenCmdLinux = `openclaw config set gateway.auth.token "${gatewayToken}"`;
+  const tokenCmdWindows = `openclaw config set gateway.auth.token "${gatewayToken}"`;
+  const nodeRunCmdLinux = `openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
+  const nodeRunCmdWindows = `openclaw node run --host ${proxyHost} --port 443 --tls`;
+  const fullStep2Linux = `${tokenCmdLinux} && ${nodeRunCmdLinux}`;
+  const fullStep2Windows = `${tokenCmdWindows}\n${nodeRunCmdWindows}`;
 
   const [quickStartOs, setQuickStartOs] = useState<"linux" | "windows">("linux");
 
@@ -758,7 +694,7 @@ function QuickStartGuide({ instanceId }: { instanceId: string | null }) {
                 <div className="rounded-md bg-muted/30 p-2 flex items-start gap-2">
                   <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
-                    Run this in <strong>PowerShell</strong>. The <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">--ignore-scripts</code> flag prevents native compilation errors on Windows.
+                    Run this in <strong>PowerShell</strong> (as Administrator). The <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">--ignore-scripts</code> flag prevents native compilation errors on Windows. Connects securely via WSS through the dashboard proxy — no relay or port forwarding needed.
                   </p>
                 </div>
               )}
@@ -888,6 +824,10 @@ export default function SettingsMachines() {
     os?: string;
     location?: string;
     name?: string;
+    displayName?: string;
+    clientId?: string;
+    platform?: string;
+    role?: string;
   }
 
   const { data: pendingData, isLoading: pendingLoading } = useQuery<{ pending: PendingNode[]; source: string }>({
