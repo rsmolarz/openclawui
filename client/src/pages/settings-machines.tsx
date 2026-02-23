@@ -41,35 +41,68 @@ const STATUS_OPTIONS = [
   { value: "disconnected", label: "Disconnected", icon: WifiOff },
 ] as const;
 
-function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken }: { machine: Machine; gatewayHost: string; gatewayPort: number; gatewayToken: string }) {
+function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken, vpsIp }: { machine: Machine; gatewayHost: string; gatewayPort: number; gatewayToken: string; vpsIp?: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [shellMode, setShellMode] = useState<"powershell" | "wsl">("powershell");
 
   const isWindows = machine.os?.toLowerCase().includes("windows") || machine.os?.toLowerCase() === "windows";
   const nodeName = machine.hostname || machine.name;
+  const effectiveVpsIp = vpsIp || gatewayHost;
+
+  const relayScript = `const net = require('net');
+const server = net.createServer((client) => {
+  const remote = net.createConnection({ host: '${effectiveVpsIp}', port: ${gatewayPort} }, () => {});
+  client.pipe(remote);
+  remote.pipe(client);
+  remote.on('error', () => client.destroy());
+  client.on('error', () => remote.destroy());
+  remote.on('close', () => client.destroy());
+  client.on('close', () => remote.destroy());
+});
+server.listen(18790, '127.0.0.1', () => console.log('Relay listening on 127.0.0.1:18790'));`;
+
+  const psSaveRelayCmd = `@"\n${relayScript}\n"@ | Set-Content "$env:USERPROFILE\\.openclaw\\relay.js"`;
 
   const linuxInstallCmd = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard";
-  const linuxExportAndConnect = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
-  const linuxServiceInstall = `export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"`;
+  const linuxTokenCmd = `openclaw config set gateway.auth.token "${gatewayToken}"`;
+  const linuxConnectCmd = `openclaw node run --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"`;
+  const linuxServiceInstall = `openclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"`;
 
   const psInstallCmd = `npm install -g openclaw@latest --ignore-scripts`;
-  const psExportAndConnect = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"\nopenclaw node run --host ${gatewayHost} --port ${gatewayPort}`;
-  const psServiceInstall = `$env:OPENCLAW_GATEWAY_TOKEN="${gatewayToken}"\nopenclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"`;
+  const psTokenCmd = `openclaw config set gateway.auth.token "${gatewayToken}"`;
+  const psRelayStartCmd = `node $env:USERPROFILE\\.openclaw\\relay.js`;
+  const psNodeConnectCmd = `openclaw node run --host 127.0.0.1 --port 18790 --display-name "${nodeName}"`;
+  const psPermanentCmd = `$action = New-ScheduledTaskAction -Execute "node" -Argument "$env:USERPROFILE\\.openclaw\\relay.js"\n$trigger = New-ScheduledTaskTrigger -AtStartup\nRegister-ScheduledTask -TaskName "OpenClaw Relay" -Action $action -Trigger $trigger -RunLevel Highest\n\nopenclaw node install --host 127.0.0.1 --port 18790 --display-name "${nodeName}"`;
 
   const wslInstallCmd = `wsl -e bash -c "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard"`;
-  const wslExportAndConnect = `wsl -e bash -c 'export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node run --host ${gatewayHost} --port ${gatewayPort}'`;
-  const wslServiceInstall = `wsl -e bash -c 'export OPENCLAW_GATEWAY_TOKEN="${gatewayToken}" && openclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"'`;
-
-  const installCmd = isWindows ? (shellMode === "powershell" ? psInstallCmd : wslInstallCmd) : linuxInstallCmd;
-  const exportAndConnect = isWindows ? (shellMode === "powershell" ? psExportAndConnect : wslExportAndConnect) : linuxExportAndConnect;
-  const serviceInstall = isWindows ? (shellMode === "powershell" ? psServiceInstall : wslServiceInstall) : linuxServiceInstall;
-  const shellLabel = isWindows ? (shellMode === "powershell" ? "PowerShell" : "WSL2") : "Terminal";
+  const wslTokenCmd = `wsl -e bash -c 'openclaw config set gateway.auth.token ${gatewayToken}'`;
+  const wslConnectCmd = `wsl -e bash -c 'openclaw node run --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"'`;
+  const wslServiceInstall = `wsl -e bash -c 'openclaw node install --host ${gatewayHost} --port ${gatewayPort} --display-name "${nodeName}"'`;
 
   const copyText = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied", description: "Command copied to clipboard." });
   };
+
+  const renderStep = (num: number, title: string, desc: string, cmd: string, testIdSuffix: string, isOptional?: boolean) => (
+    <div className="flex items-start gap-3">
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${isOptional ? "bg-primary/70" : "bg-primary"} text-primary-foreground text-xs font-bold`}>{num}</span>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <p className="text-sm font-medium">
+          {title}
+          {isOptional && <Badge variant="secondary" className="ml-2 text-[10px]">Optional</Badge>}
+        </p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+        <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+          <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid={`text-${testIdSuffix}-${machine.id}`}>{cmd}</pre>
+          <Button size="icon" variant="ghost" onClick={() => copyText(cmd)} className="shrink-0" data-testid={`button-copy-${testIdSuffix}-${machine.id}`}>
+            <Copy className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -83,7 +116,7 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
           {machine.status === "disconnected" ? "Reconnect" : "Connect"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Monitor className="h-5 w-5" />
@@ -101,7 +134,7 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
                 <div className="text-xs">
                   <p className="font-medium text-amber-700 dark:text-amber-400">Windows Machine</p>
                   <p className="text-muted-foreground mt-0.5">
-                    Choose your shell below. PowerShell is easiest — no WSL required.
+                    Choose your shell below. PowerShell uses a TCP relay; WSL2 connects directly.
                   </p>
                 </div>
               </div>
@@ -124,60 +157,87 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken 
             </div>
           )}
 
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <p className="text-sm font-medium">Install OpenClaw CLI</p>
-                <p className="text-xs text-muted-foreground">
-                  Skip if already installed. Requires Node.js.
-                  {isWindows && shellMode === "powershell" && " Run PowerShell as Administrator."}
-                  {isWindows && shellMode === "wsl" && " This runs the installer inside WSL2."}
-                </p>
-                <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                  <code className="text-xs font-mono break-all" data-testid={`text-install-cmd-${machine.id}`}>{installCmd}</code>
-                  <Button size="icon" variant="ghost" onClick={() => copyText(installCmd)} className="shrink-0 h-7 w-7" data-testid={`button-copy-install-${machine.id}`}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+          {isWindows && shellMode === "powershell" ? (
+            <div className="space-y-3">
+              {renderStep(1, "Install OpenClaw CLI", "Skip if already installed. Run PowerShell as Administrator. Requires Node.js.", psInstallCmd, "install-cmd")}
+              {renderStep(2, "Set gateway token", "Configure the CLI with your gateway authentication token.", psTokenCmd, "token-cmd")}
 
-            <div className="flex items-start gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <p className="text-sm font-medium">Quick Connect (one-time)</p>
-                <p className="text-xs text-muted-foreground">
-                  {isWindows && shellMode === "powershell"
-                    ? "Paste BOTH lines into PowerShell (run them one at a time or paste together)."
-                    : `Runs the node in the current ${shellLabel} session.`}
-                </p>
-                <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                  <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid={`text-connect-cmd-${machine.id}`}>{exportAndConnect}</pre>
-                  <Button size="icon" variant="ghost" onClick={() => copyText(exportAndConnect)} className="shrink-0 h-7 w-7" data-testid={`button-copy-connect-${machine.id}`}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
+              <div className="flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <p className="text-sm font-medium">Create TCP relay script</p>
+                  <p className="text-xs text-muted-foreground">
+                    This creates a relay that forwards local connections to your VPS gateway at {effectiveVpsIp}:{gatewayPort}.
+                  </p>
+                  <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                    <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid={`text-relay-save-${machine.id}`}>{psSaveRelayCmd}</pre>
+                    <Button size="icon" variant="ghost" onClick={() => copyText(psSaveRelayCmd)} className="shrink-0" data-testid={`button-copy-relay-save-${machine.id}`}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-start gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/70 text-primary-foreground text-xs font-bold">3</span>
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <p className="text-sm font-medium">
-                  Auto-start on boot
-                  <Badge variant="secondary" className="ml-2 text-[10px]">Optional</Badge>
-                </p>
-                <p className="text-xs text-muted-foreground">Installs as a system service so the node reconnects automatically.</p>
-                <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                  <code className="text-xs font-mono break-all" data-testid={`text-service-cmd-${machine.id}`}>{serviceInstall}</code>
-                  <Button size="icon" variant="ghost" onClick={() => copyText(serviceInstall)} className="shrink-0 h-7 w-7" data-testid={`button-copy-service-${machine.id}`}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
+              <div className="flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <p className="text-sm font-medium">Start relay and connect</p>
+                  <p className="text-xs text-muted-foreground">Open two PowerShell terminals. Start the relay in one, then connect the node in the other.</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Terminal 1: Start relay</p>
+                      <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                        <code className="text-xs font-mono break-all" data-testid={`text-relay-start-${machine.id}`}>{psRelayStartCmd}</code>
+                        <Button size="icon" variant="ghost" onClick={() => copyText(psRelayStartCmd)} className="shrink-0" data-testid={`button-copy-relay-start-${machine.id}`}>
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Terminal 2: Connect node</p>
+                      <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                        <code className="text-xs font-mono break-all" data-testid={`text-node-connect-${machine.id}`}>{psNodeConnectCmd}</code>
+                        <Button size="icon" variant="ghost" onClick={() => copyText(psNodeConnectCmd)} className="shrink-0" data-testid={`button-copy-node-connect-${machine.id}`}>
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/70 text-primary-foreground text-xs font-bold">5</span>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <p className="text-sm font-medium">
+                    Make permanent
+                    <Badge variant="secondary" className="ml-2 text-[10px]">Optional</Badge>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Install the relay as a scheduled task and the node as a service so they auto-start on boot.</p>
+                  <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                    <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid={`text-permanent-cmd-${machine.id}`}>{psPermanentCmd}</pre>
+                    <Button size="icon" variant="ghost" onClick={() => copyText(psPermanentCmd)} className="shrink-0" data-testid={`button-copy-permanent-${machine.id}`}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : isWindows && shellMode === "wsl" ? (
+            <div className="space-y-3">
+              {renderStep(1, "Install OpenClaw CLI", "This runs the installer inside WSL2.", wslInstallCmd, "install-cmd")}
+              {renderStep(2, "Set gateway token", "Configure the CLI with your gateway authentication token.", wslTokenCmd, "token-cmd")}
+              {renderStep(3, "Connect node", "Runs the node in the current WSL2 session.", wslConnectCmd, "connect-cmd")}
+              {renderStep(4, "Auto-start on boot", "Installs as a system service so the node reconnects automatically.", wslServiceInstall, "service-cmd", true)}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {renderStep(1, "Install OpenClaw CLI", "Skip if already installed.", linuxInstallCmd, "install-cmd")}
+              {renderStep(2, "Set gateway token", "Configure the CLI with your gateway authentication token.", linuxTokenCmd, "token-cmd")}
+              {renderStep(3, "Connect node", "Runs the node in the current terminal session.", linuxConnectCmd, "connect-cmd")}
+              {renderStep(4, "Auto-start on boot", "Installs as a system service so the node reconnects automatically.", linuxServiceInstall, "service-cmd", true)}
+            </div>
+          )}
 
           {!gatewayToken && (
             <div className="rounded-md bg-destructive/10 border border-destructive/20 p-2.5 flex items-start gap-2">
@@ -204,6 +264,7 @@ function NodeCard({
   gatewayHost,
   gatewayPort,
   gatewayToken,
+  vpsIp,
 }: {
   machine: Machine;
   onDelete: (id: string) => void;
@@ -214,6 +275,7 @@ function NodeCard({
   gatewayHost: string;
   gatewayPort: number;
   gatewayToken: string;
+  vpsIp?: string;
 }) {
   const effectiveStatus = healthResult?.status || machine.status;
   return (
@@ -315,7 +377,7 @@ function NodeCard({
         </div>
 
         <div className="mt-3">
-          <ConnectCommandDialog machine={machine} gatewayHost={gatewayHost} gatewayPort={gatewayPort} gatewayToken={gatewayToken} />
+          <ConnectCommandDialog machine={machine} gatewayHost={gatewayHost} gatewayPort={gatewayPort} gatewayToken={gatewayToken} vpsIp={vpsIp} />
         </div>
 
         {healthResult && (
@@ -354,11 +416,14 @@ function NodeCard({
 
 interface LiveStatusData {
   gateway: "online" | "offline" | "error" | "unknown";
-  paired: Array<{ id: string; hostname?: string; name?: string; ip?: string; os?: string }>;
-  pending: Array<{ id: string; hostname?: string; name?: string; ip?: string; os?: string }>;
+  nodes: Array<{ name: string; id: string; ip: string; status: string; caps: string; version: string }>;
+  devices: Array<{ requestId: string; name: string; role: string; ip: string; age: string; status: string }>;
+  paired: Array<{ id: string; hostname?: string; name?: string; ip?: string; os?: string; requestId?: string }>;
+  pending: Array<{ id: string; hostname?: string; name?: string; ip?: string; os?: string; requestId?: string }>;
   pairedCount: number;
   pendingCount: number;
   error?: string;
+  source?: string;
 }
 
 function LiveGatewayBanner({ instanceId }: { instanceId: string | null }) {
@@ -468,6 +533,131 @@ function LiveGatewayBanner({ instanceId }: { instanceId: string | null }) {
             {liveFetching ? "Checking..." : "Refresh Live Status"}
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
+  const { toast } = useToast();
+
+  const { data: liveStatus, isLoading, isFetching, refetch } = useQuery<LiveStatusData>({
+    queryKey: ["/api/nodes/live-status-panel", instanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/nodes/live-status?instanceId=${instanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) throw new Error("Failed to fetch live status");
+      return resp.json();
+    },
+    enabled: !!instanceId,
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+
+  const nodes = liveStatus?.nodes ?? [];
+  const hasNodes = nodes.length > 0;
+
+  if (!instanceId) return null;
+
+  return (
+    <Card data-testid="card-gateway-nodes-live">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Signal className="h-4 w-4" />
+              Gateway Nodes (Live)
+            </CardTitle>
+            <CardDescription>
+              Real-time node connection status from the gateway.
+              {liveStatus?.source === "cli" && (
+                <Badge variant="secondary" className="ml-2 text-[10px]">CLI</Badge>
+              )}
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              refetch();
+              toast({ title: "Refreshing", description: "Fetching latest node status..." });
+            }}
+            disabled={isFetching}
+            data-testid="button-refresh-nodes-live"
+          >
+            {isFetching ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading node status...</p>
+          </div>
+        ) : hasNodes ? (
+          <div className="space-y-2">
+            {nodes.map((node, idx) => {
+              const isConnected = node.status?.includes("connected") && !node.status?.includes("disconnected");
+              const truncatedId = node.id.length > 12 ? `${node.id.slice(0, 12)}...` : node.id;
+              return (
+                <div
+                  key={node.id || idx}
+                  className="flex items-center justify-between gap-3 p-2.5 rounded-md bg-muted/30"
+                  data-testid={`row-live-node-${node.id || idx}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isConnected ? "bg-green-500/10" : "bg-destructive/10"}`}>
+                      {isConnected ? (
+                        <Wifi className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <WifiOff className="h-3.5 w-3.5 text-destructive" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" data-testid={`text-live-node-name-${node.id || idx}`}>{node.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="text-[10px] cursor-default">{truncatedId}</Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>{node.id}</TooltipContent>
+                        </Tooltip>
+                        {node.ip && (
+                          <span className="text-[10px] text-muted-foreground">{node.ip}</span>
+                        )}
+                        {node.caps && (
+                          <Badge variant="secondary" className="text-[10px]">{node.caps}</Badge>
+                        )}
+                        {node.version && (
+                          <span className="text-[10px] text-muted-foreground">v{node.version}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge
+                    variant={isConnected ? "default" : "destructive"}
+                    className="text-[10px] shrink-0"
+                    data-testid={`badge-live-node-status-${node.id || idx}`}
+                  >
+                    {isConnected ? "Connected" : "Disconnected"}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-6">
+            <Server className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
+              {liveStatus?.gateway === "offline" ? "Gateway is offline. No node data available." : "No nodes detected on the gateway yet."}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -666,6 +856,18 @@ export default function SettingsMachines() {
     },
     enabled: !!selectedInstanceId,
   });
+
+  const { data: vpsConnection } = useQuery<{ vpsIp?: string }>({
+    queryKey: ["/api/vps", selectedInstanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/vps?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) return {};
+      return resp.json();
+    },
+    enabled: !!selectedInstanceId,
+  });
+
+  const vpsIp = vpsConnection?.vpsIp || "";
 
   const gatewayToken = gwConfig?.gatewayToken || "";
   const gatewayPort = gwConfig?.gatewayPort || 18789;
@@ -1074,6 +1276,8 @@ export default function SettingsMachines() {
 
       <QuickStartGuide instanceId={selectedInstanceId} />
 
+      <GatewayNodesLive instanceId={selectedInstanceId} />
+
       {pendingNodes.length > 0 && (
         <Card data-testid="card-pending-nodes">
           <CardHeader>
@@ -1085,7 +1289,7 @@ export default function SettingsMachines() {
                 </CardTitle>
                 <CardDescription>
                   {pendingNodes.length} node{pendingNodes.length !== 1 ? "s" : ""} waiting for approval.
-                  {pendingData?.source === "gateway" && (
+                  {(pendingData?.source === "gateway" || pendingData?.source === "cli") && (
                     <Badge variant="secondary" className="ml-2 text-[10px]">Live from gateway</Badge>
                   )}
                   {pendingData?.source === "local" && (
@@ -1358,6 +1562,7 @@ export default function SettingsMachines() {
                 gatewayHost={gatewayHost}
                 gatewayPort={gatewayPort}
                 gatewayToken={gatewayToken}
+                vpsIp={vpsIp}
               />
             ))}
           </div>

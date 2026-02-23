@@ -1301,6 +1301,30 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         try {
           const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
           const sshConfig = buildSSHConfigFromVps(vps);
+
+          const cliResult = await executeSSHCommand("cli-devices-list", sshConfig);
+          if (cliResult.success && cliResult.output) {
+            try {
+              const cliParsed = JSON.parse(cliResult.output.trim());
+              if (!cliParsed.error) {
+                const devices = Array.isArray(cliParsed) ? cliParsed : (cliParsed.devices || cliParsed.data || Object.values(cliParsed));
+                const pendingDevices = (devices as any[]).filter((d: any) => d.status === "pending" || d.state === "pending");
+                const normalized = pendingDevices.map((d: any, idx: number) => ({
+                  id: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                  hostname: d.name || d.hostname || d.displayName || d.requestId || `device-${idx}`,
+                  name: d.name || d.hostname || d.displayName,
+                  ip: d.ip || d.address || "Unknown",
+                  os: d.os || d.platform || "Unknown",
+                  role: d.role || "node",
+                  age: d.age || "",
+                  status: "pending",
+                }));
+                await storage.upsertOpenclawConfig(instanceId, { pendingNodes: normalized });
+                return res.json({ pending: normalized, source: "cli" });
+              }
+            } catch {}
+          }
+
           const result = await executeSSHCommand("list-pending-nodes", sshConfig);
           if (result.success && result.output) {
             try {
@@ -1349,20 +1373,37 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
       if (vps?.vpsIp) {
         try {
-          const { executeRawSSHCommand, buildSSHConfigFromVps, buildApproveNodeCommand } = await import("./ssh");
+          const { executeRawSSHCommand, buildSSHConfigFromVps, buildCliApproveCommand, buildApproveNodeCommand } = await import("./ssh");
           const sshConfig = buildSSHConfigFromVps(vps);
-          const cmd = buildApproveNodeCommand(node_id);
-          const result = await executeRawSSHCommand(cmd, sshConfig);
-          if (result.success && result.output) {
-            try {
-              const parsed = JSON.parse(result.output.trim());
-              if (parsed.success) {
-                sshApproved = true;
-                approvedNode = parsed.node;
-              } else if (parsed.error) {
-                console.log(`[nodes] SSH approve returned: ${parsed.error}`);
-              }
-            } catch {}
+
+          try {
+            const cliCmd = buildCliApproveCommand(node_id);
+            const cliResult = await executeRawSSHCommand(cliCmd, sshConfig);
+            if (cliResult.success && cliResult.output) {
+              try {
+                const cliParsed = JSON.parse(cliResult.output.trim());
+                if (cliParsed.success || cliParsed.approved || !cliParsed.error) {
+                  sshApproved = true;
+                  approvedNode = cliParsed.device || cliParsed.node || cliParsed;
+                }
+              } catch {}
+            }
+          } catch {}
+
+          if (!sshApproved) {
+            const cmd = buildApproveNodeCommand(node_id);
+            const result = await executeRawSSHCommand(cmd, sshConfig);
+            if (result.success && result.output) {
+              try {
+                const parsed = JSON.parse(result.output.trim());
+                if (parsed.success) {
+                  sshApproved = true;
+                  approvedNode = parsed.node;
+                } else if (parsed.error) {
+                  console.log(`[nodes] SSH approve returned: ${parsed.error}`);
+                }
+              } catch {}
+            }
           }
         } catch (sshErr: any) {
           console.log(`[nodes] SSH approve failed: ${sshErr.message}`);
@@ -1422,15 +1463,31 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
       if (vps?.vpsIp) {
         try {
-          const { executeRawSSHCommand, buildSSHConfigFromVps, buildRejectNodeCommand } = await import("./ssh");
+          const { executeRawSSHCommand, buildSSHConfigFromVps, buildCliRejectCommand, buildRejectNodeCommand } = await import("./ssh");
           const sshConfig = buildSSHConfigFromVps(vps);
-          const cmd = buildRejectNodeCommand(node_id);
-          const result = await executeRawSSHCommand(cmd, sshConfig);
-          if (result.success && result.output) {
-            try {
-              const parsed = JSON.parse(result.output.trim());
-              if (parsed.success) sshRejected = true;
-            } catch {}
+
+          try {
+            const cliCmd = buildCliRejectCommand(node_id);
+            const cliResult = await executeRawSSHCommand(cliCmd, sshConfig);
+            if (cliResult.success && cliResult.output) {
+              try {
+                const cliParsed = JSON.parse(cliResult.output.trim());
+                if (cliParsed.success || cliParsed.rejected || !cliParsed.error) {
+                  sshRejected = true;
+                }
+              } catch {}
+            }
+          } catch {}
+
+          if (!sshRejected) {
+            const cmd = buildRejectNodeCommand(node_id);
+            const result = await executeRawSSHCommand(cmd, sshConfig);
+            if (result.success && result.output) {
+              try {
+                const parsed = JSON.parse(result.output.trim());
+                if (parsed.success) sshRejected = true;
+              } catch {}
+            }
           }
         } catch {}
       }
@@ -1491,10 +1548,10 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
   app.get("/api/nodes/live-status", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
-      if (!instanceId) return res.json({ gateway: "unknown", paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: "No instance" });
+      if (!instanceId) return res.json({ gateway: "unknown", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: "No instance" });
 
       const vps = await storage.getVpsConnection(instanceId);
-      if (!vps?.vpsIp) return res.json({ gateway: "unknown", paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: "No VPS configured" });
+      if (!vps?.vpsIp) return res.json({ gateway: "unknown", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: "No VPS configured" });
 
       const config = await storage.getOpenclawConfig(instanceId);
       const gatewayPort = config?.gatewayPort || 18789;
@@ -1502,72 +1559,138 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const { executeSSHCommand, executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const statusCmd = `ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep ${gatewayPort} || echo 'not-listening'`;
-      const statusResult = await executeRawSSHCommand(statusCmd, sshConfig);
-      const gatewayRunning = statusResult.success && statusResult.output && !statusResult.output.includes("not-listening") && statusResult.output.includes("openclaw");
+      let nodes: any[] = [];
+      let devices: any[] = [];
+      let gatewayRunning = false;
+      let usedCli = false;
+
+      try {
+        const nodesResult = await executeSSHCommand("cli-nodes-status", sshConfig);
+        if (nodesResult.success && nodesResult.output) {
+          try {
+            const parsed = JSON.parse(nodesResult.output.trim());
+            if (!parsed.error) {
+              const rawNodes = Array.isArray(parsed) ? parsed : (parsed.nodes || parsed.data || Object.values(parsed));
+              nodes = (rawNodes as any[]).map((n: any, idx: number) => ({
+                name: n.name || n.displayName || n.hostname || `node-${idx}`,
+                id: n.id || n.nodeId || n.deviceId || `node-${idx}`,
+                ip: n.ip || n.address || "",
+                status: n.status || "unknown",
+                caps: n.caps || n.capabilities || "",
+                version: n.version || "",
+              }));
+              gatewayRunning = true;
+              usedCli = true;
+            }
+          } catch {}
+        }
+      } catch {}
+
+      try {
+        const devicesResult = await executeSSHCommand("cli-devices-list", sshConfig);
+        if (devicesResult.success && devicesResult.output) {
+          try {
+            const parsed = JSON.parse(devicesResult.output.trim());
+            if (!parsed.error) {
+              const rawDevices = Array.isArray(parsed) ? parsed : (parsed.devices || parsed.data || Object.values(parsed));
+              devices = (rawDevices as any[]).map((d: any, idx: number) => ({
+                requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                name: d.name || d.hostname || d.displayName || `device-${idx}`,
+                role: d.role || "node",
+                ip: d.ip || d.address || "",
+                age: d.age || "",
+                status: d.status || "unknown",
+              }));
+              if (!usedCli) gatewayRunning = true;
+              usedCli = true;
+            }
+          } catch {}
+        }
+      } catch {}
+
+      if (!usedCli) {
+        const statusCmd = `ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep ${gatewayPort} || echo 'not-listening'`;
+        const statusResult = await executeRawSSHCommand(statusCmd, sshConfig);
+        gatewayRunning = statusResult.success && statusResult.output ? (!statusResult.output.includes("not-listening") && statusResult.output.includes("openclaw")) : false;
+      }
 
       let paired: any[] = [];
       let pending: any[] = [];
-      try {
-        const pairedResult = await executeSSHCommand("list-paired-nodes", sshConfig);
-        if (pairedResult.success && pairedResult.output) {
-          try {
-            let parsed = JSON.parse(pairedResult.output.trim());
-            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
-            if (Array.isArray(parsed)) {
-              paired = parsed.map((n: any, idx: number) => {
-                if (typeof n === "string") return { id: n, hostname: n };
-                return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
-              });
-            }
-          } catch {}
-        }
-      } catch {}
 
-      try {
-        const pendingResult = await executeSSHCommand("list-pending-nodes", sshConfig);
-        if (pendingResult.success && pendingResult.output) {
-          try {
-            let parsed = JSON.parse(pendingResult.output.trim());
-            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
-            if (Array.isArray(parsed)) {
-              pending = parsed.map((n: any, idx: number) => {
-                if (typeof n === "string") return { id: n, hostname: n };
-                return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
-              });
-            }
-          } catch {}
-        }
-      } catch {}
+      if (usedCli) {
+        paired = devices.filter((d: any) => d.status === "paired");
+        pending = devices.filter((d: any) => d.status === "pending");
+      } else {
+        try {
+          const pairedResult = await executeSSHCommand("list-paired-nodes", sshConfig);
+          if (pairedResult.success && pairedResult.output) {
+            try {
+              let parsed = JSON.parse(pairedResult.output.trim());
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+              if (Array.isArray(parsed)) {
+                paired = parsed.map((n: any, idx: number) => {
+                  if (typeof n === "string") return { id: n, hostname: n };
+                  return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
+                });
+              }
+            } catch {}
+          }
+        } catch {}
 
-      const machines = await storage.getMachines();
-      const pairedIdentifiers = new Set<string>();
-      for (const n of paired) {
-        const ids = [n.displayName, n.hostname, n.name, n.clientId, n.id].filter(Boolean);
-        ids.forEach((id: string) => pairedIdentifiers.add(id.toLowerCase()));
+        try {
+          const pendingResult = await executeSSHCommand("list-pending-nodes", sshConfig);
+          if (pendingResult.success && pendingResult.output) {
+            try {
+              let parsed = JSON.parse(pendingResult.output.trim());
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+              if (Array.isArray(parsed)) {
+                pending = parsed.map((n: any, idx: number) => {
+                  if (typeof n === "string") return { id: n, hostname: n };
+                  return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
+                });
+              }
+            } catch {}
+          }
+        } catch {}
       }
 
-      for (const m of machines) {
-        const mIdentifiers = [m.hostname, m.name, m.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
-        const isPaired = mIdentifiers.some((id) => pairedIdentifiers.has(id));
+      const allMachines = await storage.getMachines();
+      const connectedIds = new Set<string>();
+      for (const n of nodes) {
+        if (n.status && n.status.includes("connected")) {
+          const ids = [n.name, n.id].filter(Boolean);
+          ids.forEach((id: string) => connectedIds.add(id.toLowerCase()));
+        }
+      }
+      for (const n of paired) {
+        const ids = [n.displayName, n.hostname, n.name, n.clientId, n.id, n.requestId].filter(Boolean);
+        ids.forEach((id: string) => connectedIds.add(id.toLowerCase()));
+      }
 
-        if (isPaired && m.status !== "connected") {
+      for (const m of allMachines) {
+        const mIdentifiers = [m.hostname, m.name, m.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
+        const isConnected = mIdentifiers.some((id) => connectedIds.has(id));
+
+        if (isConnected && m.status !== "connected") {
           await storage.updateMachine(m.id, { status: "connected", lastSeen: new Date() });
-        } else if (!isPaired && gatewayRunning && m.status === "connected") {
+        } else if (!isConnected && gatewayRunning && m.status === "connected") {
           await storage.updateMachine(m.id, { status: "disconnected" });
         }
       }
 
       res.json({
         gateway: gatewayRunning ? "online" : "offline",
+        nodes,
+        devices,
         paired,
         pending,
         pairedCount: paired.length,
         pendingCount: pending.length,
         gatewayProcess: gatewayRunning,
+        source: usedCli ? "cli" : "file",
       });
     } catch (error: any) {
-      res.status(500).json({ gateway: "error", paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message });
+      res.status(500).json({ gateway: "error", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message });
     }
   });
 
