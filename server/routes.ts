@@ -2550,5 +2550,72 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
     }
   });
 
+  app.get("/api/openclaw/version-check", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.json({ error: "No instance" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps?.vpsIp) return res.json({ error: "No VPS configured" });
+
+      const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+
+      const versionResult = await executeRawSSHCommand('openclaw --version 2>&1 | head -1', sshConfig);
+      const currentRaw = versionResult.output?.trim() || "";
+      const currentMatch = currentRaw.match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
+      const currentVersion = currentMatch ? currentMatch[1] : currentRaw;
+
+      const latestResult = await executeRawSSHCommand('npm view openclaw version 2>/dev/null || echo "unknown"', sshConfig);
+      const latestVersion = latestResult.output?.trim() || "unknown";
+
+      const updateCheckResult = await executeRawSSHCommand('cat /root/.openclaw/update-check.json 2>/dev/null || echo "{}"', sshConfig);
+      let updateInfo: any = {};
+      try { updateInfo = JSON.parse(updateCheckResult.output?.trim() || "{}"); } catch {}
+
+      const hasUpdate = latestVersion !== "unknown" && currentVersion !== latestVersion && currentVersion !== "";
+
+      res.json({
+        currentVersion,
+        latestVersion,
+        hasUpdate,
+        updateInfo,
+        rawOutput: currentRaw,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Version check failed" });
+    }
+  });
+
+  app.post("/api/openclaw/update", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps?.vpsIp) return res.status(400).json({ error: "No VPS configured" });
+
+      const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+
+      const result = await executeRawSSHCommand(
+        'npm install -g openclaw@latest 2>&1; echo "---RESTART---"; openclaw gateway restart 2>&1; sleep 2; openclaw node restart 2>&1; echo "---VERSION---"; openclaw --version 2>&1 | head -1',
+        sshConfig
+      );
+
+      const output = result.output || "";
+      const versionMatch = output.match(/---VERSION---\s*\n?(.+)/);
+      const newVersionRaw = versionMatch ? versionMatch[1].trim() : "";
+      const newVersionMatch = newVersionRaw.match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
+      const newVersion = newVersionMatch ? newVersionMatch[1] : newVersionRaw;
+
+      res.json({
+        success: result.success !== false,
+        newVersion,
+        output,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Update failed" });
+    }
+  });
+
   return httpServer;
 }

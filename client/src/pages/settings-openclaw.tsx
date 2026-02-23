@@ -218,6 +218,113 @@ const LLM_PROVIDERS = [
   "Other",
 ];
 
+function UpdateCheckerCard() {
+  const { toast } = useToast();
+  const versionQuery = useQuery<{
+    currentVersion: string;
+    latestVersion: string;
+    hasUpdate: boolean;
+    rawOutput: string;
+    error?: string;
+  }>({
+    queryKey: ["/api/openclaw/version-check"],
+    refetchInterval: 300000,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/openclaw/update");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: data.success ? "Update Complete" : "Update Issue",
+        description: data.success
+          ? `OpenClaw updated to ${data.newVersion}. Gateway and node services restarted.`
+          : "Update may have partially succeeded. Check the gateway status.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/openclaw/version-check"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const v = versionQuery.data;
+
+  return (
+    <Card data-testid="card-update-checker">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              OpenClaw Version
+            </CardTitle>
+            <CardDescription>Check for and install updates on the VPS</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {versionQuery.isLoading ? (
+              <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Checking...</Badge>
+            ) : v?.hasUpdate ? (
+              <Badge variant="destructive" className="bg-orange-500"><AlertTriangle className="h-3 w-3 mr-1" />Update Available</Badge>
+            ) : v?.currentVersion ? (
+              <Badge variant="default"><CheckCircle className="h-3 w-3 mr-1" />Up to Date</Badge>
+            ) : null}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {versionQuery.isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-4 w-36" />
+          </div>
+        ) : v?.error ? (
+          <p className="text-sm text-muted-foreground">{v.error}</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Installed Version</p>
+                <p className="text-sm font-mono font-medium" data-testid="text-current-version">{v?.currentVersion || "unknown"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Latest Version</p>
+                <p className="text-sm font-mono font-medium" data-testid="text-latest-version">{v?.latestVersion || "unknown"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => versionQuery.refetch()}
+                disabled={versionQuery.isFetching}
+                data-testid="button-check-updates"
+              >
+                {versionQuery.isFetching ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                Check for Updates
+              </Button>
+              {v?.hasUpdate && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => updateMutation.mutate()}
+                  disabled={updateMutation.isPending}
+                  data-testid="button-install-update"
+                >
+                  {updateMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                  {updateMutation.isPending ? "Installing..." : `Update to ${v.latestVersion}`}
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function LlmModelSelect({ value, onChange, testId }: { value: string; onChange: (val: string) => void; testId: string }) {
   const [search, setSearch] = useState("");
   const lowerSearch = search.toLowerCase();
@@ -1023,6 +1130,8 @@ export default function SettingsOpenclaw() {
           </CardContent>
         </Card>
       )}
+
+      {sshActionsQuery.data?.configured && <UpdateCheckerCard />}
 
       {sshActionsQuery.data?.configured && (
         <Card data-testid="card-ssh-gateway-control">
