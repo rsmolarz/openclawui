@@ -1,0 +1,42 @@
+🦞 OpenClaw 2026.2.21-2 (35a57bc) — Less middlemen, more messages.
+
+node host PATH: C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Users\JosephRyanSmolarz\AppData\Local\Microsoft\WindowsApps;C:\Users\JosephRyanSmolarz\AppData\Local\PowerToys\DSCModules\;C:\Users\JosephRyanSmolarz\AppData\Roaming\npm;C:\Users\JosephRyanSmolarz\AppData\Local\Python\bin
+node host gateway connect failed: SECURITY ERROR: Cannot connect to "72.60.167.64" over plaintext ws://. Both credentials and chat data would be exposed to network interception. Use wss:// for the gateway URL, or connect via SSH tunnel to localhost.
+PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_TOKEN="b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"
+PS C:\WINDOWS\system32> openclaw node install --host 72.60.167.64 --port 18789 --display-name "Framework"
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc)
+   I'm not saying your workflow is chaotic... I'm just bringing a linter and a helmet.
+
+Node service already registered.
+Reinstall with: openclaw node install --force
+PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_TOKEN="b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"
+PS C:\WINDOWS\system32> openclaw node install --force --host e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev --port 443 --display-name "RSmolarzB" --tls
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc) — Ship fast, log faster.
+
+
+Installed Scheduled Task: OpenClaw Node
+Task script: C:\Users\JosephRyanSmolarz\.openclaw\node.cmd
+PS C:\WINDOWS\system32> openclaw node restart
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc)
+   Automation with claws: minimal fuss, maximal pinch.
+
+Restarted Scheduled Task: OpenClaw Node
+PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_TOKEN="b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"
+PS C:\WINDOWS\system32> openclaw node install --force --host 127.0.0.1 --port 18789 --display-name "RSmolarzB"
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc)
+   I'm basically a Swiss Army knife, but with more opinions and fewer sharp edges.
+
+
+Installed Scheduled Task: OpenClaw Node
+Task script: C:\Users\JosephRyanSmolarz\.openclaw\node.cmd
+PS C:\WINDOWS\system32> openclaw node restart
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc)
+   I'm not saying your workflow is chaotic... I'm just bringing a linter and a helmet.
+
+Restarted Scheduled Task: OpenClaw Node
+PS C:\WINDOWS\system32>
