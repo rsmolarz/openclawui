@@ -149,15 +149,18 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
   httpServer.on("upgrade", async (request, socket, head) => {
     const url = request.url || "";
 
-    if (!url.startsWith(WS_PROXY_PATH)) {
+    if (url.startsWith("/vite-hmr") || url.startsWith("/__vite")) {
       return;
     }
 
-    const pathParts = url.replace(WS_PROXY_PATH + "/", "").split("?");
-    const instanceId = pathParts[0]?.split("/")[0];
+    let instanceId: string | undefined;
 
-    if (!instanceId) {
-      socket.destroy();
+    if (url.startsWith(WS_PROXY_PATH)) {
+      const pathParts = url.replace(WS_PROXY_PATH + "/", "").split("?");
+      instanceId = pathParts[0]?.split("/")[0];
+    } else if (url === "/" || url === "" || url.startsWith("/?")) {
+      instanceId = undefined;
+    } else {
       return;
     }
 
@@ -169,12 +172,15 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
 
     const parsedTarget = new URL(targetBase);
     const wsTargetUrl = `ws://${parsedTarget.hostname}:${parsedTarget.port || 18789}`;
+    const source = instanceId ? `explicit:${instanceId}` : "node-root";
 
     wss.handleUpgrade(request, socket, head, (clientWs) => {
-      const gatewayWs = new WebSocket(wsTargetUrl);
+      const gatewayWs = new WebSocket(wsTargetUrl, {
+        headers: request.headers.authorization ? { authorization: request.headers.authorization } : {},
+      });
 
       gatewayWs.on("open", () => {
-        console.log(`[gateway-proxy] WS connected to ${wsTargetUrl}`);
+        console.log(`[gateway-proxy] WS connected to ${wsTargetUrl} (source: ${source})`);
       });
 
       gatewayWs.on("message", (data, isBinary) => {
@@ -217,5 +223,5 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
     });
   });
 
-  console.log("[gateway-proxy] HTTP proxy at /gateway-proxy/:instanceId/*, WS proxy at /gateway-ws/:instanceId");
+  console.log("[gateway-proxy] HTTP proxy at /gateway-proxy/:instanceId/*, WS proxy at /gateway-ws/:instanceId and / (root)");
 }
