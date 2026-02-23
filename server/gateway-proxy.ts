@@ -167,6 +167,8 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       instanceId = pathParts[0]?.split("/")[0];
     } else if (url === "/" || url === "" || url.startsWith("/?")) {
       instanceId = undefined;
+    } else if (url.startsWith("/node-ws")) {
+      instanceId = undefined;
     } else {
       console.log(`[gateway-proxy] Ignoring upgrade for unmatched path: ${url}`);
       return;
