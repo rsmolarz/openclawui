@@ -1,0 +1,66 @@
+ode.js v24.13.1
+PS C:\WINDOWS\system32> node $env:USERPROFILE\.openclaw\relay.js
+node:internal/modules/cjs/loader:1451
+  throw err;
+  ^
+
+Error: Cannot find module 'ws'
+Require stack:
+- C:\Users\JosephRyanSmolarz\.openclaw\relay.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1448:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.require (node:internal/modules/cjs/loader:1548:12)
+    at require (node:internal/modules/helpers:152:16)
+    at Object.<anonymous> (C:\Users\JosephRyanSmolarz\.openclaw\relay.js:1:40)
+    at Module._compile (node:internal/modules/cjs/loader:1804:14) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ 'C:\\Users\\JosephRyanSmolarz\\.openclaw\\relay.js' ]
+}
+
+Node.js v24.13.1
+PS C:\WINDOWS\system32> node $env:USERPROFILE\.openclaw\relay.js
+node:internal/modules/cjs/loader:1451
+  throw err;
+  ^
+
+Error: Cannot find module 'ws'
+Require stack:
+- C:\Users\JosephRyanSmolarz\.openclaw\relay.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1448:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.require (node:internal/modules/cjs/loader:1548:12)
+    at require (node:internal/modules/helpers:152:16)
+    at Object.<anonymous> (C:\Users\JosephRyanSmolarz\.openclaw\relay.js:1:40)
+    at Module._compile (node:internal/modules/cjs/loader:1804:14) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ 'C:\\Users\\JosephRyanSmolarz\\.openclaw\\relay.js' ]
+}
+
+Node.js v24.13.1
+PS C:\WINDOWS\system32> @"
+>> const { WebSocketServer, WebSocket } = require('C:/Users/JosephRyanSmolarz/AppData/Roaming/npm/node_modules/openclaw/node_modules/ws');
+>> const server = new WebSocketServer({ port: 18790 });
+>> const TARGET = 'wss://e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev';
+>> console.log('Local relay listening on ws://127.0.0.1:18790');
+>> server.on('connection', (client, req) => {
+>>   console.log('Node connected locally, relaying to', TARGET);
+>>   const remote = new WebSocket(TARGET, { headers: req.headers });
+>>   remote.on('open', () => console.log('Connected to remote gateway'));
+>>   remote.on('message', d => { if (client.readyState === 1) client.send(d); });
+>>   remote.on('close', () => client.close());
+>>   remote.on('error', e => console.error('Remote error:', e.message));
+>>   client.on('message', d => { if (remote.readyState === 1) remote.send(d); });
+>>   client.on('close', () => remote.close());
+>>   client.on('error', e => console.error('Client error:', e.message));
+>> });
+>> "@ | Set-Content "$env:USERPROFILE\.openclaw\relay.js"
+PS C:\WINDOWS\system32> node $env:USERPROFILE\.openclaw\relay.js
+Local relay listening on ws://127.0.0.1:18790
