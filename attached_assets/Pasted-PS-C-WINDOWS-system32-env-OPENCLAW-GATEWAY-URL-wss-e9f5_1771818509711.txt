@@ -1,0 +1,18 @@
+PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_URL="wss://e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev:443"
+PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_TOKEN="b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"
+PS C:\WINDOWS\system32> openclaw node run --display-name "RSmolarzB"
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc) — Your messages, your servers, your control.
+
+node host PATH: C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PowerShell\7\;C:\Users\JosephRyanSmolarz\AppData\Local\Microsoft\WindowsApps;C:\Users\JosephRyanSmolarz\AppData\Local\PowerToys\DSCModules\;C:\Users\JosephRyanSmolarz\AppData\Roaming\npm;C:\Users\JosephRyanSmolarz\AppData\Local\Python\bin
+node host gateway connect failed: SECURITY ERROR: Cannot connect to "e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev" over plaintext ws://. Both credentials and chat data would be exposed to network interception. Use wss:// for the gateway URL, or connect via SSH tunnel to localhost.
+PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_URL="wss://e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev:443"
+PS C:\WINDOWS\system32> $env:OPENCLAW_GATEWAY_TOKEN="b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"
+PS C:\WINDOWS\system32> openclaw node run --display-name "RSmolarzB"
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc) — Chat automation for people who peaked at IRC.
+
+node host PATH: C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PowerShell\7\;C:\Users\JosephRyanSmolarz\AppData\Local\Microsoft\WindowsApps;C:\Users\JosephRyanSmolarz\AppData\Local\PowerToys\DSCModules\;C:\Users\JosephRyanSmolarz\AppData\Roaming\npm;C:\Users\JosephRyanSmolarz\AppData\Local\Python\bin
+node host gateway connect failed: SECURITY ERROR: Cannot connect to "e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev" over plaintext ws://. Both credentials and chat data would be exposed to network interception. Use wss:// for the gateway URL, or connect via SSH tunnel to localhost.
+PS C:\WINDOWS\system32> Select-String -Path "$env:APPDATA\npm\node_modules\openclaw\dist\index.js" -Pattern "plaintext" -Context 5,5
+PS C:\WINDOWS\system32>
