@@ -149,6 +149,13 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
   httpServer.on("upgrade", async (request, socket, head) => {
     const url = request.url || "";
 
+    console.log(`[gateway-proxy] Upgrade request: url=${url}, headers=${JSON.stringify({
+      host: request.headers.host,
+      upgrade: request.headers.upgrade,
+      connection: request.headers.connection,
+      origin: request.headers.origin,
+    })}`);
+
     if (url.startsWith("/vite-hmr") || url.startsWith("/__vite")) {
       return;
     }
@@ -161,11 +168,13 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
     } else if (url === "/" || url === "" || url.startsWith("/?")) {
       instanceId = undefined;
     } else {
+      console.log(`[gateway-proxy] Ignoring upgrade for unmatched path: ${url}`);
       return;
     }
 
     const targetBase = await getGatewayUrl(instanceId);
     if (!targetBase) {
+      console.log(`[gateway-proxy] No gateway URL configured, destroying socket`);
       socket.destroy();
       return;
     }
@@ -174,9 +183,23 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
     const wsTargetUrl = `ws://${parsedTarget.hostname}:${parsedTarget.port || 18789}`;
     const source = instanceId ? `explicit:${instanceId}` : "node-root";
 
+    console.log(`[gateway-proxy] Proxying WS ${source} -> ${wsTargetUrl}`);
+
     wss.handleUpgrade(request, socket, head, (clientWs) => {
+      console.log(`[gateway-proxy] Client WebSocket upgraded successfully (source: ${source})`);
+      
+      const fwdHeaders: Record<string, string> = {};
+      if (request.headers.authorization) {
+        fwdHeaders.authorization = request.headers.authorization;
+      }
+      for (const [key, value] of Object.entries(request.headers)) {
+        if (key.startsWith("x-openclaw") && typeof value === "string") {
+          fwdHeaders[key] = value;
+        }
+      }
+      
       const gatewayWs = new WebSocket(wsTargetUrl, {
-        headers: request.headers.authorization ? { authorization: request.headers.authorization } : {},
+        headers: fwdHeaders,
       });
 
       gatewayWs.on("open", () => {
@@ -190,6 +213,7 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       });
 
       gatewayWs.on("close", (code, reason) => {
+        console.log(`[gateway-proxy] Gateway WS closed: code=${code}, reason=${reason?.toString()}`);
         if (clientWs.readyState === WebSocket.OPEN || clientWs.readyState === WebSocket.CONNECTING) {
           clientWs.close(code, reason);
         }
@@ -203,12 +227,15 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       });
 
       clientWs.on("message", (data, isBinary) => {
+        const preview = isBinary ? `[binary ${(data as Buffer).length}b]` : String(data).slice(0, 120);
+        console.log(`[gateway-proxy] Client->Gateway: ${preview}`);
         if (gatewayWs.readyState === WebSocket.OPEN) {
           gatewayWs.send(data, { binary: isBinary });
         }
       });
 
-      clientWs.on("close", () => {
+      clientWs.on("close", (code, reason) => {
+        console.log(`[gateway-proxy] Client WS closed: code=${code}, reason=${reason?.toString()}`);
         if (gatewayWs.readyState === WebSocket.OPEN || gatewayWs.readyState === WebSocket.CONNECTING) {
           gatewayWs.close();
         }
