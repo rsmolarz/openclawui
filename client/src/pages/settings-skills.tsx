@@ -14,7 +14,10 @@ import {
   Calendar, Volume2, Languages, Calculator, Camera, BarChart3, Clock,
   Heart, BookOpen, Webhook, Braces, KeyRound, MessageSquare, Container,
   ScrollText, Radar, Download, Trash2, RefreshCw, CheckCircle, XCircle,
-  Zap, Filter,
+  Zap, Filter, Brain, Network, LayoutGrid, Hash, MessageCircle,
+  GitBranch, ClipboardList, CreditCard, Smartphone, Table, HardDrive,
+  Target, Send, Rss, Activity, Cpu, Waypoints, Workflow, Shield, Music,
+  Youtube,
 } from "lucide-react";
 import { useState } from "react";
 import type { Skill } from "@shared/schema";
@@ -23,7 +26,10 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Search, Terminal, FolderOpen, Eye, FileText, Globe, Database, Mail,
   Calendar, Volume2, Languages, Calculator, Camera, BarChart3, Clock,
   Heart, BookOpen, Webhook, Braces, KeyRound, MessageSquare, Container,
-  ScrollText, Radar,
+  ScrollText, Radar, Brain, Network, LayoutGrid, Hash, MessageCircle,
+  GitBranch, ClipboardList, CreditCard, Smartphone, Table, HardDrive,
+  Target, Send, Rss, Activity, Cpu, Waypoints, Workflow, Shield, Music,
+  Youtube,
 };
 
 interface CatalogSkill {
