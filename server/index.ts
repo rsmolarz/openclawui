@@ -220,17 +220,35 @@ app.use((req, res, next) => {
 
   const port = parseInt(process.env.PORT || "5000", 10);
 
+  const killPortHolder = async () => {
+    try {
+      const { execSync } = await import("child_process");
+      const pids = execSync(`fuser ${port}/tcp 2>/dev/null || true`, { encoding: "utf-8" }).trim();
+      if (pids) {
+        const myPid = process.pid;
+        const pidList = pids.split(/\s+/).filter(p => p && parseInt(p) !== myPid);
+        if (pidList.length > 0) {
+          log(`Killing stale processes on port ${port}: ${pidList.join(", ")}`);
+          execSync(`kill -9 ${pidList.join(" ")} 2>/dev/null || true`);
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    } catch {}
+  };
+
   let portRetries = 0;
-  const MAX_PORT_RETRIES = 2;
+  const MAX_PORT_RETRIES = 5;
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE" && portRetries < MAX_PORT_RETRIES) {
       portRetries++;
-      log(`Port ${port} in use (attempt ${portRetries}/${MAX_PORT_RETRIES}) — waiting for release...`);
-      setTimeout(() => {
-        httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
-          log(`serving on port ${port} (after retry)`);
-        });
-      }, 2000 * portRetries);
+      log(`Port ${port} in use (attempt ${portRetries}/${MAX_PORT_RETRIES}) — killing old process and retrying...`);
+      killPortHolder().then(() => {
+        setTimeout(() => {
+          httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+            log(`serving on port ${port} (after retry ${portRetries})`);
+          });
+        }, 1500 * portRetries);
+      });
     } else if (err.code === "EADDRINUSE") {
       console.error(`Port ${port} still in use after ${MAX_PORT_RETRIES} retries. Exiting.`);
       process.exit(1);
@@ -239,6 +257,8 @@ app.use((req, res, next) => {
       process.exit(1);
     }
   });
+
+  await killPortHolder();
 
   httpServer.listen(
     {
