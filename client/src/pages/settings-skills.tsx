@@ -17,7 +17,8 @@ import {
   Zap, Filter, Brain, Network, LayoutGrid, Hash, MessageCircle,
   GitBranch, ClipboardList, CreditCard, Smartphone, Table, HardDrive,
   Target, Send, Rss, Activity, Cpu, Waypoints, Workflow, Shield, Music,
-  Youtube,
+  Youtube, Mic, Paintbrush, GitPullRequest, TestTube, Lock, Wifi,
+  Tags, AlertTriangle, Bell, Cloud, Rocket,
 } from "lucide-react";
 import { useState } from "react";
 import type { Skill } from "@shared/schema";
@@ -29,7 +30,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   ScrollText, Radar, Brain, Network, LayoutGrid, Hash, MessageCircle,
   GitBranch, ClipboardList, CreditCard, Smartphone, Table, HardDrive,
   Target, Send, Rss, Activity, Cpu, Waypoints, Workflow, Shield, Music,
-  Youtube,
+  Youtube, Mic, Paintbrush, GitPullRequest, TestTube, Lock, Wifi,
+  Tags, AlertTriangle, Bell, Cloud, Rocket,
 };
 
 interface CatalogSkill {

@@ -38,6 +38,25 @@ import {
   Trash2,
   ExternalLink,
   Search,
+  GitBranch,
+  BookOpen,
+  ClipboardList,
+  CreditCard,
+  Smartphone,
+  Table,
+  HardDrive,
+  Target,
+  Database,
+  Globe,
+  Shield,
+  BarChart3,
+  Bell,
+  Activity,
+  Cloud,
+  Cpu,
+  Container,
+  Lock,
+  Paintbrush,
   type LucideIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -55,6 +74,25 @@ const iconMap: Record<string, LucideIcon> = {
   Mail,
   Brain,
   Workflow,
+  GitBranch,
+  BookOpen,
+  ClipboardList,
+  CreditCard,
+  Smartphone,
+  Table,
+  HardDrive,
+  Target,
+  Database,
+  Globe,
+  Shield,
+  BarChart3,
+  Bell,
+  Activity,
+  Cloud,
+  Cpu,
+  Container,
+  Lock,
+  Paintbrush,
 };
 
 const categoryLabels: Record<string, string> = {
@@ -64,9 +102,15 @@ const categoryLabels: Record<string, string> = {
   iot: "IoT",
   notifications: "Notifications",
   ai: "AI / LLM",
+  development: "Development",
+  storage: "Storage & Data",
+  monitoring: "Monitoring",
+  security: "Security",
+  payments: "Payments",
+  productivity: "Productivity",
 };
 
-const categoryOrder = ["messaging", "ai", "networking", "automation", "notifications", "iot"];
+const categoryOrder = ["messaging", "ai", "development", "productivity", "payments", "storage", "monitoring", "security", "networking", "automation", "notifications", "iot"];
 
 const statusColors: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   connected: "default",
@@ -139,6 +183,180 @@ function getConfigFields(type: string): { key: string; label: string; sensitive?
         { key: "instanceUrl", label: "Instance URL" },
         { key: "apiKey", label: "API Key", sensitive: true },
         { key: "webhookPath", label: "Webhook Path" },
+      ];
+    case "github":
+      return [
+        { key: "personalAccessToken", label: "Personal Access Token", sensitive: true },
+        { key: "organization", label: "Organization (optional)" },
+        { key: "webhookSecret", label: "Webhook Secret", sensitive: true },
+      ];
+    case "notion":
+      return [
+        { key: "integrationToken", label: "Integration Token", sensitive: true },
+        { key: "defaultDatabaseId", label: "Default Database ID" },
+      ];
+    case "jira":
+      return [
+        { key: "domain", label: "Jira Domain (e.g. myorg.atlassian.net)" },
+        { key: "email", label: "Email" },
+        { key: "apiToken", label: "API Token", sensitive: true },
+        { key: "projectKey", label: "Default Project Key" },
+      ];
+    case "stripe":
+      return [
+        { key: "secretKey", label: "Secret Key", sensitive: true },
+        { key: "publishableKey", label: "Publishable Key" },
+        { key: "webhookSecret", label: "Webhook Signing Secret", sensitive: true },
+      ];
+    case "twilio":
+      return [
+        { key: "accountSid", label: "Account SID" },
+        { key: "authToken", label: "Auth Token", sensitive: true },
+        { key: "phoneNumber", label: "Twilio Phone Number" },
+      ];
+    case "google-workspace":
+      return [
+        { key: "clientId", label: "OAuth Client ID" },
+        { key: "clientSecret", label: "OAuth Client Secret", sensitive: true },
+        { key: "refreshToken", label: "Refresh Token", sensitive: true },
+      ];
+    case "linear":
+      return [
+        { key: "apiKey", label: "API Key", sensitive: true },
+        { key: "teamId", label: "Default Team ID" },
+      ];
+    case "supabase":
+      return [
+        { key: "projectUrl", label: "Project URL" },
+        { key: "anonKey", label: "Anon/Public Key" },
+        { key: "serviceRoleKey", label: "Service Role Key", sensitive: true },
+      ];
+    case "firebase":
+      return [
+        { key: "projectId", label: "Project ID" },
+        { key: "serviceAccountKey", label: "Service Account Key (JSON)", sensitive: true },
+      ];
+    case "aws-s3":
+      return [
+        { key: "accessKeyId", label: "Access Key ID", sensitive: true },
+        { key: "secretAccessKey", label: "Secret Access Key", sensitive: true },
+        { key: "region", label: "Region (e.g. us-east-1)" },
+        { key: "bucketName", label: "Default Bucket Name" },
+      ];
+    case "cloudflare":
+      return [
+        { key: "apiToken", label: "API Token", sensitive: true },
+        { key: "accountId", label: "Account ID" },
+        { key: "zoneId", label: "Default Zone ID" },
+      ];
+    case "redis":
+      return [
+        { key: "connectionUrl", label: "Connection URL", sensitive: true },
+        { key: "password", label: "Password", sensitive: true },
+        { key: "database", label: "Database Number" },
+      ];
+    case "docker-registry":
+      return [
+        { key: "registryUrl", label: "Registry URL" },
+        { key: "username", label: "Username" },
+        { key: "password", label: "Password", sensitive: true },
+      ];
+    case "prometheus":
+      return [
+        { key: "serverUrl", label: "Prometheus Server URL" },
+        { key: "username", label: "Username (optional)" },
+        { key: "password", label: "Password", sensitive: true },
+      ];
+    case "grafana":
+      return [
+        { key: "instanceUrl", label: "Grafana URL" },
+        { key: "apiKey", label: "API Key", sensitive: true },
+      ];
+    case "sentry":
+      return [
+        { key: "dsn", label: "DSN" },
+        { key: "authToken", label: "Auth Token", sensitive: true },
+        { key: "organization", label: "Organization Slug" },
+        { key: "project", label: "Project Slug" },
+      ];
+    case "datadog":
+      return [
+        { key: "apiKey", label: "API Key", sensitive: true },
+        { key: "appKey", label: "Application Key", sensitive: true },
+        { key: "site", label: "Site (e.g. datadoghq.com)" },
+      ];
+    case "pagerduty":
+      return [
+        { key: "apiKey", label: "API Key", sensitive: true },
+        { key: "serviceId", label: "Default Service ID" },
+        { key: "routingKey", label: "Events Routing Key", sensitive: true },
+      ];
+    case "vercel":
+      return [
+        { key: "accessToken", label: "Access Token", sensitive: true },
+        { key: "teamId", label: "Team ID (optional)" },
+      ];
+    case "zapier":
+      return [
+        { key: "webhookUrl", label: "Webhook URL" },
+        { key: "apiKey", label: "API Key (optional)", sensitive: true },
+      ];
+    case "make":
+      return [
+        { key: "webhookUrl", label: "Webhook URL" },
+        { key: "apiToken", label: "API Token", sensitive: true },
+      ];
+    case "openai":
+      return [
+        { key: "apiKey", label: "API Key", sensitive: true },
+        { key: "organizationId", label: "Organization ID (optional)" },
+        { key: "defaultModel", label: "Default Model" },
+      ];
+    case "anthropic":
+      return [
+        { key: "apiKey", label: "API Key", sensitive: true },
+        { key: "defaultModel", label: "Default Model" },
+      ];
+    case "ollama":
+      return [
+        { key: "serverUrl", label: "Ollama Server URL" },
+        { key: "defaultModel", label: "Default Model" },
+      ];
+    case "huggingface":
+      return [
+        { key: "apiToken", label: "API Token", sensitive: true },
+        { key: "defaultModel", label: "Default Model" },
+      ];
+    case "elevenlabs":
+      return [
+        { key: "apiKey", label: "API Key", sensitive: true },
+        { key: "defaultVoiceId", label: "Default Voice ID" },
+      ];
+    case "pinecone":
+      return [
+        { key: "apiKey", label: "API Key", sensitive: true },
+        { key: "environment", label: "Environment" },
+        { key: "indexName", label: "Default Index Name" },
+      ];
+    case "letsencrypt":
+      return [
+        { key: "email", label: "Contact Email" },
+        { key: "domain", label: "Domain" },
+        { key: "dnsProvider", label: "DNS Provider" },
+      ];
+    case "figma":
+      return [
+        { key: "personalAccessToken", label: "Personal Access Token", sensitive: true },
+        { key: "teamId", label: "Team ID (optional)" },
+      ];
+    case "airtable":
+      return [
+        { key: "personalAccessToken", label: "Personal Access Token", sensitive: true },
+        { key: "baseId", label: "Default Base ID" },
+      ];
+    case "todoist":
+      return [
+        { key: "apiToken", label: "API Token", sensitive: true },
       ];
     default:
       return [];
@@ -228,12 +446,43 @@ const availableIntegrations = [
   { name: "Telegram", type: "telegram", category: "messaging", icon: "Send", description: "Integrate Telegram Bot API for agent messaging and notifications." },
   { name: "Discord", type: "discord", category: "messaging", icon: "Hash", description: "Connect Discord bots to interact with users through channels and DMs." },
   { name: "Slack", type: "slack", category: "messaging", icon: "MessagesSquare", description: "Integrate Slack workspace for team notifications and agent interactions." },
-  { name: "Tailscale", type: "tailscale", category: "networking", icon: "Network", description: "Secure mesh VPN for connecting nodes across networks." },
+  { name: "Twilio", type: "twilio", category: "messaging", icon: "Smartphone", description: "Send and receive SMS/MMS messages, voice calls, and WhatsApp via Twilio APIs." },
+  { name: "OpenRouter", type: "openrouter", category: "ai", icon: "Brain", description: "Unified API gateway for accessing 200+ LLM models with automatic fallback." },
+  { name: "OpenAI", type: "openai", category: "ai", icon: "Brain", description: "Direct OpenAI API for GPT-4, DALL-E, Whisper, and Assistants." },
+  { name: "Anthropic Claude", type: "anthropic", category: "ai", icon: "Brain", description: "Anthropic API for Claude models with extended thinking and tool use." },
+  { name: "Ollama", type: "ollama", category: "ai", icon: "Cpu", description: "Run local LLM inference via Ollama for private, offline AI processing." },
+  { name: "Hugging Face", type: "huggingface", category: "ai", icon: "Cpu", description: "Run inference on Hugging Face models and deploy custom ML pipelines." },
+  { name: "ElevenLabs", type: "elevenlabs", category: "ai", icon: "Brain", description: "AI voice synthesis with voice cloning and multi-language text-to-speech." },
+  { name: "Pinecone", type: "pinecone", category: "ai", icon: "Database", description: "Vector database for semantic search, RAG, and recommendation systems." },
+  { name: "GitHub", type: "github", category: "development", icon: "GitBranch", description: "Manage repos, issues, PRs, workflows, and deployments via GitHub API." },
+  { name: "Notion", type: "notion", category: "development", icon: "BookOpen", description: "Read, create, and update Notion pages, databases, and blocks." },
+  { name: "Jira", type: "jira", category: "development", icon: "ClipboardList", description: "Create and manage Jira issues, sprints, boards, and project tracking." },
+  { name: "Linear", type: "linear", category: "development", icon: "Target", description: "Streamline engineering workflows with Linear issue tracking and project management." },
+  { name: "Figma", type: "figma", category: "development", icon: "Paintbrush", description: "Extract design tokens, component specs, and assets from Figma files." },
+  { name: "Vercel", type: "vercel", category: "development", icon: "Globe", description: "Deploy projects, manage domains, and trigger builds on Vercel." },
+  { name: "Google Workspace", type: "google-workspace", category: "productivity", icon: "Mail", description: "Gmail, Calendar, Drive, Sheets, and Docs integration via Google OAuth." },
+  { name: "Airtable", type: "airtable", category: "productivity", icon: "Table", description: "Read, write, and automate workflows around Airtable bases and records." },
+  { name: "Todoist", type: "todoist", category: "productivity", icon: "ClipboardList", description: "Manage tasks, projects, and priorities with Todoist task management." },
+  { name: "Stripe", type: "stripe", category: "payments", icon: "CreditCard", description: "Process payments, manage subscriptions, and query transaction data." },
+  { name: "Supabase", type: "supabase", category: "storage", icon: "Database", description: "Full Supabase integration with database, auth, storage, and real-time." },
+  { name: "Firebase", type: "firebase", category: "storage", icon: "Database", description: "Firestore, Firebase Auth, Cloud Functions, and FCM push notifications." },
+  { name: "AWS S3", type: "aws-s3", category: "storage", icon: "HardDrive", description: "Upload, download, and manage files in Amazon S3 buckets." },
+  { name: "Redis", type: "redis", category: "storage", icon: "Database", description: "In-memory caching, pub/sub messaging, and session management with Redis." },
+  { name: "Prometheus", type: "prometheus", category: "monitoring", icon: "Activity", description: "Query metrics and monitor system health from Prometheus time-series database." },
+  { name: "Grafana", type: "grafana", category: "monitoring", icon: "BarChart3", description: "Create dashboards, set up alerts, and visualize infrastructure metrics." },
+  { name: "Sentry", type: "sentry", category: "monitoring", icon: "Activity", description: "Track errors, performance issues, and release health across applications." },
+  { name: "Datadog", type: "datadog", category: "monitoring", icon: "Activity", description: "Full observability with metrics, logs, traces, and automated alerting." },
+  { name: "PagerDuty", type: "pagerduty", category: "monitoring", icon: "Bell", description: "Incident management with on-call schedules, escalation, and alerting." },
+  { name: "Cloudflare", type: "cloudflare", category: "security", icon: "Shield", description: "Manage DNS records, firewall rules, and CDN settings via Cloudflare API." },
+  { name: "Let's Encrypt", type: "letsencrypt", category: "security", icon: "Lock", description: "Automated SSL/TLS certificate issuance and renewal via ACME protocol." },
+  { name: "Docker Registry", type: "docker-registry", category: "security", icon: "Container", description: "Push, pull, and manage container images from private Docker registries." },
+  { name: "Tailscale", type: "tailscale", category: "networking", icon: "Network", description: "Secure mesh VPN for connecting nodes across networks with zero config." },
   { name: "Webhook", type: "webhook", category: "automation", icon: "Webhook", description: "Send event notifications to external services via HTTP webhooks." },
+  { name: "n8n", type: "n8n", category: "automation", icon: "Workflow", description: "Workflow automation platform for complex agent pipelines and integrations." },
+  { name: "Zapier", type: "zapier", category: "automation", icon: "Workflow", description: "Connect to 5000+ apps via Zapier webhooks and automation workflows." },
+  { name: "Make (Integromat)", type: "make", category: "automation", icon: "Workflow", description: "Visual workflow automation with 1000+ app connectors and scenarios." },
   { name: "MQTT", type: "mqtt", category: "iot", icon: "Radio", description: "Lightweight messaging protocol for IoT device communication." },
   { name: "Email / SMTP", type: "email", category: "notifications", icon: "Mail", description: "Send email notifications and alerts through SMTP providers." },
-  { name: "OpenRouter", type: "openrouter", category: "ai", icon: "Brain", description: "Unified API gateway for accessing 200+ LLM models." },
-  { name: "n8n", type: "n8n", category: "automation", icon: "Workflow", description: "Workflow automation platform for agent pipelines." },
 ];
 
 export default function SettingsIntegrations() {
