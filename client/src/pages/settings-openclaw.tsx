@@ -837,6 +837,24 @@ export default function SettingsOpenclaw() {
                 <Badge variant="destructive" data-testid="badge-gateway-status">Offline</Badge>
               )}
               <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  try {
+                    const u = new URL(currentInstance.serverUrl!);
+                    const p = u.port || config?.gatewayPort || 18789;
+                    const dashUrl = `${u.protocol}//${u.hostname}:${p}/`;
+                    window.open(dashUrl, "_blank", "noopener,noreferrer");
+                  } catch {
+                    toast({ title: "Error", description: "Could not open dashboard URL.", variant: "destructive" });
+                  }
+                }}
+                data-testid="button-open-dashboard"
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                Open Dashboard
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
