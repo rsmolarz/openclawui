@@ -1586,23 +1586,55 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         }
       } catch {}
 
+      let cliPaired: any[] = [];
+      let cliPending: any[] = [];
+
       try {
         const devicesResult = await executeSSHCommand("cli-devices-list", sshConfig);
         if (devicesResult.success && devicesResult.output) {
           try {
             const parsed = JSON.parse(devicesResult.output.trim());
             if (!parsed.error) {
-              const rawDevices = Array.isArray(parsed) ? parsed : (parsed.devices || parsed.data || Object.values(parsed));
-              devices = (rawDevices as any[]).map((d: any, idx: number) => ({
-                requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
-                name: d.name || d.hostname || d.displayName || `device-${idx}`,
-                role: d.role || "node",
-                ip: d.ip || d.address || "",
-                age: d.age || "",
-                status: d.status || "unknown",
-              }));
-              if (!usedCli) gatewayRunning = true;
-              usedCli = true;
+              if (parsed.paired && Array.isArray(parsed.paired)) {
+                cliPaired = parsed.paired.map((d: any, idx: number) => ({
+                  requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                  name: d.name || d.hostname || d.displayName || `device-${idx}`,
+                  displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
+                  role: d.role || "node",
+                  ip: d.ip || d.address || d.remoteIp || "",
+                  age: d.age || "",
+                  status: "paired",
+                }));
+              }
+              if (parsed.pending && Array.isArray(parsed.pending)) {
+                cliPending = parsed.pending.map((d: any, idx: number) => ({
+                  requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                  name: d.name || d.hostname || d.displayName || `device-${idx}`,
+                  displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
+                  role: d.role || "node",
+                  ip: d.ip || d.address || d.remoteIp || "",
+                  age: d.age || "",
+                  status: "pending",
+                }));
+              }
+              if (cliPaired.length > 0 || cliPending.length > 0 || (parsed.paired && parsed.pending)) {
+                devices = [...cliPaired, ...cliPending];
+                if (!usedCli) gatewayRunning = true;
+                usedCli = true;
+              } else {
+                const rawDevices = Array.isArray(parsed) ? parsed : (parsed.devices || parsed.data || Object.values(parsed));
+                devices = (rawDevices as any[]).map((d: any, idx: number) => ({
+                  requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                  name: d.name || d.hostname || d.displayName || `device-${idx}`,
+                  displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
+                  role: d.role || "node",
+                  ip: d.ip || d.address || d.remoteIp || "",
+                  age: d.age || "",
+                  status: d.status || "unknown",
+                }));
+                if (!usedCli) gatewayRunning = true;
+                usedCli = true;
+              }
             }
           } catch {}
         }
@@ -1617,7 +1649,10 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       let paired: any[] = [];
       let pending: any[] = [];
 
-      if (usedCli) {
+      if (usedCli && (cliPaired.length > 0 || cliPending.length > 0)) {
+        paired = cliPaired;
+        pending = cliPending;
+      } else if (usedCli) {
         paired = devices.filter((d: any) => d.status === "paired");
         pending = devices.filter((d: any) => d.status === "pending");
       } else {
