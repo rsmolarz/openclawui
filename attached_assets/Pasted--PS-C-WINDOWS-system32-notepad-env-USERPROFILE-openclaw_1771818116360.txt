@@ -1,0 +1,39 @@
+}
+PS C:\WINDOWS\system32> notepad $env:USERPROFILE\.openclaw\node.json
+PS C:\WINDOWS\system32> type $env:USERPROFILE\.openclaw\node.cmd
+@echo off
+rem OpenClaw Node Host (v2026.2.21-2)
+set "TMPDIR=C:\Users\JOSEPH~1\AppData\Local\Temp"
+set "PATH=C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PowerShell\7\;C:\Users\JosephRyanSmolarz\AppData\Local\Microsoft\WindowsApps;C:\Users\JosephRyanSmolarz\AppData\Local\PowerToys\DSCModules\;C:\Users\JosephRyanSmolarz\AppData\Roaming\npm;C:\Users\JosephRyanSmolarz\AppData\Local\Python\bin"
+set "OPENCLAW_LAUNCHD_LABEL=ai.openclaw.node"
+set "OPENCLAW_SYSTEMD_UNIT=openclaw-node"
+set "OPENCLAW_WINDOWS_TASK_NAME=OpenClaw Node"
+set "OPENCLAW_TASK_SCRIPT_NAME=node.cmd"
+set "OPENCLAW_LOG_PREFIX=node"
+set "OPENCLAW_SERVICE_MARKER=openclaw"
+set "OPENCLAW_SERVICE_KIND=node"
+set "OPENCLAW_SERVICE_VERSION=2026.2.21-2"
+"C:\Program Files\nodejs\node.exe" C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\dist\index.js node run --host e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev --port 443 --tls --display-name RSmolarzB
+PS C:\WINDOWS\system32> $file = "$env:APPDATA\npm\node_modules\openclaw\dist\index.js"
+PS C:\WINDOWS\system32> $content = Get-Content $file -Raw
+PS C:\WINDOWS\system32> $content = $content -replace 'SECURITY ERROR: Cannot connect to', 'SECURITY_BYPASSED: Connecting to'
+PS C:\WINDOWS\system32> Set-Content $file $content
+PS C:\WINDOWS\system32> Select-String -Path "$env:APPDATA\npm\node_modules\openclaw\dist\index.js" -Pattern "ws://" -Context 2,2
+
+  C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\dist\i
+ndex.js:433:    ["openclaw message send --target +15555550123 --message \"Hi\"
+--json", "Send via your web session and print JSON result."],
+  C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\dist\i
+ndex.js:434:    ["openclaw gateway --port 18789", "Run the WebSocket Gateway
+locally."],
+> C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\dist\i
+ndex.js:435:    ["openclaw --dev gateway", "Run a dev Gateway (isolated
+state/config) on ws://127.0.0.1:19001."],
+  C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\dist\i
+ndex.js:436:    ["openclaw gateway --force", "Kill anything bound to the
+default gateway port, then start it."],
+  C:\Users\JosephRyanSmolarz\AppData\Roaming\npm\node_modules\openclaw\dist\i
+ndex.js:437:    ["openclaw gateway ...", "Gateway control via WebSocket."],
+
+
+PS C:\WINDOWS\system32>
