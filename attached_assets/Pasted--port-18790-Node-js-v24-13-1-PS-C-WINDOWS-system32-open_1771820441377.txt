@@ -1,0 +1,36 @@
+  port: 18790
+}
+
+Node.js v24.13.1
+PS C:\WINDOWS\system32> openclaw node run --host 127.0.0.1 --port 18790 --display-name "RSmolarzB"
+
+🦞 OpenClaw 2026.2.21-2 (35a57bc) — OpenAI-compatible, not OpenAI-dependent.
+
+node host PATH: C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PowerShell\7\;C:\Users\JosephRyanSmolarz\AppData\Local\Microsoft\WindowsApps;C:\Users\JosephRyanSmolarz\AppData\Local\PowerToys\DSCModules\;C:\Users\JosephRyanSmolarz\AppData\Roaming\npm;C:\Users\JosephRyanSmolarz\AppData\Local\Python\bin
+node host gateway closed (1005):
+node host gateway connect failed: gateway not connected
+gateway connect failed: Error: gateway not connected
+PS C:\WINDOWS\system32> @"
+>> const { WebSocketServer, WebSocket } = require('C:/Users/JosephRyanSmolarz/AppData/Roaming/npm/node_modules/openclaw/node_modules/ws');
+>> const server = new WebSocketServer({ port: 18790 });
+>> const TARGET = 'wss://e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev/node-ws';
+>> console.log('Local relay listening on ws://127.0.0.1:18790');
+>> server.on('connection', (client, req) => {
+>>   console.log('Node connected locally, relaying to', TARGET);
+>>   const remote = new WebSocket(TARGET, { headers: req.headers });
+>>   remote.on('open', () => console.log('Connected to remote gateway'));
+>>   remote.on('message', d => { if (client.readyState === 1) client.send(d); });
+>>   remote.on('close', (code, reason) => { console.log('Remote closed:', code, reason?.toString()); client.close(); });
+>>   remote.on('error', e => console.error('Remote error:', e.message));
+>>   client.on('message', d => { if (remote.readyState === 1) remote.send(d); });
+>>   client.on('close', () => remote.close());
+>>   client.on('error', e => console.error('Client error:', e.message));
+>> });
+>> "@ | Set-Content "$env:USERPROFILE\.openclaw\relay.js"
+PS C:\WINDOWS\system32> Select-String -Path "$env:USERPROFILE\.openclaw\relay.js" -Pattern "node-ws"
+
+C:\Users\JosephRyanSmolarz\.openclaw\relay.js:3:const TARGET =
+'wss://e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev/node-ws';
+
+
+PS C:\WINDOWS\system32>
