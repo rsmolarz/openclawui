@@ -220,6 +220,7 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       if (gwInfo.token) {
         fwdHeaders["authorization"] = `Bearer ${gwInfo.token}`;
       }
+      fwdHeaders["origin"] = `http://${parsedTarget.hostname}:${parsedTarget.port || 18789}`;
       
       const gatewayWs = new WebSocket(wsTargetUrl, {
         headers: fwdHeaders,

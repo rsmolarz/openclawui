@@ -34,6 +34,24 @@ const ALLOWED_COMMANDS: Record<string, string> = {
   "cli-devices-list": `openclaw devices list --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
   "cli-nodes-status": `openclaw nodes status --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
   "cli-nodes-pending": `openclaw nodes pending --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
+  "kill-gateway": "kill -HUP $(pgrep -f openclaw-gateway) 2>/dev/null && sleep 2 && echo 'Signal sent' && ps aux | grep openclaw-gateway | grep -v grep || echo 'Process stopped'",
+  "force-restart-gateway": "kill $(pgrep -f openclaw-gateway) 2>/dev/null; sleep 3; kill -9 $(pgrep -f openclaw-gateway) 2>/dev/null; sleep 2; nohup /usr/local/bin/openclaw-gateway > /tmp/oc.log 2>&1 & sleep 10; ps aux | grep openclaw-gateway | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789; echo '---LOG---'; tail -30 /tmp/oc.log",
+  "add-replit-origin": `python3 -c "
+import json
+f='/root/.openclaw/openclaw.json'
+d=json.load(open(f))
+origins = d.get('gateway',{}).get('controlUi',{}).get('allowedOrigins',[])
+replit_origins = ['https://claw-settings.replit.app','http://claw-settings.replit.app']
+changed = False
+for o in replit_origins:
+    if o not in origins:
+        origins.append(o)
+        changed = True
+d['gateway']['controlUi']['allowedOrigins'] = origins
+json.dump(d,open(f,'w'),indent=2)
+print('Origins now:', json.dumps(origins, indent=2))
+print('Changed:', changed)
+"`,
 };
 
 export interface SSHConnectionConfig {
