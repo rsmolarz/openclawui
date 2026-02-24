@@ -1554,35 +1554,55 @@ export default function SettingsOpenclaw() {
             </div>
           )}
 
-          {botStatus?.error && (
+          {botStatus?.error && botStatus?.state !== "connecting" && (
             <div className="rounded-md bg-destructive/10 border border-destructive/20 p-4 space-y-3" data-testid="whatsapp-error-banner">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
                 <p className="text-sm font-medium text-destructive" data-testid="text-bot-error">Bot Disconnected</p>
               </div>
               <p className="text-xs text-destructive/80">{botStatus.error}</p>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => startBotMutation.mutate()}
-                disabled={startBotMutation.isPending}
-                data-testid="button-reconnect"
-              >
-                {startBotMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                )}
-                {startBotMutation.isPending ? "Reconnecting..." : "Reconnect Now"}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => startBotMutation.mutate()}
+                  disabled={startBotMutation.isPending}
+                  data-testid="button-reconnect"
+                >
+                  {startBotMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  {startBotMutation.isPending ? "Reconnecting..." : "Reconnect Now"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowPairingForm(true)}
+                  data-testid="button-try-phone-pairing"
+                >
+                  <Smartphone className="h-4 w-4 mr-1" />
+                  Link with Phone Number
+                </Button>
+              </div>
             </div>
           )}
 
           {botStatus?.state === "connecting" && (
             <div className="flex flex-col items-center gap-3 p-8 rounded-lg border-2 border-dashed border-muted-foreground/20" data-testid="whatsapp-connecting">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm font-medium">Connecting to WhatsApp...</p>
-              <p className="text-xs text-muted-foreground">Generating QR code, usually takes 2-3 seconds.</p>
+              <p className="text-sm font-medium">
+                {botStatus.error ? "Retrying connection..." : "Connecting to WhatsApp..."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {botStatus.error || "Generating QR code, usually takes 2-3 seconds."}
+              </p>
+              {botStatus.error && (
+                <Button variant="outline" size="sm" onClick={() => stopBotMutation.mutate()} disabled={stopBotMutation.isPending} data-testid="button-cancel-retry">
+                  Cancel
+                </Button>
+              )}
             </div>
           )}
 
@@ -1653,7 +1673,7 @@ export default function SettingsOpenclaw() {
             </div>
           )}
 
-          {showPairingForm && (botStatus?.state === "disconnected" || botStatus?.state === "connecting" || !botStatus) && (
+          {showPairingForm && (botStatus?.state === "disconnected" || botStatus?.state === "connecting" || botStatus?.state === "error" || !botStatus) && (
             <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-6 space-y-4" data-testid="pairing-phone-form">
               <div className="text-center space-y-1">
                 <p className="text-sm font-semibold">Single-Device Pairing</p>

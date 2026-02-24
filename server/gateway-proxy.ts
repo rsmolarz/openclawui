@@ -207,10 +207,14 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
     }
 
     const parsedTarget = new URL(gwInfo.url);
-    const wsTargetUrl = `ws://${parsedTarget.hostname}:${parsedTarget.port || 18789}`;
+    const wsPort = parsedTarget.port || 18789;
+    let wsTargetUrl = `ws://${parsedTarget.hostname}:${wsPort}`;
+    if (gwInfo.token) {
+      wsTargetUrl += `/?token=${encodeURIComponent(gwInfo.token)}`;
+    }
     const source = instanceId ? `explicit:${instanceId}` : "node-root";
 
-    console.log(`[gateway-proxy] Proxying WS ${source} -> ${wsTargetUrl}`);
+    console.log(`[gateway-proxy] Proxying WS ${source} -> ws://${parsedTarget.hostname}:${wsPort} (token: ${gwInfo.token ? "yes" : "no"})`);
 
     wss.handleUpgrade(request, socket, head, (clientWs) => {
       console.log(`[gateway-proxy] Client WebSocket upgraded successfully (source: ${source})`);
@@ -224,7 +228,7 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       if (gwInfo.token) {
         fwdHeaders["authorization"] = `Bearer ${gwInfo.token}`;
       }
-      fwdHeaders["origin"] = `http://${parsedTarget.hostname}:${parsedTarget.port || 18789}`;
+      fwdHeaders["origin"] = `http://${parsedTarget.hostname}:${wsPort}`;
       
       const gatewayWs = new WebSocket(wsTargetUrl, {
         headers: fwdHeaders,

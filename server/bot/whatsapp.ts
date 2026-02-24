@@ -351,6 +351,21 @@ class WhatsAppBot extends EventEmitter {
             const hasSession = this.hasAuthState();
 
             if (!hasSession && (isTimedOut || statusCode === 408 || statusCode === 405)) {
+              if (statusCode === 405 && this.reconnectAttempts < 2) {
+                this.reconnectAttempts++;
+                const delay = 15000 * this.reconnectAttempts;
+                console.log(`[WhatsApp] 405 rejection — auto-retrying in ${delay / 1000}s (attempt ${this.reconnectAttempts}/2)`);
+                this.status = {
+                  state: "connecting",
+                  qrDataUrl: null,
+                  pairingCode: null,
+                  phone: null,
+                  error: `WhatsApp rate-limited this connection. Retrying in ${delay / 1000}s...`,
+                };
+                this.emit("status", this.status);
+                this.reconnectTimer = setTimeout(() => this.start(), delay);
+                return;
+              }
               console.log(`[WhatsApp] No session + error ${statusCode}. User must re-start manually.`);
               this.status = {
                 state: "disconnected",
@@ -358,7 +373,7 @@ class WhatsAppBot extends EventEmitter {
                 pairingCode: null,
                 phone: null,
                 error: statusCode === 405
-                  ? "WhatsApp rejected the connection. Wait a moment and try again."
+                  ? "WhatsApp rejected the connection. Try 'Link with Phone Number' or wait a minute and click Start."
                   : "Connection timed out. Click Start to try again.",
               };
               this.emit("status", this.status);
