@@ -274,7 +274,7 @@ function VpsBotControls() {
             {isRunning === false && <Badge variant="secondary" className="text-[10px]">Stopped</Badge>}
           </div>
           <p className="text-xs text-muted-foreground">
-            Deploy and run the WhatsApp bot directly on your Hostinger VPS. May work depending on IP restrictions — worth trying first.
+            Deploy and run the WhatsApp bot directly on your Hostinger VPS via systemd service. Configure a SOCKS5 proxy in the bot config to route through a residential IP if direct connection fails.
           </p>
         </div>
       </div>

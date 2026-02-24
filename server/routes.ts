@@ -3109,26 +3109,57 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const setupCmd = [
-        'cd /root/openclaw-whatsapp-bot',
-        'npm i --production 2>&1 | tail -5',
-        'echo "---DEPS_DONE---"',
-        'pkill -f "openclaw-whatsapp.js" 2>/dev/null || true',
-        'sleep 1',
-        'nohup node openclaw-whatsapp.js > /tmp/whatsapp-bot.log 2>&1 &',
-        'disown',
-        'sleep 3',
-        'pgrep -f "openclaw-whatsapp.js" && echo "BOT_RUNNING" || echo "BOT_FAILED"',
+      const depsCmd = 'cd /root/openclaw-whatsapp-bot && npm i --production 2>&1';
+      console.log("[VPS Bot] Installing dependencies...");
+      const depsResult = await executeRawSSHCommand(depsCmd, sshConfig, 2, 120000);
+      console.log("[VPS Bot] Deps result:", depsResult.success, depsResult.output?.substring(0, 200));
+
+      const unitContent = [
+        '[Unit]',
+        'Description=OpenClaw WhatsApp Bot',
+        'After=network.target',
+        '',
+        '[Service]',
+        'Type=simple',
+        'WorkingDirectory=/root/openclaw-whatsapp-bot',
+        'ExecStart=/usr/bin/node /root/openclaw-whatsapp-bot/openclaw-whatsapp.js',
+        'Restart=on-failure',
+        'RestartSec=10',
+        'StandardOutput=append:/tmp/whatsapp-bot.log',
+        'StandardError=append:/tmp/whatsapp-bot.log',
+        'Environment=NODE_ENV=production',
+        '',
+        '[Install]',
+        'WantedBy=multi-user.target',
+      ].join('\\n');
+
+      const startCmd = [
+        `printf '${unitContent}' > /etc/systemd/system/openclaw-whatsapp.service`,
+        'systemctl daemon-reload',
+        'systemctl stop openclaw-whatsapp 2>/dev/null || true',
+        'truncate -s 0 /tmp/whatsapp-bot.log 2>/dev/null || true',
+        'systemctl start openclaw-whatsapp',
+        'systemctl enable openclaw-whatsapp 2>/dev/null || true',
+        'sleep 5',
+        'systemctl is-active openclaw-whatsapp && echo "BOT_RUNNING" || echo "BOT_FAILED"',
         'echo "---LOG---"',
         'cat /tmp/whatsapp-bot.log 2>/dev/null | tail -30',
-      ].join('; ');
+      ].join(' && ');
 
-      const result = await executeRawSSHCommand(setupCmd, sshConfig, 2, 90000);
+      console.log("[VPS Bot] Starting bot...");
+      const result = await executeRawSSHCommand(startCmd, sshConfig, 2, 30000);
       const output = result.output || "";
+      console.log("[VPS Bot] Start result:", output.substring(0, 300));
       const running = output.includes("BOT_RUNNING");
       const logSection = output.split("---LOG---")[1]?.trim() || "";
 
-      res.json({ success: running, output, log: logSection });
+      res.json({
+        success: running,
+        output: `DEPS: ${depsResult.output?.substring(0, 500) || "empty"}\n\nSTART: ${output}`,
+        log: logSection,
+        depsSuccess: depsResult.success,
+        depsError: depsResult.error,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -3144,7 +3175,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const cmd = 'pkill -f "openclaw-whatsapp.js" 2>/dev/null && echo "STOPPED" || echo "NOT_RUNNING"';
+      const cmd = 'systemctl stop openclaw-whatsapp 2>/dev/null && systemctl disable openclaw-whatsapp 2>/dev/null; echo "STOPPED"';
       const result = await executeRawSSHCommand(cmd, sshConfig);
       res.json({ success: true, output: result.output });
     } catch (error: any) {
@@ -3163,7 +3194,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const sshConfig = buildSSHConfigFromVps(vps);
 
       const cmd = [
-        'pgrep -f "openclaw-whatsapp.js" && echo "STATUS:RUNNING" || echo "STATUS:STOPPED"',
+        'systemctl is-active openclaw-whatsapp 2>/dev/null && echo "STATUS:RUNNING" || (pgrep -f "openclaw-whatsapp.js" > /dev/null 2>&1 && echo "STATUS:RUNNING" || echo "STATUS:STOPPED")',
         'echo "---LOG---"',
         'cat /tmp/whatsapp-bot.log 2>/dev/null | tail -50',
       ].join('; ');
