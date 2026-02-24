@@ -236,6 +236,33 @@ export const onboardingChecklist = pgTable("onboarding_checklist", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const aiConversations = pgTable("ai_conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  instanceId: varchar("instance_id"),
+  title: text("title").notNull().default("New Conversation"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiMessages = pgTable("ai_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  toolName: text("tool_name"),
+  toolInput: text("tool_input"),
+  toolOutput: text("tool_output"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAiConversationSchema = createInsertSchema(aiConversations).omit({ id: true, createdAt: true });
+export type AiConversation = typeof aiConversations.$inferSelect;
+export type InsertAiConversation = z.infer<typeof insertAiConversationSchema>;
+
+export const insertAiMessageSchema = createInsertSchema(aiMessages).omit({ id: true, createdAt: true });
+export type AiMessage = typeof aiMessages.$inferSelect;
+export type InsertAiMessage = z.infer<typeof insertAiMessageSchema>;
+
 export const insertDocSchema = createInsertSchema(docs).omit({ id: true, createdAt: true, updatedAt: true });
 export type Doc = typeof docs.$inferSelect;
 export type InsertDoc = z.infer<typeof insertDocSchema>;

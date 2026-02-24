@@ -2766,5 +2766,85 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
     }
   });
 
+  // === AI Task Runner Routes ===
+  const { processAiMessage } = await import("./ai-task-runner");
+  const aiMessageSchema = z.object({ message: z.string().min(1).max(5000) });
+  const aiConversationCreateSchema = z.object({ title: z.string().max(200).optional() });
+
+  app.get("/api/ai/conversations", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const conversations = await storage.getAiConversations(userId);
+      res.json(conversations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/conversations", requireAuth, async (req, res) => {
+    try {
+      const parsed = aiConversationCreateSchema.safeParse(req.body);
+      const userId = req.session.userId!;
+      const instanceId = await resolveInstanceId(req);
+      const conv = await storage.createAiConversation({
+        userId,
+        instanceId: instanceId || null,
+        title: parsed.success ? (parsed.data.title || "New Conversation") : "New Conversation",
+      });
+      res.json(conv);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ai/conversations/:id/messages", requireAuth, async (req, res) => {
+    try {
+      const convId = String(req.params.id);
+      const conv = await storage.getAiConversation(convId);
+      if (!conv || conv.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      const messages = await storage.getAiMessages(convId);
+      res.json(messages);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/conversations/:id/messages", requireAuth, async (req, res) => {
+    try {
+      const convId = String(req.params.id);
+      const conv = await storage.getAiConversation(convId);
+      if (!conv || conv.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      const parsed = aiMessageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Message is required (1-5000 chars)" });
+      }
+      const { message } = parsed.data;
+      const instanceId = conv.instanceId || (await resolveInstanceId(req)) || "";
+      const result = await processAiMessage(conv.id, message, req.session.userId!, instanceId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[AI Task Runner] Error:", error);
+      res.status(500).json({ error: error.message || "Failed to process message" });
+    }
+  });
+
+  app.delete("/api/ai/conversations/:id", requireAuth, async (req, res) => {
+    try {
+      const convId = String(req.params.id);
+      const conv = await storage.getAiConversation(convId);
+      if (!conv || conv.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      await storage.deleteAiConversation(convId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

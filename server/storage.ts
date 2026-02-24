@@ -15,8 +15,11 @@ import {
   type VpsConnectionLog, type InsertVpsConnectionLog,
   type NodeSetupSession, type InsertNodeSetupSession,
   type OnboardingChecklist, type InsertOnboardingChecklist,
+  type AiConversation, type InsertAiConversation,
+  type AiMessage, type InsertAiMessage,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
+  aiConversations, aiMessages,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -108,6 +111,15 @@ export interface IStorage {
 
   getOnboardingChecklist(userId: string, instanceId: string): Promise<OnboardingChecklist | undefined>;
   upsertOnboardingChecklist(userId: string, instanceId: string, data: Partial<InsertOnboardingChecklist>): Promise<OnboardingChecklist>;
+
+  getAiConversations(userId: string): Promise<AiConversation[]>;
+  getAiConversation(id: string): Promise<AiConversation | undefined>;
+  createAiConversation(data: InsertAiConversation): Promise<AiConversation>;
+  deleteAiConversation(id: string): Promise<void>;
+  updateAiConversationTitle(id: string, title: string): Promise<void>;
+
+  getAiMessages(conversationId: string): Promise<AiMessage[]>;
+  createAiMessage(data: InsertAiMessage): Promise<AiMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -590,6 +602,42 @@ export class DatabaseStorage implements IStorage {
       .values({ userId, instanceId, ...data } as any)
       .returning();
     return created;
+  }
+
+  async getAiConversations(userId: string): Promise<AiConversation[]> {
+    return db.select().from(aiConversations)
+      .where(eq(aiConversations.userId, userId))
+      .orderBy(desc(aiConversations.createdAt));
+  }
+
+  async getAiConversation(id: string): Promise<AiConversation | undefined> {
+    const [conv] = await db.select().from(aiConversations).where(eq(aiConversations.id, id));
+    return conv;
+  }
+
+  async createAiConversation(data: InsertAiConversation): Promise<AiConversation> {
+    const [conv] = await db.insert(aiConversations).values(data).returning();
+    return conv;
+  }
+
+  async deleteAiConversation(id: string): Promise<void> {
+    await db.delete(aiMessages).where(eq(aiMessages.conversationId, id));
+    await db.delete(aiConversations).where(eq(aiConversations.id, id));
+  }
+
+  async updateAiConversationTitle(id: string, title: string): Promise<void> {
+    await db.update(aiConversations).set({ title }).where(eq(aiConversations.id, id));
+  }
+
+  async getAiMessages(conversationId: string): Promise<AiMessage[]> {
+    return db.select().from(aiMessages)
+      .where(eq(aiMessages.conversationId, conversationId))
+      .orderBy(aiMessages.createdAt);
+  }
+
+  async createAiMessage(data: InsertAiMessage): Promise<AiMessage> {
+    const [msg] = await db.insert(aiMessages).values(data).returning();
+    return msg;
   }
 }
 

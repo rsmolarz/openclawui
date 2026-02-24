@@ -28,6 +28,7 @@ import Documentation from "@/pages/documentation";
 import NodeSetupWizard from "@/pages/node-setup-wizard";
 import VpsMonitoring from "@/pages/vps-monitoring";
 import OpenClawCommands from "@/pages/openclaw-commands";
+import AiTaskRunner from "@/pages/ai-task-runner";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/node-setup" component={NodeSetupWizard} />
       <Route path="/vps-monitor" component={VpsMonitoring} />
       <Route path="/commands" component={OpenClawCommands} />
+      <Route path="/ai-tasks" component={AiTaskRunner} />
       <Route component={NotFound} />
     </Switch>
   );

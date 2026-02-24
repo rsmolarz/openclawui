@@ -16,6 +16,7 @@ import {
   Wand2,
   Activity,
   Terminal,
+  Bot,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +38,7 @@ const navItems = [
   { title: "Documentation", url: "/docs", icon: FileText },
   { title: "Node Setup", url: "/node-setup", icon: Wand2 },
   { title: "Commands", url: "/commands", icon: Terminal },
+  { title: "AI Task Runner", url: "/ai-tasks", icon: Bot },
 ];
 
 const settingsItems = [
