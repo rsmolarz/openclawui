@@ -2800,6 +2800,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         `docker compose -p ${dockerProject} exec -T gateway openclaw --version 2>/dev/null || docker exec $(docker ps -qf "name=${dockerProject}.*gateway" | head -1) openclaw --version 2>/dev/null || echo "NO_DOCKER"`,
         'echo "---DOCKER-IMAGE---"',
         `docker compose -p ${dockerProject} images 2>/dev/null | grep gateway | awk '{print $2":"$3}' || echo "NO_IMAGE"`,
+        'echo "---NPM-LATEST---"',
+        'npm view openclaw version 2>/dev/null || echo "NO_NPM"',
       ].join('; ');
 
       const result = await executeRawSSHCommand(versionCmd, sshConfig);
@@ -2813,16 +2815,26 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const afterDocker = pkgParts[1] || "";
       const dockerParts = afterDocker.split("---DOCKER-IMAGE---");
       const dockerVersionRaw = dockerParts[0]?.trim() || "";
-      const dockerImageRaw = dockerParts[1]?.trim() || "";
+      const afterImage = dockerParts[1] || "";
+      const imageParts = afterImage.split("---NPM-LATEST---");
+      const dockerImageRaw = imageParts[0]?.trim() || "";
+      const npmLatestRaw = imageParts[1]?.trim() || "";
 
       let updateInfo: any = {};
       let currentVersion = "";
       let latestVersion = "unknown";
 
+      if (npmLatestRaw && npmLatestRaw !== "NO_NPM") {
+        const npmMatch = npmLatestRaw.match(/(\d+[\.\d-]+\S*)/);
+        if (npmMatch) latestVersion = npmMatch[1];
+      }
+
       if (updateCheckRaw && updateCheckRaw !== "NO_UPDATE_CHECK") {
         try {
           updateInfo = JSON.parse(updateCheckRaw);
-          latestVersion = updateInfo.lastAvailableVersion || updateInfo.lastNotifiedVersion || "unknown";
+          if (latestVersion === "unknown") {
+            latestVersion = updateInfo.lastAvailableVersion || updateInfo.lastNotifiedVersion || "unknown";
+          }
         } catch {}
       }
 
@@ -2840,7 +2852,21 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         currentVersion = updateInfo.lastNotifiedVersion;
       }
 
-      const hasUpdate = latestVersion !== "unknown" && currentVersion !== "" && currentVersion !== latestVersion;
+      const compareVersions = (a: string, b: string): number => {
+        const normalize = (v: string) => v.replace(/-/g, ".").split(".").map(p => parseInt(p, 10) || 0);
+        const pa = normalize(a);
+        const pb = normalize(b);
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+          const va = pa[i] || 0;
+          const vb = pb[i] || 0;
+          if (va !== vb) return va - vb;
+        }
+        return 0;
+      };
+
+      const hasUpdate = latestVersion !== "unknown" && currentVersion !== "" && currentVersion !== "unknown"
+        && compareVersions(latestVersion, currentVersion) > 0;
 
       res.json({
         currentVersion: currentVersion || "unknown",

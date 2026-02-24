@@ -10,6 +10,7 @@ import { storage } from "../storage";
 import { chat } from "./openrouter";
 import { EventEmitter } from "events";
 import { useDbAuthState, hasDbAuthState, clearAllDbAuthState } from "./db-auth-state";
+import { createWhatsAppTunnelAgent, SSHTunnelAgent } from "./ssh-tunnel-agent";
 const MAX_QR_RETRIES = 5;
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_DELAY_MS = 30000;
@@ -45,6 +46,7 @@ class WhatsAppBot extends EventEmitter {
   private _hasDbAuth = false;
   private _clearAuthFn: (() => Promise<void>) | null = null;
   private lastPongTime = 0;
+  private tunnelAgent: SSHTunnelAgent | null = null;
 
   getStatus(): BotStatus {
     return { ...this.status };
@@ -209,29 +211,39 @@ class WhatsAppBot extends EventEmitter {
         }
       }, START_TIMEOUT_MS);
 
-      const browserVersions = [
-        ["Chrome (Linux)", "Chrome", "120.0.6099"],
-        ["Firefox (Linux)", "Firefox", "121.0"],
-        ["Chrome (Windows)", "Chrome", "119.0.6045"],
-        ["Edge (Windows)", "Edge", "120.0.2210"],
-      ];
-      const browserChoice = this.usePairingCode
-        ? ["Chrome (Linux)", "", ""]
-        : browserVersions[Math.floor(Math.random() * browserVersions.length)];
+      if (this.tunnelAgent) {
+        try { this.tunnelAgent.destroy(); } catch {}
+        this.tunnelAgent = null;
+      }
+      try {
+        this.tunnelAgent = await createWhatsAppTunnelAgent();
+        if (this.tunnelAgent) {
+          console.log("[WhatsApp] Using SSH tunnel through VPS to bypass cloud IP restrictions");
+        }
+      } catch (err: any) {
+        console.warn("[WhatsApp] SSH tunnel failed, connecting directly:", err.message);
+      }
 
-      const sock = makeWASocket({
+      const socketOpts: any = {
         auth: state,
-        browser: browserChoice as [string, string, string],
+        browser: ["Ubuntu", "Chrome", "22.04.4"] as [string, string, string],
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
-        retryRequestDelayMs: 500 + Math.floor(Math.random() * 1000),
+        retryRequestDelayMs: 250,
         printQRInTerminal: false,
-        markOnlineOnConnect: true,
+        markOnlineOnConnect: false,
         generateHighQualityLinkPreview: false,
+        syncFullHistory: false,
         getMessage: async (key: any) => {
           return { conversation: "" };
         },
-      });
+      };
+
+      if (this.tunnelAgent) {
+        socketOpts.agent = this.tunnelAgent;
+      }
+
+      const sock = makeWASocket(socketOpts);
 
       this.sock = sock;
 
@@ -361,16 +373,16 @@ class WhatsAppBot extends EventEmitter {
             const hasSession = this.hasAuthState();
 
             if (!hasSession && (isTimedOut || statusCode === 408 || statusCode === 405)) {
-              if (statusCode === 405 && this.reconnectAttempts < 4) {
+              if (statusCode === 405 && this.reconnectAttempts < 6) {
                 this.reconnectAttempts++;
-                const delay = Math.min(20000 * Math.pow(2, this.reconnectAttempts - 1), 120000);
-                console.log(`[WhatsApp] 405 rejection — auto-retrying in ${delay / 1000}s (attempt ${this.reconnectAttempts}/4)`);
+                const delay = Math.min(30000 * Math.pow(2, this.reconnectAttempts - 1), 300000);
+                console.log(`[WhatsApp] 405 rejection — auto-retrying in ${delay / 1000}s (attempt ${this.reconnectAttempts}/6)`);
                 this.status = {
                   state: "connecting",
                   qrDataUrl: null,
                   pairingCode: null,
                   phone: null,
-                  error: `WhatsApp rate-limited this connection. Retrying in ${Math.round(delay / 1000)}s... (attempt ${this.reconnectAttempts}/4)`,
+                  error: `WhatsApp rate-limited this connection. Retrying in ${Math.round(delay / 1000)}s... (attempt ${this.reconnectAttempts}/6)`,
                 };
                 this.emit("status", this.status);
                 this.reconnectTimer = setTimeout(() => this.start(), delay);
@@ -383,7 +395,7 @@ class WhatsAppBot extends EventEmitter {
                 pairingCode: null,
                 phone: null,
                 error: statusCode === 405
-                  ? "WhatsApp rejected the connection. Try 'Link with Phone Number' or wait a minute and click Start."
+                  ? "WhatsApp rejected the connection. Try 'Link with Phone Number' instead — it bypasses this restriction."
                   : "Connection timed out. Click Start to try again.",
               };
               this.emit("status", this.status);
@@ -627,6 +639,10 @@ class WhatsAppBot extends EventEmitter {
         this.sock.end(undefined);
       } catch {}
       this.sock = null;
+    }
+    if (this.tunnelAgent) {
+      try { this.tunnelAgent.destroy(); } catch {}
+      this.tunnelAgent = null;
     }
     this.status = { state: "disconnected", qrDataUrl: null, pairingCode: null, phone: null, error: null };
     this.emit("status", this.status);
