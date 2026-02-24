@@ -54,10 +54,10 @@ export default function SettingsDashboard() {
 
   const sshCmd = `ssh -L ${getPort()}:localhost:${getPort()} root@${getHost()}`;
   const dashboardLocalUrl = `http://localhost:${getPort()}/`;
-  const canvasProxyUrl = `/api/gateway/canvas?instanceId=${instanceId}`;
+  const nativeDashboardUrl = `/gateway-proxy/${instanceId}/`;
 
   const handleOpenDashboard = () => {
-    window.open(canvasProxyUrl, "_blank", "noopener,noreferrer");
+    window.open(nativeDashboardUrl, "_blank", "noopener,noreferrer");
   };
 
   if (!instanceId) {

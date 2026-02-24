@@ -654,6 +654,33 @@ export default function SettingsOpenclaw() {
     },
   });
 
+  const [syncingFromVps, setSyncingFromVps] = useState(false);
+
+  const syncFromVps = async () => {
+    setSyncingFromVps(true);
+    try {
+      const resp = await fetch(`/api/gateway/sync-config?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
+      const data = await resp.json();
+      if (!resp.ok || data.error) {
+        toast({ title: "Sync failed", description: data.error || "Could not fetch config from VPS", variant: "destructive" });
+        return;
+      }
+      setFormValues((p) => ({
+        ...p,
+        gatewayPort: data.gatewayPort ?? p.gatewayPort,
+        gatewayBind: data.gatewayBind ?? p.gatewayBind,
+        gatewayToken: data.gatewayToken || p.gatewayToken,
+        gatewayPassword: data.gatewayPassword || p.gatewayPassword,
+        websocketUrl: data.websocketUrl || p.websocketUrl,
+      }));
+      toast({ title: "Synced from VPS", description: "Gateway settings updated from your server's live config. Review and save to lock them in." });
+    } catch (err: any) {
+      toast({ title: "Sync error", description: err?.message || "Network error", variant: "destructive" });
+    } finally {
+      setSyncingFromVps(false);
+    }
+  };
+
   const [sshResult, setSSHResult] = useState<{ success?: boolean; output?: string; error?: string; action?: string } | null>(null);
   const [sshRunning, setSSHRunning] = useState<string | null>(null);
 
@@ -1852,12 +1879,24 @@ export default function SettingsOpenclaw() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Cog className="h-4 w-4" />
-            Gateway Settings
-          </CardTitle>
-          <CardDescription>Configure the OpenClaw gateway server.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cog className="h-4 w-4" />
+              Gateway Settings
+            </CardTitle>
+            <CardDescription>Configure the OpenClaw gateway server.</CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={syncFromVps}
+            disabled={syncingFromVps}
+            data-testid="button-sync-from-vps"
+          >
+            {syncingFromVps ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+            Sync from VPS
+          </Button>
         </CardHeader>
         <CardContent className="space-y-6">
           {config?.gatewayToken && (

@@ -101,7 +101,8 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
 (function() {
   const _OrigWS = window.WebSocket;
   window.WebSocket = function(url, protocols) {
-    if (url && (url.includes('${parsedTarget.hostname}') || url.includes('localhost:${parsedTarget.port}'))) {
+    if (url && (url.includes('${parsedTarget.hostname}') || url.includes('localhost:${parsedTarget.port}') || url.includes(location.host))) {
+      console.log('[openclaw-proxy] Redirecting WS from', url, 'to', '${wsUrl}');
       url = '${wsUrl}';
     }
     return new _OrigWS(url, protocols);
@@ -116,13 +117,16 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
 
           modified = modified.replace("<head>", `<head>${injectScript}`);
 
+          const skipHeaders = new Set(["content-length", "content-encoding", "transfer-encoding", "content-security-policy", "x-frame-options"]);
           const headers: Record<string, string> = {};
           for (const [key, value] of Object.entries(proxyRes.headers)) {
-            if (key !== "content-length" && key !== "content-encoding" && key !== "transfer-encoding" && value) {
+            if (!skipHeaders.has(key) && value) {
               headers[key] = Array.isArray(value) ? value.join(", ") : value;
             }
           }
           headers["content-length"] = Buffer.byteLength(modified).toString();
+
+          modified = modified.replace(/\s+crossorigin\b/gi, '');
 
           res.writeHead(proxyRes.statusCode || 200, headers);
           res.end(modified);

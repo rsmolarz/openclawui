@@ -555,6 +555,39 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
+  app.get("/api/gateway/sync-config", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps) return res.status(400).json({ error: "No VPS configured" });
+
+      const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+      const result = await executeSSHCommand("read-gateway-json", sshConfig);
+      const output = (result.output || "").trim();
+      try {
+        const parsed = JSON.parse(output);
+        if (parsed.error) return res.status(500).json({ error: parsed.error });
+        const instance = await storage.getInstance(instanceId);
+        const hostname = (() => {
+          try { return new URL(instance?.serverUrl || "").hostname; } catch { return vps.vpsIp; }
+        })();
+        res.json({
+          gatewayPort: parsed.port || 18789,
+          gatewayBind: parsed.bind || "lan",
+          gatewayToken: parsed.token || "",
+          gatewayPassword: parsed.password || "",
+          websocketUrl: `ws://${hostname}:${parsed.port || 18789}`,
+        });
+      } catch {
+        res.status(500).json({ error: "Could not parse gateway config from VPS", raw: output.substring(0, 500) });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to sync config from VPS" });
+    }
+  });
+
   // Gateway proxy: proxy the native OpenClaw canvas UI (browser can't add Auth headers to window.open)
   app.get("/api/gateway/canvas", requireAuth, async (req, res) => {
     try {
