@@ -1875,6 +1875,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         console.log("[WhatsApp] Start called with error state, doing fresh start");
         await bot.startFresh();
       } else {
+        bot.clearError();
         bot.start();
       }
       res.json({ success: true, message: "WhatsApp bot starting..." });

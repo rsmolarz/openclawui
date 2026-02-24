@@ -8,14 +8,31 @@ import { storage } from "./storage";
 const PROXY_PATH_PREFIX = "/gateway-proxy";
 const WS_PROXY_PATH = "/gateway-ws";
 
-async function getGatewayUrl(instanceId?: string): Promise<string | null> {
+interface GatewayInfo {
+  url: string;
+  token: string | null;
+  instanceId: string;
+}
+
+async function getGatewayInfo(instanceId?: string): Promise<GatewayInfo | null> {
   try {
     const instances = await storage.getInstances();
     const instance = instanceId
       ? instances.find((i) => String(i.id) === instanceId)
       : instances.find((i) => i.isDefault) || instances[0];
     if (!instance?.serverUrl) return null;
-    return instance.serverUrl;
+
+    let token: string | null = null;
+    try {
+      const config = await storage.getOpenclawConfig(instance.id);
+      token = config?.gatewayToken || null;
+    } catch {}
+
+    if (!token && instance.apiKey) {
+      token = instance.apiKey;
+    }
+
+    return { url: instance.serverUrl, token, instanceId: instance.id };
   } catch {
     return null;
   }
@@ -31,11 +48,12 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
     const afterWildcard = slashIdx === -1 ? "" : pathAfterPrefix.slice(slashIdx + 1);
 
     (async () => {
-    const targetBase = await getGatewayUrl(instanceId);
-    if (!targetBase) {
+    const gwInfo = await getGatewayInfo(instanceId);
+    if (!gwInfo) {
       res.status(502).json({ error: "No gateway URL configured for this instance" });
       return;
     }
+    const targetBase = gwInfo.url;
     const targetUrl = new URL(afterWildcard, targetBase);
     targetUrl.search = new URL(req.url, "http://localhost").search;
 
@@ -48,6 +66,9 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       }
     }
     fwdHeaders["host"] = `${parsedTarget.hostname}:${parsedTarget.port || 80}`;
+    if (gwInfo.token) {
+      fwdHeaders["authorization"] = `Bearer ${gwInfo.token}`;
+    }
 
     const options: http.RequestOptions = {
       hostname: parsedTarget.hostname,
@@ -174,14 +195,14 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       return;
     }
 
-    const targetBase = await getGatewayUrl(instanceId);
-    if (!targetBase) {
+    const gwInfo = await getGatewayInfo(instanceId);
+    if (!gwInfo) {
       console.log(`[gateway-proxy] No gateway URL configured, destroying socket`);
       socket.destroy();
       return;
     }
 
-    const parsedTarget = new URL(targetBase);
+    const parsedTarget = new URL(gwInfo.url);
     const wsTargetUrl = `ws://${parsedTarget.hostname}:${parsedTarget.port || 18789}`;
     const source = instanceId ? `explicit:${instanceId}` : "node-root";
 
@@ -191,13 +212,13 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
       console.log(`[gateway-proxy] Client WebSocket upgraded successfully (source: ${source})`);
       
       const fwdHeaders: Record<string, string> = {};
-      if (request.headers.authorization) {
-        fwdHeaders.authorization = request.headers.authorization;
-      }
       for (const [key, value] of Object.entries(request.headers)) {
         if (key.startsWith("x-openclaw") && typeof value === "string") {
           fwdHeaders[key] = value;
         }
+      }
+      if (gwInfo.token) {
+        fwdHeaders["authorization"] = `Bearer ${gwInfo.token}`;
       }
       
       const gatewayWs = new WebSocket(wsTargetUrl, {

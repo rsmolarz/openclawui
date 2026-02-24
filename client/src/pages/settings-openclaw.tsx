@@ -490,7 +490,8 @@ export default function SettingsOpenclaw() {
     refetchInterval: (query) => {
       const state = query.state.data?.state;
       if (state === "connecting" || state === "qr_ready" || state === "pairing_code_ready") return 1500;
-      return 3000;
+      if (state === "connected") return 10000;
+      return 5000;
     },
   });
 

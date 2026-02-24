@@ -50,6 +50,13 @@ class WhatsAppBot extends EventEmitter {
     return { ...this.status };
   }
 
+  clearError(): void {
+    if (this.status.state === "disconnected" && this.status.error) {
+      this.status = { ...this.status, error: null };
+      this.emit("status", this.status);
+    }
+  }
+
   hasAuthState(): boolean {
     return this._hasDbAuth;
   }
@@ -145,6 +152,10 @@ class WhatsAppBot extends EventEmitter {
     }
     this.usePairingCode = true;
     this.pairingPhone = cleaned;
+    this.reconnectAttempts = 0;
+    this.autoReconnect = true;
+    this.status = { state: "connecting", qrDataUrl: null, pairingCode: null, phone: null, error: null };
+    this.emit("status", this.status);
     await this.checkDbAuth();
     if (this.hasAuthState()) {
       await this.clearAuthState();
@@ -617,6 +628,9 @@ class WhatsAppBot extends EventEmitter {
   async startFresh(): Promise<void> {
     await this.stop();
     await this.clearAuthState();
+    this.reconnectAttempts = 0;
+    this.status = { state: "connecting", qrDataUrl: null, pairingCode: null, phone: null, error: null };
+    this.emit("status", this.status);
     await new Promise(resolve => setTimeout(resolve, 500));
     await this.start();
   }
