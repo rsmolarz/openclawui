@@ -1,7 +1,7 @@
 import { Client } from "ssh2";
 
 const SSH_TIMEOUT_MS = 30000;
-const CMD_TIMEOUT_MS = 30000;
+const CMD_TIMEOUT_MS = 60000;
 
 const ALLOWED_COMMANDS: Record<string, string> = {
   status: "ps aux | grep -E 'openclaw' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789 || echo 'Port 18789 not listening'",
@@ -34,8 +34,10 @@ const ALLOWED_COMMANDS: Record<string, string> = {
   "cli-devices-list": `openclaw devices list --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
   "cli-nodes-status": `openclaw nodes status --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
   "cli-nodes-pending": `openclaw nodes pending --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
-  "kill-gateway": "kill -HUP $(pgrep -f openclaw-gateway) 2>/dev/null && sleep 2 && echo 'Signal sent' && ps aux | grep openclaw-gateway | grep -v grep || echo 'Process stopped'",
-  "force-restart-gateway": "kill $(pgrep -f openclaw-gateway) 2>/dev/null; sleep 3; kill -9 $(pgrep -f openclaw-gateway) 2>/dev/null; sleep 2; nohup /usr/local/bin/openclaw-gateway > /tmp/oc.log 2>&1 & sleep 10; ps aux | grep openclaw-gateway | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789; echo '---LOG---'; tail -30 /tmp/oc.log",
+  "kill-gateway": "echo 'WARNING: This will stop the gateway. Use force-restart-gateway instead to safely restart.'; ps aux | grep openclaw-gateway | grep -v grep || echo 'No gateway process running'",
+  "find-gateway-bin": "ls -la /usr/lib/node_modules/.bin/ 2>/dev/null | grep -i claw; echo '---NPM-BIN---'; npm bin -g 2>/dev/null; ls -la $(npm bin -g 2>/dev/null)/ 2>/dev/null | grep -i claw; echo '---PKG---'; cat /usr/lib/node_modules/openclaw/package.json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(\"bin:\",json.dumps(d.get(\"bin\",{}),indent=2))' 2>/dev/null; echo '---DELETED---'; ls -la /proc/*/exe 2>/dev/null | grep deleted | grep -i claw; echo '---NPX---'; npx openclaw --version 2>&1 | head -5",
+  "force-restart-gateway": "ls -la /usr/lib/node_modules/openclaw/dist/gateway/ 2>/dev/null | head -15; ENTRY=$(find /usr/lib/node_modules/openclaw/dist -name 'gateway.js' -o -name 'index.js' 2>/dev/null | head -1); echo \"Entry: $ENTRY\"; if [ -n \"$ENTRY\" ]; then rm -f /tmp/oc.log; kill $(pgrep -f 'node.*gateway') 2>/dev/null; sleep 1; cd /usr/lib/node_modules/openclaw && nohup node $ENTRY run --bind lan --port 18789 --force > /tmp/oc.log 2>&1 & sleep 15; ps aux | grep -E 'gateway' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789; echo '---LOG---'; tail -30 /tmp/oc.log; fi",
+  "npm-reinstall-openclaw": "rm -rf /usr/lib/node_modules/.openclaw-* 2>/dev/null; npm install -g openclaw@latest 2>&1 | tail -10; echo '---DONE---'; which openclaw 2>/dev/null; openclaw --version 2>/dev/null",
   "add-replit-origin": `python3 -c "
 import json
 f='/root/.openclaw/openclaw.json'
