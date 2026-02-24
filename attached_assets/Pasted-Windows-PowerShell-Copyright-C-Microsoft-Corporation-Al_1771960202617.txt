@@ -1,0 +1,88 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\WINDOWS\system32> |                                                       |
+>> |  Run "openclaw doctor --fix" to apply these changes.  |
+>> |                                                       |
+>> +-------------------------------------------------------+
+>> Config overwrite: C:\Users\Joseph S\.openclaw\openclaw.json (sha256 a185c8bcbe2460a4e41bdf7e684e90ad64f1d22a60c8172b145de2e7637e7547 -> b88da9171e7ae84602e4bba8407acf853b4a5de2ade06eca5bfb81162e6b8fb0, backup=C:\Users\Joseph S\.openclaw\openclaw.json.bak)
+At line:1 char:1
++ |                                                       |
++ ~
+An empty pipe element is not allowed.
+At line:1 char:2
++ |                                                       |
++  ~
+An empty pipe element is not allowed.
+At line:1 char:58
++ |                                                       |
++                                                          ~
+An empty pipe element is not allowed.
+At line:2 char:58
++ |  Run "openclaw doctor --fix" to apply these changes.  |
++                                                          ~
+An empty pipe element is not allowed.
+At line:3 char:2
++ |                                                       |
++  ~
+An empty pipe element is not allowed.
+At line:4 char:58
++ +-------------------------------------------------------+
++                                                          ~
+Missing expression after unary operator '+'.
+At line:4 char:1
++ +-------------------------------------------------------+
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Expressions are only allowed as the first element of a pipeline.
+At line:5 char:1
++ Config overwrite: C:\Users\Joseph S\.openclaw\openclaw.json (sha256 a ...
++ ~~~~~~
+Unexpected token 'Config' in expression or statement.
+At line:4 char:4
++ +-------------------------------------------------------+
++    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:4 char:6
++ +-------------------------------------------------------+
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+Not all parse errors were reported.  Correct the reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : EmptyPipeElement
+
+PS C:\WINDOWS\system32> Updated gateway.auth.token. Restart the gateway to apply.
+Updated : The term 'Updated' is not recognized as the name of a cmdlet, function, script file, or operable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ Updated gateway.auth.token. Restart the gateway to apply.
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Updated:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> PS C:\WINDOWS\system32> openclaw node run --host claw-settings.replit.app --port 443 --tls
+Get-Process : A positional parameter cannot be found that accepts argument 'openclaw'.
+At line:1 char:1
++ PS C:\WINDOWS\system32> openclaw node run --host claw-settings.replit ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32>  OpenClaw 2026.2.23 (b817600)  I don't judge, but your missing API keys are absolutely judging you.
+>>
+>> |
+>> o  Doctor changes ------------------------------+
+>> |                                               |
+>> |  WhatsApp configured, enabled automatically.  |
+>> |                                               |
+>> +-----------------------------------------------+
+>> |
+>> o  Doctor ----------------------------------------------+
+>> |                                                       |
+>> |  Run "openclaw doctor --fix" to apply these changes.  |
+>> |                                                       |
+>> +-------------------------------------------------------+
+>> node host PATH: C:\Users\Joseph S\.local\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Tailscale\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Users\Joseph S\AppData\Local\Programs\Python\Launcher\;C:\Users\Joseph S\AppData\Local\Microsoft\WindowsApps;C:\Users\Joseph S\AppData\Local\PowerToys\DSCModules\;C:\Users\Joseph S\AppData\Roaming\npm;\..
+>> node host gateway connect failed: pairing required
