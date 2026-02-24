@@ -1912,13 +1912,9 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
   app.post("/api/whatsapp/stop", requireAuth, async (req, res) => {
     try {
-      const instanceId = await resolveInstanceId(req);
-      if (instanceId) {
-        await storage.upsertOpenclawConfig(instanceId, { whatsappEnabled: false });
-      }
       const bot = await getWhatsappBot();
-      await bot.stop();
-      res.json({ success: true, message: "WhatsApp bot stopped" });
+      await bot.stopGracefully();
+      res.json({ success: true, message: "WhatsApp bot stopped (session preserved — will auto-reconnect on next restart)" });
     } catch (error) {
       res.status(500).json({ error: "Failed to stop WhatsApp bot" });
     }
