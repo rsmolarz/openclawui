@@ -1,0 +1,81 @@
+At line:2 char:58
++ |  Run "openclaw doctor --fix" to apply these changes.  |
++                                                          ~
+An empty pipe element is not allowed.
+At line:3 char:2
++ |                                                       |
++  ~
+An empty pipe element is not allowed.
+At line:4 char:58
++ +-------------------------------------------------------+
++                                                          ~
+Missing expression after unary operator '+'.
+At line:4 char:1
++ +-------------------------------------------------------+
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Expressions are only allowed as the first element of a pipeline.
+At line:5 char:1
++ node host PATH: C:\Users\Joseph S\.local\bin;C:\WINDOWS\system32;C:\W ...
++ ~~~~
+Unexpected token 'node' in expression or statement.
+At line:4 char:4
++ +-------------------------------------------------------+
++    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:4 char:6
++ +-------------------------------------------------------+
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+Not all parse errors were reported.  Correct the reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : EmptyPipeElement
+
+PS C:\WINDOWS\system32> node host gateway connect failed: pairing required
+node:internal/modules/cjs/loader:1424
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\WINDOWS\system32\host'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1421:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1227:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.13.0
+PS C:\WINDOWS\system32> gateway connect failed: Error: pairing required
+gateway : The term 'gateway' is not recognized as the name of a cmdlet, function, script file, or operable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ gateway connect failed: Error: pairing required
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (gateway:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> node host gateway closed (1008): pairing required
+node:internal/modules/cjs/loader:1424
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\WINDOWS\system32\host'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1421:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1227:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.13.0
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32> C:\Windows\System32>
