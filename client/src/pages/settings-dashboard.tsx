@@ -1,16 +1,18 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useInstance } from "@/hooks/use-instance";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ExternalLink, Terminal, Copy, Loader2, Server, Globe, Key, Wifi } from "lucide-react";
+import { ExternalLink, Terminal, Copy, Loader2, Server, Globe, Key, Wifi, Monitor, ChevronDown, ChevronUp } from "lucide-react";
 import type { OpenclawConfig } from "@shared/schema";
 
 export default function SettingsDashboard() {
   const { selectedInstanceId, selectedInstance } = useInstance();
   const { toast } = useToast();
   const instanceId = selectedInstanceId;
+  const [showSshTunnel, setShowSshTunnel] = useState(false);
 
   const { data: config } = useQuery<OpenclawConfig>({
     queryKey: ["/api/openclaw/config", instanceId],
@@ -18,7 +20,7 @@ export default function SettingsDashboard() {
   });
 
   const probeGatewayQuery = useQuery<{ reachable: boolean }>({
-    queryKey: ["/api/openclaw/probe", instanceId],
+    queryKey: ["/api/gateway/probe", instanceId],
     enabled: !!instanceId && !!selectedInstance?.serverUrl,
     refetchInterval: 30000,
   });
@@ -52,6 +54,11 @@ export default function SettingsDashboard() {
 
   const sshCmd = `ssh -L ${getPort()}:localhost:${getPort()} root@${getHost()}`;
   const dashboardLocalUrl = `http://localhost:${getPort()}/`;
+  const canvasProxyUrl = `/api/gateway/canvas?instanceId=${instanceId}`;
+
+  const handleOpenDashboard = () => {
+    window.open(canvasProxyUrl, "_blank", "noopener,noreferrer");
+  };
 
   if (!instanceId) {
     return (
@@ -94,66 +101,110 @@ export default function SettingsDashboard() {
       <Card data-testid="card-dashboard-access">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <ExternalLink className="h-4 w-4" />
+            <Monitor className="h-4 w-4" />
             Native OpenClaw Dashboard
           </CardTitle>
           <CardDescription>
-            The gateway dashboard requires a secure context (localhost). Use the SSH tunnel to access it from your local machine.
+            Open the gateway's built-in dashboard directly through a secure proxy connection.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="p-4 bg-muted/50 rounded-lg border space-y-3" data-testid="ssh-tunnel-section">
-            <p className="text-sm font-medium flex items-center gap-1.5">
-              <Terminal className="h-4 w-4" />
-              Step 1: Open SSH Tunnel
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Run this command in your terminal to create a secure tunnel to the gateway:
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="bg-background px-3 py-2 rounded text-xs flex-1 truncate border font-mono" data-testid="text-ssh-cmd">
-                {sshCmd}
-              </code>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(sshCmd);
-                  toast({ title: "Copied", description: "SSH tunnel command copied. Run this in your terminal." });
-                }}
-                data-testid="button-copy-ssh"
-              >
-                <Copy className="h-3.5 w-3.5 mr-1.5" />
-                Copy
-              </Button>
-            </div>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Button
+              size="lg"
+              onClick={handleOpenDashboard}
+              disabled={!probeGatewayQuery.data?.reachable && !liveStatusQuery.data?.gateway}
+              className="gap-2"
+              data-testid="button-open-dashboard"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open Dashboard
+            </Button>
+            {probeGatewayQuery.isLoading ? (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Checking gateway...
+              </span>
+            ) : probeGatewayQuery.data?.reachable ? (
+              <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                <Wifi className="h-3 w-3" />
+                Gateway reachable
+              </span>
+            ) : (
+              <span className="text-xs text-destructive flex items-center gap-1">
+                Gateway unreachable — try SSH tunnel below
+              </span>
+            )}
           </div>
 
-          <div className="p-4 bg-muted/50 rounded-lg border space-y-3" data-testid="open-dashboard-section">
-            <p className="text-sm font-medium flex items-center gap-1.5">
-              <Globe className="h-4 w-4" />
-              Step 2: Open Dashboard
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Once the tunnel is running, open this URL in your browser:
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="bg-background px-3 py-2 rounded text-xs flex-1 truncate border font-mono" data-testid="text-dashboard-local-url">
-                {dashboardLocalUrl}
-              </code>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(dashboardLocalUrl);
-                  toast({ title: "Copied", description: "Dashboard URL copied. Open this in your browser after starting the SSH tunnel." });
-                }}
-                data-testid="button-copy-dashboard-url"
-              >
-                <Copy className="h-3.5 w-3.5 mr-1.5" />
-                Copy
-              </Button>
-            </div>
+          <div className="border-t pt-4">
+            <button
+              onClick={() => setShowSshTunnel(!showSshTunnel)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              data-testid="button-toggle-ssh-tunnel"
+            >
+              {showSshTunnel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <Terminal className="h-4 w-4" />
+              Alternative: SSH Tunnel Access
+            </button>
+
+            {showSshTunnel && (
+              <div className="mt-3 space-y-4">
+                <div className="p-4 bg-muted/50 rounded-lg border space-y-3" data-testid="ssh-tunnel-section">
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    <Terminal className="h-4 w-4" />
+                    Step 1: Open SSH Tunnel
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Run this command in your terminal to create a secure tunnel to the gateway:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="bg-background px-3 py-2 rounded text-xs flex-1 truncate border font-mono" data-testid="text-ssh-cmd">
+                      {sshCmd}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(sshCmd);
+                        toast({ title: "Copied", description: "SSH tunnel command copied. Run this in your terminal." });
+                      }}
+                      data-testid="button-copy-ssh"
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-muted/50 rounded-lg border space-y-3" data-testid="open-dashboard-section">
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    <Globe className="h-4 w-4" />
+                    Step 2: Open Dashboard
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Once the tunnel is running, open this URL in your browser:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="bg-background px-3 py-2 rounded text-xs flex-1 truncate border font-mono" data-testid="text-dashboard-local-url">
+                      {dashboardLocalUrl}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(dashboardLocalUrl);
+                        toast({ title: "Copied", description: "Dashboard URL copied. Open this in your browser after starting the SSH tunnel." });
+                      }}
+                      data-testid="button-copy-dashboard-url"
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
