@@ -2682,26 +2682,46 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const versionResult = await executeRawSSHCommand('openclaw --version 2>&1 | head -1', sshConfig);
-      const currentRaw = versionResult.output?.trim() || "";
-      const currentMatch = currentRaw.match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
-      const currentVersion = currentMatch ? currentMatch[1] : currentRaw;
+      const versionCmd = [
+        'cat /root/.openclaw/update-check.json 2>/dev/null || echo "NO_UPDATE_CHECK"',
+        'echo "---PKG---"',
+        'for p in /usr/local/lib/node_modules/openclaw /usr/lib/node_modules/openclaw /root/.npm-global/lib/node_modules/openclaw; do [ -f "$p/package.json" ] && grep \'"version"\' "$p/package.json" | head -1 && break; done 2>/dev/null || echo "NO_PKG"',
+      ].join('; ');
 
-      const latestResult = await executeRawSSHCommand('npm view openclaw version 2>/dev/null || echo "unknown"', sshConfig);
-      const latestVersion = latestResult.output?.trim() || "unknown";
+      const result = await executeRawSSHCommand(versionCmd, sshConfig);
+      const output = result.output?.trim() || "";
 
-      const updateCheckResult = await executeRawSSHCommand('cat /root/.openclaw/update-check.json 2>/dev/null || echo "{}"', sshConfig);
+      const sections = output.split("---PKG---");
+      const updateCheckRaw = sections[0]?.trim() || "";
+      const pkgRaw = sections[1]?.trim() || "";
+
       let updateInfo: any = {};
-      try { updateInfo = JSON.parse(updateCheckResult.output?.trim() || "{}"); } catch {}
+      let currentVersion = "";
+      let latestVersion = "unknown";
 
-      const hasUpdate = latestVersion !== "unknown" && currentVersion !== latestVersion && currentVersion !== "";
+      if (updateCheckRaw && updateCheckRaw !== "NO_UPDATE_CHECK") {
+        try {
+          updateInfo = JSON.parse(updateCheckRaw);
+          latestVersion = updateInfo.lastAvailableVersion || updateInfo.lastNotifiedVersion || "unknown";
+        } catch {}
+      }
+
+      if (pkgRaw && pkgRaw !== "NO_PKG") {
+        const pkgMatch = pkgRaw.match(/"version"\s*:\s*"([^"]+)"/);
+        if (pkgMatch) currentVersion = pkgMatch[1];
+      }
+
+      if (!currentVersion && updateInfo.lastNotifiedVersion) {
+        currentVersion = updateInfo.lastNotifiedVersion;
+      }
+
+      const hasUpdate = latestVersion !== "unknown" && currentVersion !== "" && currentVersion !== latestVersion;
 
       res.json({
-        currentVersion,
+        currentVersion: currentVersion || "unknown",
         latestVersion,
         hasUpdate,
         updateInfo,
-        rawOutput: currentRaw,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Version check failed" });
@@ -2718,20 +2738,27 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const result = await executeRawSSHCommand(
-        'npm install -g openclaw@latest 2>&1; echo "---RESTART---"; openclaw gateway restart 2>&1; sleep 2; openclaw node restart 2>&1; echo "---VERSION---"; openclaw --version 2>&1 | head -1',
-        sshConfig
-      );
+      const updateCmd = [
+        'npm install -g openclaw@latest 2>&1',
+        'echo "---RESTART---"',
+        'kill -9 $(pgrep -f openclaw-gateway) $(pgrep -f openclaw-node) 2>/dev/null; sleep 2',
+        'nohup openclaw-gateway --host 0.0.0.0 --port 18789 > /tmp/openclaw-gateway.log 2>&1 &',
+        'nohup openclaw-node > /tmp/openclaw-node.log 2>&1 &',
+        'sleep 3',
+        'echo "---VERSION---"',
+        'for p in /usr/local/lib/node_modules/openclaw /usr/lib/node_modules/openclaw /root/.npm-global/lib/node_modules/openclaw; do [ -f "$p/package.json" ] && grep \'"version"\' "$p/package.json" | head -1 && break; done 2>/dev/null || echo "NO_PKG"',
+      ].join('; ');
+
+      const result = await executeRawSSHCommand(updateCmd, sshConfig);
 
       const output = result.output || "";
-      const versionMatch = output.match(/---VERSION---\s*\n?(.+)/);
-      const newVersionRaw = versionMatch ? versionMatch[1].trim() : "";
-      const newVersionMatch = newVersionRaw.match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
-      const newVersion = newVersionMatch ? newVersionMatch[1] : newVersionRaw;
+      const versionSection = output.split("---VERSION---")[1]?.trim() || "";
+      const versionMatch = versionSection.match(/"version"\s*:\s*"([^"]+)"/);
+      const newVersion = versionMatch ? versionMatch[1] : "";
 
       res.json({
         success: result.success !== false,
-        newVersion,
+        newVersion: newVersion || "updated",
         output,
       });
     } catch (error: any) {
