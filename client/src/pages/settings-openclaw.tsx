@@ -1591,18 +1591,32 @@ export default function SettingsOpenclaw() {
           )}
 
           {botStatus?.state === "pairing_code_ready" && botStatus.pairingCode && (
-            <div className="flex flex-col items-center gap-4 p-6 rounded-lg border-2 border-primary/30 bg-primary/5" data-testid="pairing-code-display">
+            <div className="flex flex-col items-center gap-4 p-6 rounded-lg border-2 border-green-500/40 bg-green-500/5" data-testid="pairing-code-display">
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <p className="text-sm font-semibold">Enter this code in WhatsApp</p>
+                <p className="text-sm font-semibold">Your pairing code is ready</p>
               </div>
-              <div className="text-5xl font-mono font-bold tracking-[0.3em] select-all bg-white dark:bg-muted px-6 py-4 rounded-xl shadow-lg" data-testid="text-pairing-code">
+              <div
+                className="text-5xl font-mono font-bold tracking-[0.3em] select-all bg-white dark:bg-muted px-6 py-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform"
+                data-testid="text-pairing-code"
+                onClick={() => {
+                  navigator.clipboard.writeText(botStatus.pairingCode!.replace(/-/g, ""));
+                  toast({ title: "Code copied", description: "Pairing code copied to clipboard." });
+                }}
+                title="Tap to copy"
+              >
                 {botStatus.pairingCode}
               </div>
-              <div className="text-xs text-muted-foreground text-center max-w-sm space-y-1">
-                <p>On your phone: <strong>WhatsApp</strong> → <strong>Settings</strong> → <strong>Linked Devices</strong></p>
-                <p>Tap <strong>Link a Device</strong> → <strong>Link with phone number instead</strong></p>
-                <p>Type the code shown above</p>
+              <p className="text-[10px] text-muted-foreground">Tap the code to copy it</p>
+              <div className="rounded-md bg-muted/50 p-3 space-y-1 w-full max-w-sm">
+                <p className="text-xs text-muted-foreground text-center font-medium">Now on this phone:</p>
+                <ol className="text-xs text-muted-foreground text-center list-decimal list-inside space-y-0.5">
+                  <li>Open <strong>WhatsApp</strong></li>
+                  <li><strong>Settings</strong> → <strong>Linked Devices</strong></li>
+                  <li>Tap <strong>Link a Device</strong></li>
+                  <li>Tap <strong>Link with phone number instead</strong></li>
+                  <li>Paste or type the code above</li>
+                </ol>
               </div>
               <Button variant="outline" size="sm" onClick={() => restartBotMutation.mutate()} disabled={restartBotMutation.isPending} data-testid="button-refresh-pairing">
                 <RotateCw className="h-4 w-4 mr-1" />
@@ -1612,40 +1626,77 @@ export default function SettingsOpenclaw() {
           )}
 
           {showPairingForm && (botStatus?.state === "disconnected" || botStatus?.state === "connecting" || !botStatus) && (
-            <div className="rounded-lg border-2 border-dashed border-muted-foreground/20 p-6 space-y-3" data-testid="pairing-phone-form">
-              <p className="text-sm font-semibold">Enter your WhatsApp phone number</p>
-              <p className="text-xs text-muted-foreground">
-                Use international format without the + sign (e.g. <strong>48123456789</strong> for Poland, <strong>13405140344</strong> for US)
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="13405140344"
-                  value={pairingPhoneInput}
-                  onChange={(e) => setPairingPhoneInput(e.target.value)}
-                  className="max-w-xs"
-                  data-testid="input-pairing-phone"
-                />
-                <Button
-                  onClick={() => {
-                    if (pairingPhoneInput.trim()) {
-                      pairWithPhoneMutation.mutate(pairingPhoneInput.trim());
-                    }
-                  }}
-                  disabled={!pairingPhoneInput.trim() || pairWithPhoneMutation.isPending}
-                  data-testid="button-submit-pairing"
-                >
-                  {pairWithPhoneMutation.isPending ? "Requesting..." : "Get Pairing Code"}
-                </Button>
+            <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-6 space-y-4" data-testid="pairing-phone-form">
+              <div className="text-center space-y-1">
+                <p className="text-sm font-semibold">Single-Device Pairing</p>
+                <p className="text-xs text-muted-foreground">
+                  Enter your phone number and you'll get a code to type directly into WhatsApp — no camera or second screen needed.
+                </p>
               </div>
-              <button className="text-xs underline text-primary" onClick={() => { setShowPairingForm(false); }} data-testid="button-back-to-qr">
-                Back to QR Code option
+              <div className="space-y-2">
+                <Label htmlFor="pairingPhone" className="text-xs font-medium">Phone number (international format, no + sign)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="pairingPhone"
+                    placeholder="13405140344"
+                    value={pairingPhoneInput}
+                    onChange={(e) => setPairingPhoneInput(e.target.value)}
+                    className="max-w-xs"
+                    data-testid="input-pairing-phone"
+                  />
+                  <Button
+                    onClick={() => {
+                      if (pairingPhoneInput.trim()) {
+                        pairWithPhoneMutation.mutate(pairingPhoneInput.trim());
+                      }
+                    }}
+                    disabled={!pairingPhoneInput.trim() || pairWithPhoneMutation.isPending}
+                    data-testid="button-submit-pairing"
+                  >
+                    {pairWithPhoneMutation.isPending ? "Requesting..." : "Get Pairing Code"}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">e.g. <strong>48123456789</strong> (Poland), <strong>13405140344</strong> (US)</p>
+              </div>
+              <div className="rounded-md bg-muted/50 p-3 space-y-1">
+                <p className="text-xs text-muted-foreground text-center font-medium">After you get the code:</p>
+                <ol className="text-xs text-muted-foreground text-center list-decimal list-inside space-y-0.5">
+                  <li>Open <strong>WhatsApp</strong> on this phone</li>
+                  <li>Go to <strong>Settings</strong> → <strong>Linked Devices</strong></li>
+                  <li>Tap <strong>Link a Device</strong></li>
+                  <li>Tap <strong>Link with phone number instead</strong></li>
+                  <li>Type the code shown here</li>
+                </ol>
+              </div>
+              <button className="text-xs underline text-primary block mx-auto" onClick={() => { setShowPairingForm(false); }} data-testid="button-back-to-qr">
+                Use QR Code instead (requires second device)
               </button>
             </div>
           )}
 
           {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && !showPairingForm && (
             <div className="space-y-4">
+              <div className="rounded-md bg-primary/5 border border-primary/20 p-3 sm:hidden" data-testid="mobile-pairing-hint">
+                <p className="text-xs text-center">
+                  <strong>On your phone?</strong> Use <strong>Link with Phone Number</strong> below — it gives you a code to type directly into WhatsApp, no second device needed.
+                </p>
+              </div>
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                <button
+                  onClick={() => setShowPairingForm(true)}
+                  disabled={pairWithPhoneMutation.isPending}
+                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed order-first"
+                  data-testid="button-pair-phone"
+                >
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                    <Smartphone className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold">Link with Phone Number</p>
+                    <p className="text-xs text-muted-foreground mt-1">Works from this device — no second screen needed</p>
+                    <Badge variant="secondary" className="mt-2 text-[10px]">Recommended</Badge>
+                  </div>
+                </button>
                 <button
                   onClick={() => startBotMutation.mutate()}
                   disabled={startBotMutation.isPending || pairWithPhoneMutation.isPending}
@@ -1660,22 +1711,8 @@ export default function SettingsOpenclaw() {
                     )}
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold">{startBotMutation.isPending ? "Generating QR..." : "Generate QR Code"}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Scan with your phone camera</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setShowPairingForm(true)}
-                  disabled={pairWithPhoneMutation.isPending}
-                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-testid="button-pair-phone"
-                >
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                    <Smartphone className="h-7 w-7 text-primary" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold">Link with Phone Number</p>
-                    <p className="text-xs text-muted-foreground mt-1">Enter a pairing code manually</p>
+                    <p className="text-sm font-semibold">{startBotMutation.isPending ? "Generating QR..." : "Scan QR Code"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Requires a second device to scan</p>
                   </div>
                 </button>
               </div>
