@@ -3099,6 +3099,85 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     }
   });
 
+  app.post("/api/whatsapp/deploy-vps-bot", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps?.vpsIp) return res.status(400).json({ error: "No VPS configured" });
+
+      const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+
+      const setupCmd = [
+        'cd /root/openclaw-whatsapp-bot',
+        'npm i --production 2>&1 | tail -5',
+        'echo "---DEPS_DONE---"',
+        'pkill -f "openclaw-whatsapp.js" 2>/dev/null || true',
+        'sleep 1',
+        'nohup node openclaw-whatsapp.js > /tmp/whatsapp-bot.log 2>&1 &',
+        'disown',
+        'sleep 3',
+        'pgrep -f "openclaw-whatsapp.js" && echo "BOT_RUNNING" || echo "BOT_FAILED"',
+        'echo "---LOG---"',
+        'cat /tmp/whatsapp-bot.log 2>/dev/null | tail -30',
+      ].join('; ');
+
+      const result = await executeRawSSHCommand(setupCmd, sshConfig, 2, 90000);
+      const output = result.output || "";
+      const running = output.includes("BOT_RUNNING");
+      const logSection = output.split("---LOG---")[1]?.trim() || "";
+
+      res.json({ success: running, output, log: logSection });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/whatsapp/stop-vps-bot", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps?.vpsIp) return res.status(400).json({ error: "No VPS configured" });
+
+      const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+
+      const cmd = 'pkill -f "openclaw-whatsapp.js" 2>/dev/null && echo "STOPPED" || echo "NOT_RUNNING"';
+      const result = await executeRawSSHCommand(cmd, sshConfig);
+      res.json({ success: true, output: result.output });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/whatsapp/vps-bot-log", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps?.vpsIp) return res.status(400).json({ error: "No VPS configured" });
+
+      const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+
+      const cmd = [
+        'pgrep -f "openclaw-whatsapp.js" && echo "STATUS:RUNNING" || echo "STATUS:STOPPED"',
+        'echo "---LOG---"',
+        'cat /tmp/whatsapp-bot.log 2>/dev/null | tail -50',
+      ].join('; ');
+      const result = await executeRawSSHCommand(cmd, sshConfig);
+      const output = result.output || "";
+      const running = output.includes("STATUS:RUNNING");
+      const log = output.split("---LOG---")[1]?.trim() || "";
+
+      res.json({ running, log });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // === AI Task Runner Routes ===
   const { processAiMessage } = await import("./ai-task-runner");
   const aiMessageSchema = z.object({ message: z.string().min(1).max(5000) });

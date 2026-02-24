@@ -218,6 +218,110 @@ const LLM_PROVIDERS = [
   "Other",
 ];
 
+function VpsBotControls() {
+  const { toast } = useToast();
+  const [showLog, setShowLog] = useState(false);
+
+  const vpsBotLogQuery = useQuery<{ running: boolean; log: string }>({
+    queryKey: ["/api/whatsapp/vps-bot-log"],
+    refetchInterval: showLog ? 5000 : 30000,
+  });
+
+  const deployMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/whatsapp/deploy-vps-bot");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.success) {
+        toast({ title: "VPS Bot Started", description: "WhatsApp bot is running on your VPS. Check the log for pairing code." });
+      } else {
+        toast({ title: "VPS Bot Issue", description: data.log || "Bot may not have started. Check the log.", variant: "destructive" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/vps-bot-log"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/status"] });
+      setShowLog(true);
+    },
+    onError: (err: any) => {
+      toast({ title: "Deploy Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/whatsapp/stop-vps-bot");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Bot Stopped" });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/vps-bot-log"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/status"] });
+    },
+  });
+
+  const isRunning = vpsBotLogQuery.data?.running;
+
+  return (
+    <div className="rounded-md border border-primary/20 bg-primary/5 p-4 space-y-3" data-testid="vps-bot-controls">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+          <Globe className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold">Run on VPS</p>
+            {isRunning && <Badge variant="default" className="text-[10px]">Running</Badge>}
+            {isRunning === false && <Badge variant="secondary" className="text-[10px]">Stopped</Badge>}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Deploy and run the WhatsApp bot directly on your Hostinger VPS. May work depending on IP restrictions — worth trying first.
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          size="sm"
+          variant={isRunning ? "outline" : "default"}
+          onClick={() => deployMutation.mutate()}
+          disabled={deployMutation.isPending}
+          data-testid="button-deploy-vps-bot"
+        >
+          {deployMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
+          {deployMutation.isPending ? "Deploying..." : isRunning ? "Restart on VPS" : "Start on VPS"}
+        </Button>
+        {isRunning && (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => stopMutation.mutate()}
+            disabled={stopMutation.isPending}
+            data-testid="button-stop-vps-bot"
+          >
+            <Square className="h-3.5 w-3.5 mr-1.5" />
+            Stop
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => { setShowLog(!showLog); vpsBotLogQuery.refetch(); }}
+          data-testid="button-toggle-vps-log"
+        >
+          <Terminal className="h-3.5 w-3.5 mr-1.5" />
+          {showLog ? "Hide Log" : "Show Log"}
+        </Button>
+      </div>
+      {showLog && (
+        <div className="rounded-md bg-black/90 p-3 max-h-48 overflow-y-auto">
+          <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap" data-testid="text-vps-bot-log">
+            {vpsBotLogQuery.data?.log || (vpsBotLogQuery.isLoading ? "Loading..." : "No log output yet. Start the bot to see output.")}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UpdateCheckerCard() {
   const { toast } = useToast();
   const versionQuery = useQuery<{
@@ -1803,49 +1907,46 @@ export default function SettingsOpenclaw() {
                 </div>
               </div>
 
-              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3" data-testid="whatsapp-cloud-warning">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-muted-foreground">
-                    <strong className="text-amber-800 dark:text-amber-300">Direct connection from this dashboard</strong> is also available below, but may fail due to cloud IP restrictions.
-                  </p>
-                </div>
-              </div>
+              <VpsBotControls />
 
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                <button
-                  onClick={() => setShowPairingForm(true)}
-                  disabled={pairWithPhoneMutation.isPending}
-                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed order-first"
-                  data-testid="button-pair-phone"
-                >
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                    <Smartphone className="h-7 w-7 text-primary" />
+              <details className="rounded-md border border-muted p-0 group">
+                <summary className="flex items-center gap-2 p-3 cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+                  <span>Direct cloud connection (may not work from datacenter IPs)</span>
+                </summary>
+                <div className="p-3 pt-0 space-y-3">
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                    <button
+                      onClick={() => setShowPairingForm(true)}
+                      disabled={pairWithPhoneMutation.isPending}
+                      className="flex flex-col items-center gap-3 p-4 rounded-lg border border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      data-testid="button-pair-phone"
+                    >
+                      <Smartphone className="h-6 w-6 text-primary" />
+                      <div className="text-center">
+                        <p className="text-sm font-semibold">Link with Phone Number</p>
+                        <p className="text-xs text-muted-foreground mt-1">Direct from this dashboard</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => startBotMutation.mutate()}
+                      disabled={startBotMutation.isPending || pairWithPhoneMutation.isPending}
+                      className="flex flex-col items-center gap-3 p-4 rounded-lg border border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      data-testid="button-start-bot"
+                    >
+                      {startBotMutation.isPending ? (
+                        <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                      ) : (
+                        <MessageSquare className="h-6 w-6 text-primary" />
+                      )}
+                      <div className="text-center">
+                        <p className="text-sm font-semibold">{startBotMutation.isPending ? "Generating QR..." : "Scan QR Code"}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Direct from this dashboard</p>
+                      </div>
+                    </button>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold">Link with Phone Number</p>
-                    <p className="text-xs text-muted-foreground mt-1">Direct cloud connection (may not work)</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => startBotMutation.mutate()}
-                  disabled={startBotMutation.isPending || pairWithPhoneMutation.isPending}
-                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-testid="button-start-bot"
-                >
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                    {startBotMutation.isPending ? (
-                      <Loader2 className="h-7 w-7 text-primary animate-spin" />
-                    ) : (
-                      <MessageSquare className="h-7 w-7 text-primary" />
-                    )}
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold">{startBotMutation.isPending ? "Generating QR..." : "Scan QR Code"}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Direct cloud connection (may not work)</p>
-                  </div>
-                </button>
-              </div>
+                </div>
+              </details>
             </div>
           )}
 

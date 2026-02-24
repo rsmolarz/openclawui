@@ -4,6 +4,8 @@ const { Boom } = require("@hapi/boom");
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
+const { SocksClient } = require("socks");
+const net = require("net");
 
 const CONFIG_FILE = path.join(__dirname, "config.json");
 const AUTH_DIR = path.join(__dirname, "auth_state");
@@ -45,6 +47,46 @@ function loadConfig() {
   config.dashboardUrl = config.dashboardUrl.replace(/\/$/, "");
   console.log(`Dashboard: ${config.dashboardUrl}`);
   console.log(`API Key: ${config.apiKey.substring(0, 8)}...`);
+  if (config.socksProxy) {
+    console.log(`SOCKS Proxy: ${config.socksProxy}`);
+  }
+}
+
+function parseSocksProxy(proxyUrl) {
+  if (!proxyUrl) return null;
+  const url = new URL(proxyUrl.startsWith("socks") ? proxyUrl : `socks5://${proxyUrl}`);
+  return {
+    host: url.hostname,
+    port: parseInt(url.port) || 1080,
+    type: url.protocol === "socks4:" ? 4 : 5,
+    userId: url.username || undefined,
+    password: url.password || undefined,
+  };
+}
+
+function makeSocksAgent(proxyConfig) {
+  return {
+    createConnection: (opts, callback) => {
+      const destHost = opts.host || opts.hostname;
+      const destPort = opts.port || 443;
+      SocksClient.createConnection({
+        proxy: {
+          host: proxyConfig.host,
+          port: proxyConfig.port,
+          type: proxyConfig.type,
+          userId: proxyConfig.userId,
+          password: proxyConfig.password,
+        },
+        command: "connect",
+        destination: { host: destHost, port: destPort },
+      }).then(info => {
+        callback(null, info.socket);
+      }).catch(err => {
+        console.error(`[Proxy] SOCKS connection to ${destHost}:${destPort} failed:`, err.message);
+        callback(err);
+      });
+    },
+  };
 }
 
 async function reportStatus(state, phone, error) {
@@ -155,6 +197,12 @@ async function startBot() {
     syncFullHistory: false,
     getMessage: async () => ({ conversation: "" }),
   };
+
+  const proxyConfig = parseSocksProxy(config.socksProxy);
+  if (proxyConfig) {
+    console.log(`[Bot] Using SOCKS${proxyConfig.type} proxy: ${proxyConfig.host}:${proxyConfig.port}`);
+    socketOpts.agent = makeSocksAgent(proxyConfig);
+  }
 
   sock = makeWASocket(socketOpts);
 
