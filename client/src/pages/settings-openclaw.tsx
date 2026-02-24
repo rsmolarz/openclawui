@@ -237,12 +237,25 @@ function UpdateCheckerCard() {
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({
-        title: data.success ? "Update Complete" : "Update Issue",
-        description: data.success
-          ? `OpenClaw updated to ${data.newVersion}. Gateway and node services restarted.`
-          : "Update may have partially succeeded. Check the gateway status.",
-      });
+      if (data.alreadyLatest) {
+        toast({
+          title: "Already Up to Date",
+          description: `OpenClaw ${data.newVersion} is the latest version. No update needed.`,
+        });
+      } else if (data.success) {
+        toast({
+          title: "Update Complete",
+          description: `OpenClaw updated to ${data.newVersion}. Gateway ${data.gatewayRunning ? "is running" : "restarting"}.`,
+        });
+      } else {
+        toast({
+          title: "Update Issue",
+          description: data.sshError
+            ? `SSH error: ${data.sshError}`
+            : `Update may have partially succeeded (${data.method}). Check the gateway status.`,
+          variant: "destructive",
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/openclaw/version-check"] });
     },
     onError: (err: any) => {
@@ -305,7 +318,7 @@ function UpdateCheckerCard() {
                 {versionQuery.isFetching ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
                 Check for Updates
               </Button>
-              {v?.hasUpdate && (
+              {v?.hasUpdate ? (
                 <Button
                   size="sm"
                   variant="default"
@@ -316,7 +329,18 @@ function UpdateCheckerCard() {
                   {updateMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
                   {updateMutation.isPending ? "Installing..." : `Update to ${v.latestVersion}`}
                 </Button>
-              )}
+              ) : v?.currentVersion && !v?.hasUpdate ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateMutation.mutate()}
+                  disabled={updateMutation.isPending}
+                  data-testid="button-reinstall"
+                >
+                  {updateMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                  {updateMutation.isPending ? "Reinstalling..." : "Reinstall / Force Update"}
+                </Button>
+              ) : null}
             </div>
           </>
         )}
@@ -1733,6 +1757,21 @@ export default function SettingsOpenclaw() {
 
           {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && !showPairingForm && (
             <div className="space-y-4">
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-4 space-y-2" data-testid="whatsapp-cloud-warning">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Cloud Environment Limitation</p>
+                    <p className="text-xs text-muted-foreground">
+                      WhatsApp blocks connections from cloud/datacenter IP addresses (including this dashboard and your VPS).
+                      To use WhatsApp integration, you need to run the bot from a device with a <strong>residential IP</strong> (e.g. your home computer or phone).
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      You can still try connecting below, but it may fail with a timeout or connection error.
+                    </p>
+                  </div>
+                </div>
+              </div>
               <div className="rounded-md bg-primary/5 border border-primary/20 p-3 sm:hidden" data-testid="mobile-pairing-hint">
                 <p className="text-xs text-center">
                   <strong>On your phone?</strong> Use <strong>Link with Phone Number</strong> below — it gives you a code to type directly into WhatsApp, no second device needed.

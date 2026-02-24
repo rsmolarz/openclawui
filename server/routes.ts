@@ -2892,51 +2892,104 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const hasDockerCmd = `docker compose -p ${dockerProject} ps --format json 2>/dev/null | head -1 || echo "NO_DOCKER"`;
+      const hasDockerCmd = [
+        `docker compose -p ${dockerProject} ps --format json 2>/dev/null | head -1`,
+        'echo "---ALT---"',
+        `docker ps --filter "name=${dockerProject}" --format "{{.Names}}" 2>/dev/null | head -1`,
+        'echo "---ALT2---"',
+        'docker ps --filter "name=openclaw" --format "{{.Names}}" 2>/dev/null | head -1',
+      ].join('; ');
       const dockerCheck = await executeRawSSHCommand(hasDockerCmd, sshConfig);
-      const isDocker = dockerCheck.output && !dockerCheck.output.includes("NO_DOCKER") && dockerCheck.output.trim() !== "";
+      const dkOut = dockerCheck.output || "";
+      const dkParts = dkOut.split("---ALT---");
+      const composeOut = dkParts[0]?.trim() || "";
+      const altParts = (dkParts[1] || "").split("---ALT2---");
+      const filterOut = altParts[0]?.trim() || "";
+      const anyOpenclawContainer = altParts[1]?.trim() || "";
+      const isDocker = !!(composeOut && composeOut !== "[]") || !!filterOut || !!anyOpenclawContainer;
+      const detectedContainer = filterOut || anyOpenclawContainer || "";
+
+      const versionCheckCmd = [
+        'npm view openclaw version 2>/dev/null || echo "NO_NPM"',
+        'echo "---CUR---"',
+        'for p in /usr/local/lib/node_modules/openclaw /usr/lib/node_modules/openclaw /root/.npm-global/lib/node_modules/openclaw; do [ -f "$p/package.json" ] && grep \'"version"\' "$p/package.json" | head -1 && break; done 2>/dev/null || echo "NO_PKG"',
+      ].join('; ');
+      const preCheck = await executeRawSSHCommand(versionCheckCmd, sshConfig);
+      const preOut = preCheck.output || "";
+      const preParts = preOut.split("---CUR---");
+      const npmLatest = preParts[0]?.trim().match(/(\d+[\.\d-]+\S*)/)?.[1] || "";
+      const curPkgMatch = preParts[1]?.trim().match(/"version"\s*:\s*"([^"]+)"/);
+      const currentInstalled = curPkgMatch?.[1] || "";
+
+      if (npmLatest && currentInstalled && npmLatest === currentInstalled && !isDocker) {
+        return res.json({
+          success: true,
+          newVersion: currentInstalled,
+          output: `Already at the latest version (${currentInstalled}). No update needed.`,
+          method: "npm",
+          alreadyLatest: true,
+        });
+      }
 
       let updateCmd: string;
+      let method: string;
       if (isDocker) {
+        method = "docker";
+        const containerName = detectedContainer || `${dockerProject}.*gateway`;
         updateCmd = [
           `echo "Pulling latest Docker images..."`,
-          `cd /root/${dockerProject} 2>/dev/null || cd /opt/${dockerProject} 2>/dev/null || cd $(find / -maxdepth 3 -name "docker-compose.yml" -path "*${dockerProject}*" -exec dirname {} \\; 2>/dev/null | head -1) 2>/dev/null`,
-          `docker compose -p ${dockerProject} pull 2>&1`,
+          `cd /root/${dockerProject} 2>/dev/null || cd /opt/${dockerProject} 2>/dev/null || cd $(find / -maxdepth 3 -name "docker-compose.yml" -path "*${dockerProject}*" -exec dirname {} \\; 2>/dev/null | head -1) 2>/dev/null || cd $(find / -maxdepth 3 -name "docker-compose.yml" -path "*openclaw*" -exec dirname {} \\; 2>/dev/null | head -1) 2>/dev/null`,
+          `docker compose pull 2>&1 || docker pull $(docker inspect --format='{{.Config.Image}}' ${containerName} 2>/dev/null) 2>&1`,
           'echo "---RESTART---"',
-          `docker compose -p ${dockerProject} down 2>&1`,
-          `docker compose -p ${dockerProject} up -d 2>&1`,
+          `docker compose down 2>&1 || true`,
+          `docker compose up -d 2>&1 || docker restart ${containerName} 2>&1`,
           'sleep 5',
           'echo "---STATUS---"',
-          `docker compose -p ${dockerProject} ps 2>&1`,
+          `docker ps --filter "name=openclaw" --format "table {{.Names}}\\t{{.Status}}" 2>&1`,
           'echo "---VERSION---"',
-          `docker compose -p ${dockerProject} exec -T gateway openclaw --version 2>/dev/null || docker exec $(docker ps -qf "name=${dockerProject}.*gateway" | head -1) openclaw --version 2>/dev/null || echo "NO_VERSION"`,
+          `docker exec ${containerName} openclaw --version 2>/dev/null || docker exec $(docker ps -qf "name=openclaw" | head -1) openclaw --version 2>/dev/null || echo "NO_VERSION"`,
         ].join('; ');
       } else {
+        method = "npm";
         updateCmd = [
           'echo "Installing latest OpenClaw via npm..."',
-          'npm install -g openclaw@latest 2>&1 || echo "NPM_INSTALL_FAILED"',
+          'npm install -g openclaw@latest 2>&1; NPM_EXIT=$?',
+          'echo "---NPM_EXIT=$NPM_EXIT---"',
           'echo "---RESTART---"',
-          'kill -9 $(pgrep -f openclaw-gateway) $(pgrep -f openclaw-node) 2>/dev/null; sleep 2',
+          'kill $(pgrep -f "openclaw gateway") $(pgrep -f "openclaw-gateway") 2>/dev/null || true',
+          'sleep 2',
           'nohup openclaw gateway run --bind lan --port 18789 --force > /tmp/openclaw-gateway.log 2>&1 &',
+          'disown',
           'sleep 5',
           'echo "---VERSION---"',
           'openclaw --version 2>/dev/null || echo "NO_VERSION"',
           'for p in /usr/local/lib/node_modules/openclaw /usr/lib/node_modules/openclaw /root/.npm-global/lib/node_modules/openclaw; do [ -f "$p/package.json" ] && grep \'"version"\' "$p/package.json" | head -1 && break; done 2>/dev/null || echo "NO_PKG"',
+          'echo "---GATEWAY---"',
+          'curl -sf http://localhost:18789/health 2>/dev/null && echo "GATEWAY_OK" || echo "GATEWAY_DOWN"',
         ].join('; ');
       }
 
       const result = await executeRawSSHCommand(updateCmd, sshConfig, 2, 120000);
 
       const output = result.output || "";
-      const versionSection = output.split("---VERSION---")[1]?.trim() || "";
+      const stderr = result.error || "";
+      const versionSection = output.split("---VERSION---")[1]?.split("---GATEWAY---")[0]?.trim() || "";
       const versionMatch = versionSection.match(/"version"\s*:\s*"([^"]+)"/) || versionSection.match(/(\d+\.\d+[\.\d-]*\S*)/);
       const newVersion = versionMatch ? versionMatch[1] : "";
 
+      const hasNpmFail = output.includes("NPM_EXIT=1") || output.includes("npm ERR!");
+      const gatewayOk = output.includes("GATEWAY_OK");
+      const hasVersionOutput = newVersion && newVersion !== "NO_VERSION";
+      const updateSucceeded = (hasVersionOutput || gatewayOk) && !hasNpmFail;
+
       res.json({
-        success: result.success !== false && !output.includes("NPM_INSTALL_FAILED"),
+        success: updateSucceeded,
         newVersion: newVersion || "updated",
         output,
-        method: isDocker ? "docker" : "npm",
+        method,
+        gatewayRunning: gatewayOk,
+        sshSuccess: result.success,
+        sshError: stderr || undefined,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Update failed" });
