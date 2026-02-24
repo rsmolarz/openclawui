@@ -277,14 +277,14 @@ export default function AiTaskRunnerPage() {
               </div>
               <h2 className="text-xl font-semibold" data-testid="text-welcome-title">AI Task Runner</h2>
               <p className="text-muted-foreground text-sm">
-                Ask me to check your VPS status, troubleshoot OpenClaw services, manage Docker containers, or inspect configurations. I can run commands directly on your server.
+                Manage your VPS server and connected node computers. I can run commands on the gateway server or on any node machine through the OpenClaw gateway.
               </p>
               <div className="grid grid-cols-2 gap-2 pt-2">
                 {[
+                  "List connected nodes",
                   "Check OpenClaw status",
-                  "Show firewall rules",
-                  "View system resources",
-                  "Check Docker containers",
+                  "What can my nodes do?",
+                  "Check VPS system resources",
                 ].map((suggestion) => (
                   <Button
                     key={suggestion}
@@ -378,7 +378,7 @@ export default function AiTaskRunnerPage() {
                   handleSend();
                 }
               }}
-              placeholder="Ask about your VPS, check status, troubleshoot..."
+              placeholder="Ask about your VPS, nodes, run commands on remote machines..."
               disabled={sendMessage.isPending}
               className="flex-1"
               data-testid="input-message"
