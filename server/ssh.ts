@@ -182,7 +182,8 @@ print(json.dumps({'success': True, 'remaining_pending': len(remaining)}))
 export async function executeRawSSHCommand(
   command: string,
   config?: SSHConnectionConfig,
-  retries = 1
+  retries = 1,
+  cmdTimeoutMs?: number
 ): Promise<SSHResult> {
   const sshConfig = config || getDefaultConfig();
   if (!sshConfig) {
@@ -190,7 +191,7 @@ export async function executeRawSSHCommand(
   }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const result = await executeSSHOnce(command, "raw", sshConfig);
+    const result = await executeSSHOnce(command, "raw", sshConfig, cmdTimeoutMs);
     if (result.success || attempt === retries) return result;
     if (result.error?.includes("timed out") || result.error?.includes("connection failed")) {
       await new Promise(r => setTimeout(r, 3000));
@@ -233,7 +234,8 @@ export async function executeSSHCommand(
 function executeSSHOnce(
   command: string,
   action: string,
-  sshConfig: SSHConnectionConfig
+  sshConfig: SSHConnectionConfig,
+  cmdTimeoutMs?: number
 ): Promise<SSHResult> {
   return new Promise<SSHResult>((resolve) => {
     const conn = new Client();
@@ -256,7 +258,7 @@ function executeSSHOnce(
           conn.end();
           resolve({ success: false, output: "", error: "Command execution timed out" });
         }
-      }, CMD_TIMEOUT_MS);
+      }, cmdTimeoutMs || CMD_TIMEOUT_MS);
 
       conn.exec(command, (err, stream) => {
         if (err) {

@@ -2677,6 +2677,8 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       if (!instanceId) return res.json({ error: "No instance" });
       const vps = await storage.getVpsConnection(instanceId);
       if (!vps?.vpsIp) return res.json({ error: "No VPS configured" });
+      const config = await storage.getOpenclawConfig(instanceId);
+      const dockerProject = config?.dockerProject || "claw";
 
       const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
@@ -2685,6 +2687,10 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         'cat /root/.openclaw/update-check.json 2>/dev/null || echo "NO_UPDATE_CHECK"',
         'echo "---PKG---"',
         'for p in /usr/local/lib/node_modules/openclaw /usr/lib/node_modules/openclaw /root/.npm-global/lib/node_modules/openclaw; do [ -f "$p/package.json" ] && grep \'"version"\' "$p/package.json" | head -1 && break; done 2>/dev/null || echo "NO_PKG"',
+        'echo "---DOCKER---"',
+        `docker compose -p ${dockerProject} exec -T gateway openclaw --version 2>/dev/null || docker exec $(docker ps -qf "name=${dockerProject}.*gateway" | head -1) openclaw --version 2>/dev/null || echo "NO_DOCKER"`,
+        'echo "---DOCKER-IMAGE---"',
+        `docker compose -p ${dockerProject} images 2>/dev/null | grep gateway | awk '{print $2":"$3}' || echo "NO_IMAGE"`,
       ].join('; ');
 
       const result = await executeRawSSHCommand(versionCmd, sshConfig);
@@ -2692,7 +2698,13 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
       const sections = output.split("---PKG---");
       const updateCheckRaw = sections[0]?.trim() || "";
-      const pkgRaw = sections[1]?.trim() || "";
+      const afterPkg = sections[1] || "";
+      const pkgParts = afterPkg.split("---DOCKER---");
+      const pkgRaw = pkgParts[0]?.trim() || "";
+      const afterDocker = pkgParts[1] || "";
+      const dockerParts = afterDocker.split("---DOCKER-IMAGE---");
+      const dockerVersionRaw = dockerParts[0]?.trim() || "";
+      const dockerImageRaw = dockerParts[1]?.trim() || "";
 
       let updateInfo: any = {};
       let currentVersion = "";
@@ -2710,6 +2722,11 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         if (pkgMatch) currentVersion = pkgMatch[1];
       }
 
+      if (!currentVersion && dockerVersionRaw && dockerVersionRaw !== "NO_DOCKER") {
+        const dockerMatch = dockerVersionRaw.match(/(\d+\.\d+[\.\d-]*\S*)/);
+        if (dockerMatch) currentVersion = dockerMatch[1];
+      }
+
       if (!currentVersion && updateInfo.lastNotifiedVersion) {
         currentVersion = updateInfo.lastNotifiedVersion;
       }
@@ -2721,6 +2738,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         latestVersion,
         hasUpdate,
         updateInfo,
+        dockerImage: dockerImageRaw !== "NO_IMAGE" ? dockerImageRaw : undefined,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Version check failed" });
@@ -2733,32 +2751,57 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       if (!instanceId) return res.status(400).json({ error: "No instance" });
       const vps = await storage.getVpsConnection(instanceId);
       if (!vps?.vpsIp) return res.status(400).json({ error: "No VPS configured" });
+      const config = await storage.getOpenclawConfig(instanceId);
+      const dockerProject = config?.dockerProject || "claw";
 
       const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
       const sshConfig = buildSSHConfigFromVps(vps);
 
-      const updateCmd = [
-        'npm install -g openclaw@latest 2>&1',
-        'echo "---RESTART---"',
-        'kill -9 $(pgrep -f openclaw-gateway) $(pgrep -f openclaw-node) 2>/dev/null; sleep 2',
-        'nohup openclaw-gateway --host 0.0.0.0 --port 18789 > /tmp/openclaw-gateway.log 2>&1 &',
-        'nohup openclaw-node > /tmp/openclaw-node.log 2>&1 &',
-        'sleep 3',
-        'echo "---VERSION---"',
-        'for p in /usr/local/lib/node_modules/openclaw /usr/lib/node_modules/openclaw /root/.npm-global/lib/node_modules/openclaw; do [ -f "$p/package.json" ] && grep \'"version"\' "$p/package.json" | head -1 && break; done 2>/dev/null || echo "NO_PKG"',
-      ].join('; ');
+      const hasDockerCmd = `docker compose -p ${dockerProject} ps --format json 2>/dev/null | head -1 || echo "NO_DOCKER"`;
+      const dockerCheck = await executeRawSSHCommand(hasDockerCmd, sshConfig);
+      const isDocker = dockerCheck.output && !dockerCheck.output.includes("NO_DOCKER") && dockerCheck.output.trim() !== "";
 
-      const result = await executeRawSSHCommand(updateCmd, sshConfig);
+      let updateCmd: string;
+      if (isDocker) {
+        updateCmd = [
+          `echo "Pulling latest Docker images..."`,
+          `cd /root/${dockerProject} 2>/dev/null || cd /opt/${dockerProject} 2>/dev/null || cd $(find / -maxdepth 3 -name "docker-compose.yml" -path "*${dockerProject}*" -exec dirname {} \\; 2>/dev/null | head -1) 2>/dev/null`,
+          `docker compose -p ${dockerProject} pull 2>&1`,
+          'echo "---RESTART---"',
+          `docker compose -p ${dockerProject} down 2>&1`,
+          `docker compose -p ${dockerProject} up -d 2>&1`,
+          'sleep 5',
+          'echo "---STATUS---"',
+          `docker compose -p ${dockerProject} ps 2>&1`,
+          'echo "---VERSION---"',
+          `docker compose -p ${dockerProject} exec -T gateway openclaw --version 2>/dev/null || docker exec $(docker ps -qf "name=${dockerProject}.*gateway" | head -1) openclaw --version 2>/dev/null || echo "NO_VERSION"`,
+        ].join('; ');
+      } else {
+        updateCmd = [
+          'echo "Installing latest OpenClaw via npm..."',
+          'npm install -g openclaw@latest 2>&1 || echo "NPM_INSTALL_FAILED"',
+          'echo "---RESTART---"',
+          'kill -9 $(pgrep -f openclaw-gateway) $(pgrep -f openclaw-node) 2>/dev/null; sleep 2',
+          'nohup openclaw gateway run --bind lan --port 18789 --force > /tmp/openclaw-gateway.log 2>&1 &',
+          'sleep 5',
+          'echo "---VERSION---"',
+          'openclaw --version 2>/dev/null || echo "NO_VERSION"',
+          'for p in /usr/local/lib/node_modules/openclaw /usr/lib/node_modules/openclaw /root/.npm-global/lib/node_modules/openclaw; do [ -f "$p/package.json" ] && grep \'"version"\' "$p/package.json" | head -1 && break; done 2>/dev/null || echo "NO_PKG"',
+        ].join('; ');
+      }
+
+      const result = await executeRawSSHCommand(updateCmd, sshConfig, 2, 120000);
 
       const output = result.output || "";
       const versionSection = output.split("---VERSION---")[1]?.trim() || "";
-      const versionMatch = versionSection.match(/"version"\s*:\s*"([^"]+)"/);
+      const versionMatch = versionSection.match(/"version"\s*:\s*"([^"]+)"/) || versionSection.match(/(\d+\.\d+[\.\d-]*\S*)/);
       const newVersion = versionMatch ? versionMatch[1] : "";
 
       res.json({
-        success: result.success !== false,
+        success: result.success !== false && !output.includes("NPM_INSTALL_FAILED"),
         newVersion: newVersion || "updated",
         output,
+        method: isDocker ? "docker" : "npm",
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Update failed" });
