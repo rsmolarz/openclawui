@@ -1,0 +1,118 @@
+
++ PS C:\WINDOWS\system32>
++ ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\WINDOWS\system32>:String) [Get-Process], ProcessCommandException
+    + FullyQualifiedErrorId : NoProcessFoundForGivenName,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32> PS C:\WINDOWS\system32> PS C:\WINDOWS\system32>
+Get-Process : A positional parameter cannot be found that accepts argument 'PS'.
+At line:1 char:1
++ PS C:\WINDOWS\system32> PS C:\WINDOWS\system32>
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32> PS : Cannot find a process with the name "C:\WINDOWS\system32>". Verify the process name and call the cmdlet again.
+Get-Process : A positional parameter cannot be found that accepts argument 'Cannot'.
+At line:1 char:1
++ PS : Cannot find a process with the name "C:\WINDOWS\system32>". Veri ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32> At line:1 char:1
+The AT command has been deprecated. Please use schtasks.exe instead.
+
+Invalid command.
+
+The AT command schedules commands and programs to run on a computer at
+a specified time and date. The Schedule service must be running to use
+the AT command.
+
+AT [\\computername] [ [id] [/DELETE] | /DELETE [/YES]]
+AT [\\computername] time [/INTERACTIVE]
+    [ /EVERY:date[,...] | /NEXT:date[,...]] "command"
+
+\\computername     Specifies a remote computer. Commands are scheduled on the
+                   local computer if this parameter is omitted.
+id                 Is an identification number assigned to a scheduled
+                   command.
+/delete            Cancels a scheduled command. If id is omitted, all the
+                   scheduled commands on the computer are canceled.
+/yes               Used with cancel all jobs command when no further
+                   confirmation is desired.
+time               Specifies the time when command is to run.
+/interactive       Allows the job to interact with the desktop of the user
+                   who is logged on at the time the job runs.
+/every:date[,...]  Runs the command on each specified day(s) of the week or
+                   month. If date is omitted, the current day of the month
+                   is assumed.
+/next:date[,...]   Runs the specified command on the next occurrence of the
+                   day (for example, next Thursday).  If date is omitted, the
+                   current day of the month is assumed.
+"command"          Is the Windows NT command, or batch program to be run.
+
+PS C:\WINDOWS\system32> + PS C:\WINDOWS\system32>
+At line:1 char:2
++ + PS C:\WINDOWS\system32>
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + PS C:\WINDOWS\system32>
++   ~~
+Unexpected token 'PS' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32> + ~~~~~~~~~~~~~~~~~~~~~~~
+At line:1 char:2
++ + ~~~~~~~~~~~~~~~~~~~~~~~
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + ~~~~~~~~~~~~~~~~~~~~~~~
++   ~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '~~~~~~~~~~~~~~~~~~~~~~~' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>     + CategoryInfo          : ObjectNotFound: (C:\WINDOWS\system32>:String) [Get-Process], ProcessCommandException
+At line:1 char:6
++     + CategoryInfo          : ObjectNotFound: (C:\WINDOWS\system32>:S ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + CategoryInfo          : ObjectNotFound: (C:\WINDOWS\system32>:S ...
++       ~~~~~~~~~~~~
+Unexpected token 'CategoryInfo' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>     + FullyQualifiedErrorId : NoProcessFoundForGivenName,Microsoft.PowerShell.Commands.GetProcessCommand
+At line:1 char:6
++     + FullyQualifiedErrorId : NoProcessFoundForGivenName,Microsoft.Po ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + FullyQualifiedErrorId : NoProcessFoundForGivenName,Microsoft.Po ...
++       ~~~~~~~~~~~~~~~~~~~~~
+Unexpected token 'FullyQualifiedErrorId' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32> PS C:\WINDOWS\system32> PS C:\WINDOWS\system32>  OpenClaw 2026.2.23 (b817600)  I don't judge, but your missing API keys are absolutely judging you.
+>> >> >>
+>> >> >> |
+>> >> >> o  Doctor changes ------------------------------+
+>> >> >> |                                               |
+>> >> >> |  WhatsApp configured, enabled automatically.  |
+>> >> >> |                                               |
+>> >> >> +-----------------------------------------------+
+>> >> >> |
+>> >> >> o  Doctor ----------------------------------------------+
+>> >> >> |                                                       |
+>> >> >> |  Run "openclaw doctor --fix" to apply these changes.  |
+>> >> >> |                                                       |
+>> >> >> +-------------------------------------------------------+
+>> >> >> node host PATH: C:\Users\Joseph S\.local\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Tailscale\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Users\Joseph S\AppData\Local\Programs\Python\Launcher\;C:\Users\Joseph S\AppData\Local\Microsoft\WindowsApps;C:\Users\Joseph S\AppData\Local\PowerToys\DSCModul
