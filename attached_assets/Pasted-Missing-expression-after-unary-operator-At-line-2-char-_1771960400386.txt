@@ -1,0 +1,544 @@
+Missing expression after unary operator '+'.
+At line:2 char:3
++ + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~' in expression or statement.
+At line:1 char:6
++ + +-------------------------------------------------------+
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:8
++ + +-------------------------------------------------------+
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:10
++ + +-------------------------------------------------------+
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:12
++ + +-------------------------------------------------------+
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:14
++ + +-------------------------------------------------------+
++              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:16
++ + +-------------------------------------------------------+
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:18
++ + +-------------------------------------------------------+
++                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:20
++ + +-------------------------------------------------------+
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+Not all parse errors were reported.  Correct the reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32> Expressions are only allowed as the first element of a pipeline.
+Expressions : The term 'Expressions' is not recognized as the name of a cmdlet, function, script file, or operable
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ Expressions are only allowed as the first element of a pipeline.
++ ~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Expressions:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> At line:5 char:1
+The AT command has been deprecated. Please use schtasks.exe instead.
+
+Invalid command.
+
+The AT command schedules commands and programs to run on a computer at
+a specified time and date. The Schedule service must be running to use
+the AT command.
+
+AT [\\computername] [ [id] [/DELETE] | /DELETE [/YES]]
+AT [\\computername] time [/INTERACTIVE]
+    [ /EVERY:date[,...] | /NEXT:date[,...]] "command"
+
+\\computername     Specifies a remote computer. Commands are scheduled on the
+                   local computer if this parameter is omitted.
+id                 Is an identification number assigned to a scheduled
+                   command.
+/delete            Cancels a scheduled command. If id is omitted, all the
+                   scheduled commands on the computer are canceled.
+/yes               Used with cancel all jobs command when no further
+                   confirmation is desired.
+time               Specifies the time when command is to run.
+/interactive       Allows the job to interact with the desktop of the user
+                   who is logged on at the time the job runs.
+/every:date[,...]  Runs the command on each specified day(s) of the week or
+                   month. If date is omitted, the current day of the month
+                   is assumed.
+/next:date[,...]   Runs the specified command on the next occurrence of the
+                   day (for example, next Thursday).  If date is omitted, the
+                   current day of the month is assumed.
+"command"          Is the Windows NT command, or batch program to be run.
+
+PS C:\WINDOWS\system32> + Config overwrite: C:\Users\Joseph S\.openclaw\openclaw.json (sha256 a ...
+>> + ~~~~~~
+At line:1 char:2
++ + Config overwrite: C:\Users\Joseph S\.openclaw\openclaw.json (sha256 ...
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + Config overwrite: C:\Users\Joseph S\.openclaw\openclaw.json (sha256 ...
++   ~~~~~~
+Unexpected token 'Config' in expression or statement.
+At line:1 char:76
++ ... ig overwrite: C:\Users\Joseph S\.openclaw\openclaw.json (sha256 a ...
++                                                                          ~
+Missing closing ')' in expression.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32> Unexpected token 'Config' in expression or statement.
+Unexpected : The term 'Unexpected' is not recognized as the name of a cmdlet, function, script file, or operable
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ Unexpected token 'Config' in expression or statement.
++ ~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Unexpected:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> At line:4 char:4
+The AT command has been deprecated. Please use schtasks.exe instead.
+
+Invalid command.
+
+The AT command schedules commands and programs to run on a computer at
+a specified time and date. The Schedule service must be running to use
+the AT command.
+
+AT [\\computername] [ [id] [/DELETE] | /DELETE [/YES]]
+AT [\\computername] time [/INTERACTIVE]
+    [ /EVERY:date[,...] | /NEXT:date[,...]] "command"
+
+\\computername     Specifies a remote computer. Commands are scheduled on the
+                   local computer if this parameter is omitted.
+id                 Is an identification number assigned to a scheduled
+                   command.
+/delete            Cancels a scheduled command. If id is omitted, all the
+                   scheduled commands on the computer are canceled.
+/yes               Used with cancel all jobs command when no further
+                   confirmation is desired.
+time               Specifies the time when command is to run.
+/interactive       Allows the job to interact with the desktop of the user
+                   who is logged on at the time the job runs.
+/every:date[,...]  Runs the command on each specified day(s) of the week or
+                   month. If date is omitted, the current day of the month
+                   is assumed.
+/next:date[,...]   Runs the specified command on the next occurrence of the
+                   day (for example, next Thursday).  If date is omitted, the
+                   current day of the month is assumed.
+"command"          Is the Windows NT command, or batch program to be run.
+
+PS C:\WINDOWS\system32> + +-------------------------------------------------------+
+>> +    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+At line:2 char:2
++ +    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++  ~
+Missing expression after unary operator '+'.
+At line:2 char:6
++ +    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~' in expression or statement.
+At line:1 char:6
++ + +-------------------------------------------------------+
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:8
++ + +-------------------------------------------------------+
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:10
++ + +-------------------------------------------------------+
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:12
++ + +-------------------------------------------------------+
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:14
++ + +-------------------------------------------------------+
++              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:16
++ + +-------------------------------------------------------+
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:18
++ + +-------------------------------------------------------+
++                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:20
++ + +-------------------------------------------------------+
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+Not all parse errors were reported.  Correct the reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32> The '--' operator works only on variables or on properties.
+The : The term 'The' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ The '--' operator works only on variables or on properties.
++ ~~~
+    + CategoryInfo          : ObjectNotFound: (The:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> At line:4 char:6
+The AT command has been deprecated. Please use schtasks.exe instead.
+
+Invalid command.
+
+The AT command schedules commands and programs to run on a computer at
+a specified time and date. The Schedule service must be running to use
+the AT command.
+
+AT [\\computername] [ [id] [/DELETE] | /DELETE [/YES]]
+AT [\\computername] time [/INTERACTIVE]
+    [ /EVERY:date[,...] | /NEXT:date[,...]] "command"
+
+\\computername     Specifies a remote computer. Commands are scheduled on the
+                   local computer if this parameter is omitted.
+id                 Is an identification number assigned to a scheduled
+                   command.
+/delete            Cancels a scheduled command. If id is omitted, all the
+                   scheduled commands on the computer are canceled.
+/yes               Used with cancel all jobs command when no further
+                   confirmation is desired.
+time               Specifies the time when command is to run.
+/interactive       Allows the job to interact with the desktop of the user
+                   who is logged on at the time the job runs.
+/every:date[,...]  Runs the command on each specified day(s) of the week or
+                   month. If date is omitted, the current day of the month
+                   is assumed.
+/next:date[,...]   Runs the specified command on the next occurrence of the
+                   day (for example, next Thursday).  If date is omitted, the
+                   current day of the month is assumed.
+"command"          Is the Windows NT command, or batch program to be run.
+
+PS C:\WINDOWS\system32> + +-------------------------------------------------------+
+>> +      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+At line:2 char:2
++ +      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++  ~
+Missing expression after unary operator '+'.
+At line:2 char:8
++ +      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~' in expression or statement.
+At line:1 char:6
++ + +-------------------------------------------------------+
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:8
++ + +-------------------------------------------------------+
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:10
++ + +-------------------------------------------------------+
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:12
++ + +-------------------------------------------------------+
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:14
++ + +-------------------------------------------------------+
++              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:16
++ + +-------------------------------------------------------+
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:18
++ + +-------------------------------------------------------+
++                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+At line:1 char:20
++ + +-------------------------------------------------------+
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The '--' operator works only on variables or on properties.
+Not all parse errors were reported.  Correct the reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32> The '--' operator works only on variables or on properties.
+The : The term 'The' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ The '--' operator works only on variables or on properties.
++ ~~~
+    + CategoryInfo          : ObjectNotFound: (The:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> Not all parse errors were reported.  Correct the reported errors and try again.
+Not : The term 'Not' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ Not all parse errors were reported.  Correct the reported errors and  ...
++ ~~~
+    + CategoryInfo          : ObjectNotFound: (Not:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32>     + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+At line:1 char:6
++     + CategoryInfo          : ParserError: (:) [], ParentContainsErro ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + CategoryInfo          : ParserError: (:) [], ParentContainsErro ...
++       ~~~~~~~~~~~~
+Unexpected token 'CategoryInfo' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>     + FullyQualifiedErrorId : EmptyPipeElement
+At line:1 char:6
++     + FullyQualifiedErrorId : EmptyPipeElement
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + FullyQualifiedErrorId : EmptyPipeElement
++       ~~~~~~~~~~~~~~~~~~~~~
+Unexpected token 'FullyQualifiedErrorId' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32> PS C:\WINDOWS\system32> Updated gateway.auth.token. Restart the gateway to apply.
+Get-Process : A positional parameter cannot be found that accepts argument 'Updated'.
+At line:1 char:1
++ PS C:\WINDOWS\system32> Updated gateway.auth.token. Restart the gatew ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32> Updated : The term 'Updated' is not recognized as the name of a cmdlet, function, script file, or operable program.
+Updated : The term 'Updated' is not recognized as the name of a cmdlet, function, script file, or operable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ Updated : The term 'Updated' is not recognized as the name of a cmdle ...
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Updated:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+Check : The term 'Check' is not recognized as the name of a cmdlet, function, script file, or operable program. Check
+the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ Check the spelling of the name, or if a path was included, verify tha ...
++ ~~~~~
+    + CategoryInfo          : ObjectNotFound: (Check:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> At line:1 char:1
+The AT command has been deprecated. Please use schtasks.exe instead.
+
+Invalid command.
+
+The AT command schedules commands and programs to run on a computer at
+a specified time and date. The Schedule service must be running to use
+the AT command.
+
+AT [\\computername] [ [id] [/DELETE] | /DELETE [/YES]]
+AT [\\computername] time [/INTERACTIVE]
+    [ /EVERY:date[,...] | /NEXT:date[,...]] "command"
+
+\\computername     Specifies a remote computer. Commands are scheduled on the
+                   local computer if this parameter is omitted.
+id                 Is an identification number assigned to a scheduled
+                   command.
+/delete            Cancels a scheduled command. If id is omitted, all the
+                   scheduled commands on the computer are canceled.
+/yes               Used with cancel all jobs command when no further
+                   confirmation is desired.
+time               Specifies the time when command is to run.
+/interactive       Allows the job to interact with the desktop of the user
+                   who is logged on at the time the job runs.
+/every:date[,...]  Runs the command on each specified day(s) of the week or
+                   month. If date is omitted, the current day of the month
+                   is assumed.
+/next:date[,...]   Runs the specified command on the next occurrence of the
+                   day (for example, next Thursday).  If date is omitted, the
+                   current day of the month is assumed.
+"command"          Is the Windows NT command, or batch program to be run.
+
+PS C:\WINDOWS\system32> + Updated gateway.auth.token. Restart the gateway to apply.
+At line:1 char:2
++ + Updated gateway.auth.token. Restart the gateway to apply.
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + Updated gateway.auth.token. Restart the gateway to apply.
++   ~~~~~~~
+Unexpected token 'Updated' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32> + ~~~~~~~
+At line:1 char:2
++ + ~~~~~~~
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + ~~~~~~~
++   ~~~~~~~
+Unexpected token '~~~~~~~' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>     + CategoryInfo          : ObjectNotFound: (Updated:String) [], CommandNotFoundException
+At line:1 char:6
++     + CategoryInfo          : ObjectNotFound: (Updated:String) [], Co ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + CategoryInfo          : ObjectNotFound: (Updated:String) [], Co ...
++       ~~~~~~~~~~~~
+Unexpected token 'CategoryInfo' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>     + FullyQualifiedErrorId : CommandNotFoundException
+At line:1 char:6
++     + FullyQualifiedErrorId : CommandNotFoundException
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + FullyQualifiedErrorId : CommandNotFoundException
++       ~~~~~~~~~~~~~~~~~~~~~
+Unexpected token 'FullyQualifiedErrorId' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32> PS C:\WINDOWS\system32> PS C:\WINDOWS\system32> openclaw node run --host claw-settings.replit.app --port 443 --tls
+Get-Process : A positional parameter cannot be found that accepts argument 'PS'.
+At line:1 char:1
++ PS C:\WINDOWS\system32> PS C:\WINDOWS\system32> openclaw node run --h ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32> Get-Process : A positional parameter cannot be found that accepts argument 'openclaw'.
+Get-Process : A positional parameter cannot be found that accepts argument 'A'.
+At line:1 char:1
++ Get-Process : A positional parameter cannot be found that accepts arg ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32> At line:1 char:1
+The AT command has been deprecated. Please use schtasks.exe instead.
+
+Invalid command.
+
+The AT command schedules commands and programs to run on a computer at
+a specified time and date. The Schedule service must be running to use
+the AT command.
+
+AT [\\computername] [ [id] [/DELETE] | /DELETE [/YES]]
+AT [\\computername] time [/INTERACTIVE]
+    [ /EVERY:date[,...] | /NEXT:date[,...]] "command"
+
+\\computername     Specifies a remote computer. Commands are scheduled on the
+                   local computer if this parameter is omitted.
+id                 Is an identification number assigned to a scheduled
+                   command.
+/delete            Cancels a scheduled command. If id is omitted, all the
+                   scheduled commands on the computer are canceled.
+/yes               Used with cancel all jobs command when no further
+                   confirmation is desired.
+time               Specifies the time when command is to run.
+/interactive       Allows the job to interact with the desktop of the user
+                   who is logged on at the time the job runs.
+/every:date[,...]  Runs the command on each specified day(s) of the week or
+                   month. If date is omitted, the current day of the month
+                   is assumed.
+/next:date[,...]   Runs the specified command on the next occurrence of the
+                   day (for example, next Thursday).  If date is omitted, the
+                   current day of the month is assumed.
+"command"          Is the Windows NT command, or batch program to be run.
+
+PS C:\WINDOWS\system32> + PS C:\WINDOWS\system32> openclaw node run --host claw-settings.replit ...
+At line:1 char:2
++ + PS C:\WINDOWS\system32> openclaw node run --host claw-settings.repl ...
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + PS C:\WINDOWS\system32> openclaw node run --host claw-settings.repl ...
++   ~~
+Unexpected token 'PS' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32> + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+At line:1 char:2
++ + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ...
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ...
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>     + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+At line:1 char:6
++     + CategoryInfo          : InvalidArgument: (:) [Get-Process], Par ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + CategoryInfo          : InvalidArgument: (:) [Get-Process], Par ...
++       ~~~~~~~~~~~~
+Unexpected token 'CategoryInfo' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>     + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+At line:1 char:6
++     + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.P ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.P ...
++       ~~~~~~~~~~~~~~~~~~~~~
+Unexpected token 'FullyQualifiedErrorId' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\WINDOWS\system32>
+PS C:\WINDOWS\system32> PS C:\WINDOWS\system32>
+PS : Cannot find a process with the name "C:\WINDOWS\system32>". Verify the process name and call the cmdlet again.
+At line:1 char:1
++ PS C:\WINDOWS\system32>
++ ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\WINDOWS\system32>:String) [Get-Process], ProcessCommandException
+    + FullyQualifiedErrorId : NoProcessFoundForGivenName,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\WINDOWS\system32> PS C:\WINDOWS\system32>  OpenClaw 2026.2.23 (b817600)  I don't judge, but your missing API keys are absolutely judging you.
+>> >>
+>> >> |
+>> >> o  Doctor changes ------------------------------+
+>> >> |                                               |
+>> >> |  WhatsApp configured, enabled automatically.  |
+>> >> |                                               |
+>> >> +-----------------------------------------------+
+>> >> |
+>> >> o  Doctor ----------------------------------------------+
+>> >> |                                                       |
+>> >> |  Run "openclaw doctor --fix" to apply these changes.  |
+>> >> |                                                       |
+>> >> +-------------------------------------------------------+
+>> >> node host PATH: C:\Users\Joseph S\.local\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Tailscale\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Users\Joseph S\AppData\Local\Programs\Python\Launcher\;C:\Users\Joseph S\AppData\Local\Microsoft\WindowsApps;C:\Users\Joseph S\AppData\Local\PowerToys\DSCModules\;C:\Users\Joseph S\AppData\Roaming\npm;\..
+>> >> node host gateway connect failed: pairing required
