@@ -1417,12 +1417,21 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
               if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                 parsed = Object.values(parsed);
               }
-              if (Array.isArray(parsed)) {
+              if (Array.isArray(parsed) && parsed.length > 0) {
                 const normalized = parsed.map((n: any, idx: number) => {
-                  if (typeof n === "string") return { id: n, hostname: n, ip: "Unknown", os: "Unknown", location: "Unknown" };
-                  const entry = { ...n };
-                  if (!entry.id) entry.id = entry.hostname || entry.name || `node-${idx}`;
-                  return entry;
+                  if (typeof n === "string") return { id: n, hostname: n, ip: "Unknown", os: "Unknown", location: "Unknown", status: "pending" };
+                  return {
+                    id: n.requestId || n.id || n.deviceId || `device-${idx}`,
+                    hostname: n.displayName || n.name || n.hostname || n.clientId || `device-${idx}`,
+                    name: n.displayName || n.name || n.hostname || n.clientId,
+                    ip: n.remoteIp || n.ip || n.address || "Unknown",
+                    os: n.platform || n.os || "Unknown",
+                    role: n.role || "node",
+                    clientMode: n.clientMode || "node",
+                    requestId: n.requestId,
+                    deviceId: n.deviceId,
+                    status: "pending",
+                  };
                 });
                 await storage.upsertOpenclawConfig(instanceId, { pendingNodes: normalized });
                 return res.json({ pending: normalized, source: "gateway" });
@@ -1463,21 +1472,35 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
           try {
             const cliCmd = buildCliApproveCommand(node_id);
+            console.log(`[nodes] CLI approve command: openclaw devices approve ${node_id}`);
             const cliResult = await executeRawSSHCommand(cliCmd, sshConfig);
+            console.log(`[nodes] CLI approve result: success=${cliResult.success}, output=${cliResult.output?.substring(0, 200)}, error=${cliResult.error}`);
             if (cliResult.success && cliResult.output) {
+              const trimmed = cliResult.output.trim();
+              const jsonStart = trimmed.indexOf("{");
+              const jsonStr = jsonStart >= 0 ? trimmed.substring(jsonStart) : trimmed;
               try {
-                const cliParsed = JSON.parse(cliResult.output.trim());
-                if (cliParsed.success || cliParsed.approved || !cliParsed.error) {
+                const cliParsed = JSON.parse(jsonStr);
+                if (cliParsed.success || cliParsed.approved || cliParsed.device || !cliParsed.error) {
                   sshApproved = true;
                   approvedNode = cliParsed.device || cliParsed.node || cliParsed;
                 }
-              } catch {}
+              } catch (parseErr) {
+                console.log(`[nodes] CLI output not JSON: ${trimmed.substring(0, 100)}`);
+                if (trimmed.includes("approved") || trimmed.includes("Approved") || trimmed.includes("✓")) {
+                  sshApproved = true;
+                }
+              }
             }
-          } catch {}
+          } catch (cliErr: any) {
+            console.log(`[nodes] CLI approve error: ${cliErr.message}`);
+          }
 
           if (!sshApproved) {
+            console.log(`[nodes] CLI failed, trying direct file approve for ${node_id}`);
             const cmd = buildApproveNodeCommand(node_id);
             const result = await executeRawSSHCommand(cmd, sshConfig);
+            console.log(`[nodes] File approve result: success=${result.success}, output=${result.output?.substring(0, 200)}`);
             if (result.success && result.output) {
               try {
                 const parsed = JSON.parse(result.output.trim());
@@ -1485,7 +1508,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
                   sshApproved = true;
                   approvedNode = parsed.node;
                 } else if (parsed.error) {
-                  console.log(`[nodes] SSH approve returned: ${parsed.error}`);
+                  console.log(`[nodes] File approve returned: ${parsed.error}`);
                 }
               } catch {}
             }

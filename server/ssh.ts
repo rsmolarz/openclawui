@@ -32,9 +32,27 @@ const ALLOWED_COMMANDS: Record<string, string> = {
   "gateway-info": "openclaw gateway status 2>/dev/null; echo '---TOKEN---'; openclaw gateway token 2>/dev/null || echo 'No token command'; echo '---VERSION---'; openclaw --version 2>/dev/null",
   "check-systemd": "systemctl list-units --type=service | grep -i openclaw; echo '---SERVICE---'; systemctl cat openclaw 2>/dev/null || systemctl cat openclaw-gateway 2>/dev/null || echo 'No systemd service found'; echo '---STATUS---'; systemctl status openclaw 2>/dev/null || systemctl status openclaw-gateway 2>/dev/null || echo 'No systemd status'; echo '---SUPERVISOR---'; supervisorctl status 2>/dev/null || echo 'No supervisor'; echo '---PM2---'; pm2 list 2>/dev/null || echo 'No pm2'",
   "fix-systemd-binding": "SVC=$(systemctl list-unit-files | grep -i openclaw | awk '{print $1}' | head -1); if [ -n \"$SVC\" ]; then systemctl stop $SVC; SVCFILE=$(systemctl show -p FragmentPath $SVC | cut -d= -f2); if [ -f \"$SVCFILE\" ]; then sed -i 's/--host 127.0.0.1/--host 0.0.0.0/g' $SVCFILE; sed -i 's/--host localhost/--host 0.0.0.0/g' $SVCFILE; systemctl daemon-reload; systemctl start $SVC; sleep 3; echo \"Updated and restarted $SVC\"; cat $SVCFILE; echo '---PORTS---'; ss -tlnp | grep 18789; else echo \"Service file not found for $SVC\"; fi; else echo 'No openclaw systemd service found'; fi",
-  "cli-devices-list": `openclaw devices list --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
-  "cli-nodes-status": `openclaw nodes status --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
-  "cli-nodes-pending": `openclaw nodes pending --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["gateway"]["auth"]["token"])')" --json 2>&1 || echo '{"error":"command failed"}'`,
+  "cli-devices-list": `TOKEN=$(python3 << 'PYEOF'
+import json
+with open("/root/.openclaw/openclaw.json") as f:
+    d = json.load(f)
+print(d["gateway"]["auth"]["token"])
+PYEOF
+) && openclaw devices list --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>&1 || echo '{"error":"command failed"}'`,
+  "cli-nodes-status": `TOKEN=$(python3 << 'PYEOF'
+import json
+with open("/root/.openclaw/openclaw.json") as f:
+    d = json.load(f)
+print(d["gateway"]["auth"]["token"])
+PYEOF
+) && openclaw nodes status --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>&1 || echo '{"error":"command failed"}'`,
+  "cli-nodes-pending": `TOKEN=$(python3 << 'PYEOF'
+import json
+with open("/root/.openclaw/openclaw.json") as f:
+    d = json.load(f)
+print(d["gateway"]["auth"]["token"])
+PYEOF
+) && openclaw nodes pending --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>&1 || echo '{"error":"command failed"}'`,
   "kill-gateway": "echo 'WARNING: This will stop the gateway. Use force-restart-gateway instead to safely restart.'; ps aux | grep openclaw-gateway | grep -v grep || echo 'No gateway process running'",
   "find-gateway-bin": "ls -la /usr/lib/node_modules/.bin/ 2>/dev/null | grep -i claw; echo '---NPM-BIN---'; npm bin -g 2>/dev/null; ls -la $(npm bin -g 2>/dev/null)/ 2>/dev/null | grep -i claw; echo '---PKG---'; cat /usr/lib/node_modules/openclaw/package.json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(\"bin:\",json.dumps(d.get(\"bin\",{}),indent=2))' 2>/dev/null; echo '---DELETED---'; ls -la /proc/*/exe 2>/dev/null | grep deleted | grep -i claw; echo '---NPX---'; npx openclaw --version 2>&1 | head -5",
   "force-restart-gateway": "ls -la /usr/lib/node_modules/openclaw/dist/gateway/ 2>/dev/null | head -15; ENTRY=$(find /usr/lib/node_modules/openclaw/dist -name 'gateway.js' -o -name 'index.js' 2>/dev/null | head -1); echo \"Entry: $ENTRY\"; if [ -n \"$ENTRY\" ]; then rm -f /tmp/oc.log; kill $(pgrep -f 'node.*gateway') 2>/dev/null; sleep 1; cd /usr/lib/node_modules/openclaw && nohup node $ENTRY run --bind lan --port 18789 --force > /tmp/oc.log 2>&1 & sleep 15; ps aux | grep -E 'gateway' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789; echo '---LOG---'; tail -30 /tmp/oc.log; fi",
@@ -153,12 +171,21 @@ print(json.dumps({'success': True, 'node': node, 'remaining_pending': len(remain
 "`;
 }
 
+function buildGatewayTokenExtract(): string {
+  return `python3 << 'PYEOF'
+import json
+with open("/root/.openclaw/openclaw.json") as f:
+    d = json.load(f)
+print(d["gateway"]["auth"]["token"])
+PYEOF`;
+}
+
 export function buildCliApproveCommand(requestId: string): string {
   const safeId = requestId.replace(/[^a-zA-Z0-9_\-]/g, "");
   if (!safeId || safeId.length < 2 || safeId.length > 128) {
     throw new Error("Invalid request ID for approval");
   }
-  return `openclaw devices approve "${safeId}" --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)[\"gateway\"][\"auth\"][\"token\"])')" --json 2>&1`;
+  return `TOKEN=$(${buildGatewayTokenExtract()}) && openclaw devices approve "${safeId}" --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>&1`;
 }
 
 export function buildCliRejectCommand(requestId: string): string {
@@ -166,7 +193,7 @@ export function buildCliRejectCommand(requestId: string): string {
   if (!safeId || safeId.length < 2 || safeId.length > 128) {
     throw new Error("Invalid request ID for rejection");
   }
-  return `openclaw devices reject "${safeId}" --url ws://127.0.0.1:18789 --token "$(cat /root/.openclaw/openclaw.json | python3 -c 'import json,sys;print(json.load(sys.stdin)[\"gateway\"][\"auth\"][\"token\"])')" --json 2>&1`;
+  return `TOKEN=$(${buildGatewayTokenExtract()}) && openclaw devices reject "${safeId}" --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>&1`;
 }
 
 export function buildRejectNodeCommand(nodeId: string): string {
