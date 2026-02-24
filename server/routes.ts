@@ -1933,26 +1933,6 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     }
   });
 
-  app.get("/api/whatsapp/status", async (req, res) => {
-    try {
-      const bot = await getWhatsappBot();
-      const status = bot.getStatus();
-      const instanceId = await resolveInstanceId(req);
-      const config = instanceId ? await storage.getOpenclawConfig(instanceId) : null;
-      res.json({
-        state: status.state,
-        qrDataUrl: status.qrDataUrl,
-        pairingCode: status.pairingCode,
-        phone: status.phone,
-        error: status.error,
-        runtime: "local",
-        enabled: config?.whatsappEnabled ?? true,
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to get WhatsApp status" });
-    }
-  });
-
   app.get("/api/whatsapp/qr", async (_req, res) => {
     try {
       const bot = await getWhatsappBot();
@@ -2137,6 +2117,129 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete session" });
+    }
+  });
+
+  const validateApiKey = async (req: Request, res: Response, next: () => void) => {
+    const apiKeyHeader = req.headers["x-api-key"] as string;
+    if (!apiKeyHeader) {
+      return res.status(401).json({ error: "API key required (X-API-Key header)" });
+    }
+    const keys = await storage.getApiKeys();
+    const match = keys.find(k => k.key === apiKeyHeader && k.active);
+    if (!match) {
+      return res.status(403).json({ error: "Invalid or inactive API key" });
+    }
+    next();
+  };
+
+  let homeBotStatus: { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null } = {
+    state: "disconnected", phone: null, error: null, runtime: "home-bot", hostname: null, lastReport: null,
+  };
+
+  app.post("/api/whatsapp/home-bot-status", validateApiKey as any, (req: Request, res: Response) => {
+    const { state, phone, error, hostname } = req.body;
+    homeBotStatus = {
+      state: state || "disconnected",
+      phone: phone || null,
+      error: error || null,
+      runtime: "home-bot",
+      hostname: hostname || null,
+      lastReport: new Date(),
+    };
+    res.json({ ok: true });
+  });
+
+  app.post("/api/whatsapp/home-bot-message", validateApiKey as any, async (req: Request, res: Response) => {
+    try {
+      const { phone, text, pushName } = req.body;
+      if (!phone || !text) {
+        return res.status(400).json({ error: "phone and text are required" });
+      }
+
+      const session = await storage.getWhatsappSessionByPhone(phone);
+
+      if (!session || session.status === "pending") {
+        const code = session?.pairingCode || randomBytes(4).toString("hex").toUpperCase().slice(0, 8);
+        await storage.upsertWhatsappSession(phone, {
+          phone,
+          displayName: pushName || null,
+          status: "pending",
+          pairingCode: code,
+        });
+        return res.json({
+          reply: `Welcome to *OpenClaw AI*\n\nYour access is not yet approved.\n\nYour pairing code is: *${code}*\n\nPlease share this code with the administrator to get access.`,
+          approved: false,
+        });
+      }
+
+      if (session.status === "blocked") {
+        return res.json({ reply: "Your access has been revoked. Contact the administrator.", approved: false });
+      }
+
+      if (session.status === "approved") {
+        await storage.updateWhatsappSessionLastMessage(phone);
+        const { chat } = await import("./bot/openrouter");
+        const response = await chat(text, pushName || session.displayName || undefined);
+        return res.json({ reply: response || "I couldn't generate a response.", approved: true });
+      }
+
+      res.json({ reply: "Unknown session status.", approved: false });
+    } catch (error: any) {
+      console.error("[Home-Bot API] Message processing error:", error);
+      res.status(500).json({ error: error.message || "Failed to process message" });
+    }
+  });
+
+  app.get("/api/whatsapp/status", async (req, res) => {
+    try {
+      if (homeBotStatus.lastReport && (Date.now() - homeBotStatus.lastReport.getTime()) < 120000 && homeBotStatus.state !== "disconnected") {
+        return res.json({
+          state: homeBotStatus.state,
+          qrDataUrl: null,
+          pairingCode: null,
+          phone: homeBotStatus.phone,
+          error: homeBotStatus.error,
+          runtime: "home-bot",
+          hostname: homeBotStatus.hostname,
+          enabled: true,
+        });
+      }
+
+      const bot = await getWhatsappBot();
+      const status = bot.getStatus();
+      const instanceId = await resolveInstanceId(req);
+      let enabled = false;
+      if (instanceId) {
+        const config = await storage.getOpenclawConfig(instanceId);
+        enabled = !!config?.whatsappEnabled;
+      }
+      res.json({ ...status, runtime: "local", enabled });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get WhatsApp status" });
+    }
+  });
+
+  app.get("/api/whatsapp/home-bot-download", requireAuth, async (_req, res) => {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const archiver = (await import("archiver")).default;
+
+      const botDir = path.default.join(process.cwd(), "home-bot");
+      if (!fs.existsSync(botDir)) {
+        return res.status(404).json({ error: "Home bot files not found" });
+      }
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", "attachment; filename=openclaw-whatsapp-bot.zip");
+
+      const archive = archiver("zip", { zlib: { level: 9 } });
+      archive.pipe(res);
+      archive.directory(botDir, "openclaw-whatsapp-bot");
+      archive.finalize();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create download" });
     }
   });
 

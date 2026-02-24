@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles, Loader2, AlertTriangle, RefreshCw, Download, Monitor } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
@@ -505,7 +505,8 @@ export default function SettingsOpenclaw() {
     pairingCode: string | null;
     phone: string | null;
     error: string | null;
-    runtime?: "local" | "external";
+    runtime?: "local" | "external" | "home-bot";
+    hostname?: string | null;
     enabled?: boolean;
   }
 
@@ -1558,7 +1559,7 @@ export default function SettingsOpenclaw() {
                 <div className="flex-1">
                   <p className="text-sm font-medium">WhatsApp Connected</p>
                   <p className="text-xs text-muted-foreground">
-                    The bot is running{botStatus.phone ? ` on +${botStatus.phone}` : ""}. When someone messages this number, they will receive a pairing code. Approve them in the <strong>Pending Approvals</strong> section below.
+                    The bot is running{botStatus.phone ? ` on +${botStatus.phone}` : ""}{botStatus.runtime === "home-bot" && botStatus.hostname ? ` via home computer (${botStatus.hostname})` : ""}. When someone messages this number, they will receive a pairing code. Approve them in the <strong>Pending Approvals</strong> section below.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1757,31 +1758,65 @@ export default function SettingsOpenclaw() {
 
           {(botStatus?.state === "disconnected" || !botStatus) && !botStatus?.error && !showPairingForm && (
             <div className="space-y-4">
-              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-4 space-y-2" data-testid="whatsapp-cloud-warning">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Cloud Environment Limitation</p>
+              {botStatus?.runtime === "home-bot" && botStatus?.hostname && (
+                <div className="rounded-md bg-green-500/10 border border-green-500/20 p-3 flex items-center gap-2" data-testid="home-bot-runtime-info">
+                  <Monitor className="h-4 w-4 text-green-600 shrink-0" />
+                  <p className="text-xs text-muted-foreground">
+                    Running on home computer: <strong>{botStatus.hostname}</strong>
+                  </p>
+                </div>
+              )}
+
+              <div className="rounded-md bg-primary/5 border border-primary/20 p-4 space-y-3" data-testid="home-bot-download-section">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <Download className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-semibold">Home Network Bot</p>
                     <p className="text-xs text-muted-foreground">
-                      WhatsApp blocks connections from cloud/datacenter IP addresses (including this dashboard and your VPS).
-                      To use WhatsApp integration, you need to run the bot from a device with a <strong>residential IP</strong> (e.g. your home computer or phone).
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      You can still try connecting below, but it may fail with a timeout or connection error.
+                      WhatsApp requires a residential IP to connect. Download the bot package and run it on a computer at home —
+                      it auto-reconnects and stays linked for up to 14 days even if the computer reboots.
                     </p>
                   </div>
                 </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => window.open("/api/whatsapp/home-bot-download", "_blank")}
+                    data-testid="button-download-home-bot"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    Download Bot Package
+                  </Button>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
+                  <p className="text-xs font-medium">Setup (on your home computer):</p>
+                  <ol className="text-xs text-muted-foreground list-decimal list-inside space-y-0.5">
+                    <li>Unzip the downloaded file</li>
+                    <li>Edit <code className="bg-muted px-1 rounded">config.json</code> — set your API key from <strong>Settings &gt; API Keys</strong></li>
+                    <li>Run <code className="bg-muted px-1 rounded">npm install</code> then <code className="bg-muted px-1 rounded">npm start</code></li>
+                    <li>Enter the pairing code into WhatsApp on your phone</li>
+                    <li>(Optional) Run <code className="bg-muted px-1 rounded">node install-service.js</code> to auto-start on boot</li>
+                  </ol>
+                </div>
               </div>
-              <div className="rounded-md bg-primary/5 border border-primary/20 p-3 sm:hidden" data-testid="mobile-pairing-hint">
-                <p className="text-xs text-center">
-                  <strong>On your phone?</strong> Use <strong>Link with Phone Number</strong> below — it gives you a code to type directly into WhatsApp, no second device needed.
-                </p>
+
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3" data-testid="whatsapp-cloud-warning">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-amber-800 dark:text-amber-300">Direct connection from this dashboard</strong> is also available below, but may fail due to cloud IP restrictions.
+                  </p>
+                </div>
               </div>
+
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                 <button
                   onClick={() => setShowPairingForm(true)}
                   disabled={pairWithPhoneMutation.isPending}
-                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed order-first"
+                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed order-first"
                   data-testid="button-pair-phone"
                 >
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
@@ -1789,14 +1824,13 @@ export default function SettingsOpenclaw() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-semibold">Link with Phone Number</p>
-                    <p className="text-xs text-muted-foreground mt-1">Works from this device — no second screen needed</p>
-                    <Badge variant="secondary" className="mt-2 text-[10px]">Recommended</Badge>
+                    <p className="text-xs text-muted-foreground mt-1">Direct cloud connection (may not work)</p>
                   </div>
                 </button>
                 <button
                   onClick={() => startBotMutation.mutate()}
                   disabled={startBotMutation.isPending || pairWithPhoneMutation.isPending}
-                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex flex-col items-center gap-3 p-6 rounded-lg border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="button-start-bot"
                 >
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
@@ -1808,14 +1842,9 @@ export default function SettingsOpenclaw() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-semibold">{startBotMutation.isPending ? "Generating QR..." : "Scan QR Code"}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Requires a second device to scan</p>
+                    <p className="text-xs text-muted-foreground mt-1">Direct cloud connection (may not work)</p>
                   </div>
                 </button>
-              </div>
-              <div className="rounded-md bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground text-center">
-                  In WhatsApp: <strong>Settings</strong> → <strong>Linked Devices</strong> → <strong>Link a Device</strong>
-                </p>
               </div>
             </div>
           )}
