@@ -787,12 +787,21 @@ export default function SettingsOpenclaw() {
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formValues) => {
       const payload = { ...data, gatewayToken: data.gatewayToken || null, gatewayPassword: data.gatewayPassword || null, websocketUrl: data.websocketUrl || null };
-      await apiRequest("POST", `/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, payload);
+      const res = await apiRequest("POST", `/api/openclaw/config?instanceId=${selectedInstanceId ?? ""}`, payload);
+      return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/openclaw/config", selectedInstanceId] });
       queryClient.invalidateQueries({ queryKey: ["/api/docker/services", selectedInstanceId] });
-      toast({ title: "Configuration saved", description: "OpenClaw settings updated." });
+      if (data?.vpsPushResult) {
+        if (data.vpsPushResult.success) {
+          toast({ title: "Configuration saved & pushed to VPS", description: `Updated fields: ${data.vpsPushResult.updated?.join(", ") || "config"}` });
+        } else {
+          toast({ title: "Saved locally, VPS push failed", description: data.vpsPushResult.error || "Could not update config on VPS.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Configuration saved", description: "Settings updated in database." });
+      }
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to save configuration.", variant: "destructive" });

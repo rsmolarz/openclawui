@@ -124,9 +124,9 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
               headers[key] = Array.isArray(value) ? value.join(", ") : value;
             }
           }
-          headers["content-length"] = Buffer.byteLength(modified).toString();
-
           modified = modified.replace(/\s+crossorigin\b/gi, '');
+
+          headers["content-length"] = Buffer.byteLength(modified).toString();
 
           res.writeHead(proxyRes.statusCode || 200, headers);
           res.end(modified);

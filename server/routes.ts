@@ -1296,7 +1296,59 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
           } catch {}
         }
       }
-      res.json(config);
+
+      let vpsPushResult: { success: boolean; error?: string } | null = null;
+      try {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) {
+          const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+          const sshConfig = buildSSHConfigFromVps(vps);
+          const updates: Record<string, any> = {};
+          if (parsed.data.gatewayPort !== undefined) updates.port = parsed.data.gatewayPort;
+          if (parsed.data.gatewayBind !== undefined) updates.bind = parsed.data.gatewayBind;
+          if (parsed.data.gatewayToken !== undefined) updates["auth.token"] = parsed.data.gatewayToken;
+          if (parsed.data.gatewayPassword !== undefined) updates["auth.password"] = parsed.data.gatewayPassword;
+          if (parsed.data.defaultLlm !== undefined) updates.defaultModel = parsed.data.defaultLlm;
+          if (parsed.data.fallbackLlm !== undefined) updates.fallbackModel = parsed.data.fallbackLlm;
+
+          if (Object.keys(updates).length > 0) {
+            const pyUpdates = JSON.stringify(updates).replace(/'/g, "\\'");
+            const pushCmd = `python3 -c "
+import json, os
+f='/root/.openclaw/openclaw.json'
+if not os.path.exists(f):
+    print(json.dumps({'error':'Config file not found'}))
+    exit(0)
+d=json.load(open(f))
+gw=d.setdefault('gateway',{})
+updates=${pyUpdates}
+for k,v in updates.items():
+    parts=k.split('.')
+    target=gw
+    for p in parts[:-1]:
+        target=target.setdefault(p,{})
+    target[parts[-1]]=v
+json.dump(d,open(f,'w'),indent=2)
+print(json.dumps({'success':True,'updated':list(updates.keys())}))
+"`;
+            const result = await executeRawSSHCommand(pushCmd, sshConfig);
+            if (result.success) {
+              try {
+                const parsed = JSON.parse(result.output.trim());
+                vpsPushResult = parsed;
+              } catch {
+                vpsPushResult = { success: true };
+              }
+            } else {
+              vpsPushResult = { success: false, error: result.error || result.output };
+            }
+          }
+        }
+      } catch (e: any) {
+        vpsPushResult = { success: false, error: e.message };
+      }
+
+      res.json({ ...config, vpsPushResult });
     } catch (error) {
       res.status(500).json({ error: "Failed to update OpenClaw config" });
     }

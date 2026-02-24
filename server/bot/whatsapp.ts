@@ -209,12 +209,22 @@ class WhatsAppBot extends EventEmitter {
         }
       }, START_TIMEOUT_MS);
 
+      const browserVersions = [
+        ["Chrome (Linux)", "Chrome", "120.0.6099"],
+        ["Firefox (Linux)", "Firefox", "121.0"],
+        ["Chrome (Windows)", "Chrome", "119.0.6045"],
+        ["Edge (Windows)", "Edge", "120.0.2210"],
+      ];
+      const browserChoice = this.usePairingCode
+        ? ["Chrome (Linux)", "", ""]
+        : browserVersions[Math.floor(Math.random() * browserVersions.length)];
+
       const sock = makeWASocket({
         auth: state,
-        browser: this.usePairingCode ? ["Chrome (Linux)", "", ""] : ["OpenClaw", "Chrome", "1.0.0"],
+        browser: browserChoice as [string, string, string],
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
-        retryRequestDelayMs: 250,
+        retryRequestDelayMs: 500 + Math.floor(Math.random() * 1000),
         printQRInTerminal: false,
         markOnlineOnConnect: true,
         generateHighQualityLinkPreview: false,
@@ -351,16 +361,16 @@ class WhatsAppBot extends EventEmitter {
             const hasSession = this.hasAuthState();
 
             if (!hasSession && (isTimedOut || statusCode === 408 || statusCode === 405)) {
-              if (statusCode === 405 && this.reconnectAttempts < 2) {
+              if (statusCode === 405 && this.reconnectAttempts < 4) {
                 this.reconnectAttempts++;
-                const delay = 15000 * this.reconnectAttempts;
-                console.log(`[WhatsApp] 405 rejection — auto-retrying in ${delay / 1000}s (attempt ${this.reconnectAttempts}/2)`);
+                const delay = Math.min(20000 * Math.pow(2, this.reconnectAttempts - 1), 120000);
+                console.log(`[WhatsApp] 405 rejection — auto-retrying in ${delay / 1000}s (attempt ${this.reconnectAttempts}/4)`);
                 this.status = {
                   state: "connecting",
                   qrDataUrl: null,
                   pairingCode: null,
                   phone: null,
-                  error: `WhatsApp rate-limited this connection. Retrying in ${delay / 1000}s...`,
+                  error: `WhatsApp rate-limited this connection. Retrying in ${Math.round(delay / 1000)}s... (attempt ${this.reconnectAttempts}/4)`,
                 };
                 this.emit("status", this.status);
                 this.reconnectTimer = setTimeout(() => this.start(), delay);
