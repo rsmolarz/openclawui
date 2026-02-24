@@ -1901,8 +1901,11 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         }
       }
       const bot = await getWhatsappBot();
-      await bot.stop();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const currentStatus = bot.getStatus();
+      if (currentStatus.state !== "disconnected") {
+        await bot.stopGracefully();
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
       bot.startWithPairingCode(cleaned);
       res.json({ success: true, message: "Requesting pairing code..." });
     } catch (error) {

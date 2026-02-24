@@ -339,14 +339,29 @@ class WhatsAppBot extends EventEmitter {
             await this.checkDbAuth();
             const hasSession = this.hasAuthState();
 
-            if (!hasSession && (isTimedOut || statusCode === 408)) {
-              console.log("[WhatsApp] No session + timeout. User must re-start manually.");
+            if (!hasSession && (isTimedOut || statusCode === 408 || statusCode === 405)) {
+              console.log(`[WhatsApp] No session + error ${statusCode}. User must re-start manually.`);
               this.status = {
                 state: "disconnected",
                 qrDataUrl: null,
                 pairingCode: null,
                 phone: null,
-                error: "Connection timed out. Click Start to try again.",
+                error: statusCode === 405
+                  ? "WhatsApp rejected the connection. Wait a moment and try again."
+                  : "Connection timed out. Click Start to try again.",
+              };
+              this.emit("status", this.status);
+              return;
+            }
+
+            if (!hasSession && this.reconnectAttempts >= 3) {
+              console.log("[WhatsApp] No session + max reconnect attempts reached. Stopping.");
+              this.status = {
+                state: "disconnected",
+                qrDataUrl: null,
+                pairingCode: null,
+                phone: null,
+                error: "Could not connect to WhatsApp. Please wait a moment and try again.",
               };
               this.emit("status", this.status);
               return;
@@ -355,7 +370,7 @@ class WhatsAppBot extends EventEmitter {
             this.reconnectAttempts++;
             const delay = hasSession
               ? Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, this.reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS)
-              : RECONNECT_DELAY_MS;
+              : Math.min(RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS);
 
             const reason = isRestartRequired ? "restart required" :
               isConnectionLost ? "connection lost" :
