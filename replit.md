@@ -29,3 +29,14 @@ The application follows a client-server architecture.
 - **Networking**: Tailscale (for mesh VPN configurations)
 - **UI Component Library**: Shadcn UI
 - **Data Fetching/State Management**: TanStack Query
+
+## VPS Gateway Setup
+- **Gateway Auth**: Token mode (`b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359`)
+- **Gateway Service**: systemd `openclaw-gateway.service` with `ExecStartPre` patch script
+- **Pairing Bypass**: Gateway JS files are patched via `/usr/local/bin/patch-openclaw-gateway.sh` on every restart to bypass DID pairing requirement (sets `silent: true`, skips publicKey check, provides fallback paired object)
+- **Tailscale Serve**: Proxies `https://srv1390515.tail55cf63.ts.net:443` → `http://127.0.0.1:18789`
+- **SSH Key Auth**: frameworks machine has SSH key access to VPS (ed25519 key in authorized_keys)
+- **Connected Nodes**: srv1390515 (VPS, Linux), frameworks (Windows, via SSH tunnel to localhost:18789), vient1 (Windows, via Tailscale)
+- **Node Connection Methods**:
+  - Via Tailscale: `openclaw node run --host srv1390515.tail55cf63.ts.net --port 443 --tls --display-name "<name>"`
+  - Via SSH tunnel: `ssh -i ~/.ssh/id_ed25519_vps -L 18789:127.0.0.1:18789 root@72.60.167.64` then `openclaw node run --host 127.0.0.1 --port 18789 --display-name "<name>"`
