@@ -1,0 +1,41 @@
+- 
+2026-02-25 08:44:38:831 : Public IP : 66.248.187.33
+2026-02-25 08:45:01:713 : Suite: Web socket - Disconnected: The operation couldn’t be completed. (RemotePCSuite.WSError error 1.)
+2026-02-25 09:51:47:350 : Suite : handleNetworkChange available  true
+2026-02-25 09:51:50:217 : UPGRADE: reloadBottomView
+2026-02-25 09:51:50:239 : Suite: Web socket - Connecting...
+2026-02-25 09:51:51:197 : Suite: Web socket - Connected
+2026-02-25 09:51:51:366 : WSS message type: host_details, count: 8
+2026-02-25 09:51:51:520 : Suite: Web socket - Disconnected: The operation couldn’t be completed. (RemotePCSuite.WSError error 1.)
+2026-02-25 09:56:48:215 : Public IP : 66.248.187.33
+2026-02-25 12:23:08:649 : Suite : handleNetworkChange available  true
+2026-02-25 12:23:11:597 : UPGRADE: reloadBottomView
+2026-02-25 12:23:11:605 : Suite: Web socket - Connecting...
+2026-02-25 12:23:12:514 : Suite: Web socket - Connected
+2026-02-25 12:23:12:702 : WSS message type: host_details, count: 8
+2026-02-25 12:23:12:845 : Suite: Web socket - Disconnected: The operation couldn’t be completed. (RemotePCSuite.WSError error 1.)
+2026-02-25 12:28:09:345 : Public IP : 66.248.187.33
+rsmol@Mac-mini-7828 ~ % curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
+openclaw config set gateway.auth.token b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359
+openclaw node install --force --host srv1390515.tail55cf63.ts.net --port 443 --tls --display-name "mac-mini-1438"
+
+  🦞 OpenClaw Installer
+  We ship features faster than Apple ships calculator updates.
+
+✓ Detected: macos
+
+Install plan
+OS: macos
+Install method: npm
+Requested version: latest
+Onboarding: skipped
+
+[1/3] Preparing environment
+· Homebrew not found, installing
+✗ Installing Homebrew failed — re-run with --verbose for details
+Warning: Running in non-interactive mode because `stdin` is not a TTY.
+==> Checking for `sudo` access (which may request your password)...
+Need sudo access on macOS (e.g. the user rsmol needs to be an Administrator)!
+zsh: command not found: openclaw
+zsh: command not found: openclaw
+rsmol@Mac-mini-7828 ~ % 
