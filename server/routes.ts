@@ -908,6 +908,29 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
     }
   });
 
+  let nodeListCache: { nodes: any[]; timestamp: number } | null = null;
+  const NODE_LIST_CACHE_TTL = 15000;
+
+  async function getCachedNodeList(sshConfig: any): Promise<{ nodes: any[]; latencyMs: number } | null> {
+    if (nodeListCache && Date.now() - nodeListCache.timestamp < NODE_LIST_CACHE_TTL) {
+      return { nodes: nodeListCache.nodes, latencyMs: 0 };
+    }
+    const { executeSSHCommand } = await import("./ssh");
+    const start = Date.now();
+    const result = await executeSSHCommand("gateway-call-node-list", sshConfig);
+    const latency = Date.now() - start;
+    if (result.success && result.output) {
+      try {
+        const parsed = JSON.parse(result.output.trim());
+        if (!parsed.error && parsed.nodes && Array.isArray(parsed.nodes)) {
+          nodeListCache = { nodes: parsed.nodes, timestamp: Date.now() };
+          return { nodes: parsed.nodes, latencyMs: latency };
+        }
+      } catch {}
+    }
+    return null;
+  }
+
   app.post("/api/machines/:id/health-check", requireAuth, async (req, res) => {
     try {
       const machine = await storage.getMachine(req.params.id as string);
@@ -920,31 +943,24 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         const vps = await storage.getVpsConnection(instanceId);
         if (vps?.vpsIp) {
           try {
-            const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+            const { buildSSHConfigFromVps } = await import("./ssh");
             const sshConfig = buildSSHConfigFromVps(vps);
-            const start = Date.now();
-            const nodeListResult = await executeSSHCommand("gateway-call-node-list", sshConfig);
-            const latency = Date.now() - start;
+            const cached = await getCachedNodeList(sshConfig);
 
-            if (nodeListResult.success && nodeListResult.output) {
-              try {
-                const parsed = JSON.parse(nodeListResult.output.trim());
-                if (!parsed.error && parsed.nodes && Array.isArray(parsed.nodes)) {
-                  const mIdentifiers = [machine.hostname, machine.name, machine.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
-                  const match = parsed.nodes.find((n: any) => {
-                    const nIds = [n.displayName, n.hostname, n.name, n.clientId, n.nodeId, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
-                    return n.connected && mIdentifiers.some((mid: string) => nIds.includes(mid));
-                  });
+            if (cached) {
+              const mIdentifiers = [machine.hostname, machine.name, machine.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
+              const match = cached.nodes.find((n: any) => {
+                const nIds = [n.displayName, n.hostname, n.name, n.clientId, n.nodeId, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
+                return n.connected && mIdentifiers.some((mid: string) => nIds.includes(mid));
+              });
 
-                  if (match) {
-                    results.push({ method: "gateway-ssh", reachable: true, latencyMs: latency });
-                    await storage.updateMachine(machine.id, { status: "connected", lastSeen: new Date() });
-                    return res.json({ nodeId: machine.id, status: "connected", lastChecked: new Date().toISOString(), results });
-                  } else {
-                    results.push({ method: "gateway-ssh", reachable: false, error: "Node not found in gateway connected list" });
-                  }
-                }
-              } catch {}
+              if (match) {
+                results.push({ method: "gateway-ssh", reachable: true, latencyMs: cached.latencyMs });
+                await storage.updateMachine(machine.id, { status: "connected", lastSeen: new Date() });
+                return res.json({ nodeId: machine.id, status: "connected", lastChecked: new Date().toISOString(), results });
+              } else {
+                results.push({ method: "gateway-ssh", reachable: false, error: "Node not found in gateway connected list" });
+              }
             }
           } catch {}
         }
@@ -1756,13 +1772,10 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       let nodeListNodes: any[] = [];
 
       try {
-        const nodeListResult = await executeSSHCommand("gateway-call-node-list", sshConfig);
-        if (nodeListResult.success && nodeListResult.output) {
-          try {
-            const parsed = JSON.parse(nodeListResult.output.trim());
-            if (!parsed.error && parsed.nodes && Array.isArray(parsed.nodes)) {
-              nodeListNodes = parsed.nodes;
-              nodes = parsed.nodes.map((n: any, idx: number) => ({
+        const cached = await getCachedNodeList(sshConfig);
+        if (cached) {
+              nodeListNodes = cached.nodes;
+              nodes = cached.nodes.map((n: any, idx: number) => ({
                 name: n.displayName || n.name || n.hostname || `node-${idx}`,
                 id: n.nodeId || n.id || n.deviceId || `node-${idx}`,
                 ip: n.ip || n.address || "",
@@ -1774,8 +1787,6 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
               }));
               gatewayRunning = true;
               usedCli = true;
-            }
-          } catch {}
         }
       } catch {}
 
