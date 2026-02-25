@@ -221,7 +221,7 @@ app.use((req, res, next) => {
 
   const port = parseInt(process.env.PORT || "5000", 10);
 
-  const killPortHolder = async () => {
+  const killPortHolder = async (waitMs = 1000) => {
     try {
       const { execSync } = await import("child_process");
       const pids = execSync(`fuser ${port}/tcp 2>/dev/null || true`, { encoding: "utf-8" }).trim();
@@ -231,24 +231,40 @@ app.use((req, res, next) => {
         if (pidList.length > 0) {
           log(`Killing stale processes on port ${port}: ${pidList.join(", ")}`);
           execSync(`kill -9 ${pidList.join(" ")} 2>/dev/null || true`);
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, waitMs));
         }
       }
     } catch {}
   };
 
+  const waitForPortFree = async (maxWaitMs = 10000) => {
+    const { execSync } = await import("child_process");
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      try {
+        const pids = execSync(`fuser ${port}/tcp 2>/dev/null || true`, { encoding: "utf-8" }).trim();
+        const myPid = process.pid;
+        const otherPids = pids.split(/\s+/).filter(p => p && parseInt(p) !== myPid);
+        if (otherPids.length === 0) return true;
+      } catch {
+        return true;
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return false;
+  };
+
   let portRetries = 0;
-  const MAX_PORT_RETRIES = 5;
+  const MAX_PORT_RETRIES = 10;
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE" && portRetries < MAX_PORT_RETRIES) {
       portRetries++;
       log(`Port ${port} in use (attempt ${portRetries}/${MAX_PORT_RETRIES}) — killing old process and retrying...`);
-      killPortHolder().then(() => {
-        setTimeout(() => {
-          httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
-            log(`serving on port ${port} (after retry ${portRetries})`);
-          });
-        }, 1500 * portRetries);
+      killPortHolder(2000).then(async () => {
+        await waitForPortFree(5000);
+        httpServer.listen({ port, host: "0.0.0.0" }, () => {
+          log(`serving on port ${port} (after retry ${portRetries})`);
+        });
       });
     } else if (err.code === "EADDRINUSE") {
       console.error(`Port ${port} still in use after ${MAX_PORT_RETRIES} retries. Exiting.`);
@@ -259,13 +275,13 @@ app.use((req, res, next) => {
     }
   });
 
-  await killPortHolder();
+  await killPortHolder(2000);
+  await waitForPortFree(8000);
 
   httpServer.listen(
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`serving on port ${port}`);
