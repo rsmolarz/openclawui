@@ -1,0 +1,118 @@
++-------------------------------------------------------+
+node host PATH: C:\Users\Joseph S\.local\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Tailscale\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Users\Joseph S\AppData\Local\Programs\Python\Launcher\;C:\Users\Joseph S\AppData\Local\Microsoft\WindowsApps;C:\Users\Joseph S\AppData\Local\PowerToys\DSCModules\;C:\Users\Joseph S\AppData\Roaming\npm;\..
+node host gateway connect failed: pairing required
+gateway connect failed: Error: pairing required
+node host gateway closed (1008): pairing required
+
+C:\Windows\System32>openclaw node run --host srv1390515.tail55cf63.ts.net --port 443 --tls --display-name "DESKTOP-NIMCP7B"
+
+🦞 OpenClaw 2026.2.23 (b817600) — Your terminal just grew claws—type something and let the bot pinch the busywork.
+
+|
+o  Doctor changes ------------------------------+
+|                                               |
+|  WhatsApp configured, enabled automatically.  |
+|                                               |
++-----------------------------------------------+
+|
+o  Doctor ----------------------------------------------+
+|                                                       |
+|  Run "openclaw doctor --fix" to apply these changes.  |
+|                                                       |
++-------------------------------------------------------+
+node host PATH: C:\Users\Joseph S\.local\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Tailscale\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Users\Joseph S\AppData\Local\Programs\Python\Launcher\;C:\Users\Joseph S\AppData\Local\Microsoft\WindowsApps;C:\Users\Joseph S\AppData\Local\PowerToys\DSCModules\;C:\Users\Joseph S\AppData\Roaming\npm;\..
+node host gateway closed (1012): service restart
+
+C:\Windows\System32>done openclaw --version
+'done' is not recognized as an internal or external command,
+operable program or batch file.
+
+C:\Windows\System32>openclaw config get gateway
+
+🦞 OpenClaw 2026.2.23 (b817600) — No $999 stand required.
+
+{
+  "port": 18789,
+  "mode": "local",
+  "bind": "loopback",
+  "auth": {
+    "mode": "token",
+    "token": "__OPENCLAW_REDACTED__"
+  },
+  "tailscale": {
+    "mode": "off",
+    "resetOnExit": false
+  },
+  "nodes": {
+    "denyCommands": [
+      "camera.snap",
+      "camera.clip",
+      "screen.record",
+      "calendar.add",
+      "contacts.add",
+      "reminders.add"
+    ]
+  }
+}
+
+C:\Windows\System32>openclaw --version
+2026.2.23
+
+C:\Windows\System32>openclaw node status
+
+🦞 OpenClaw 2026.2.23 (b817600) — I'm basically a Swiss Army knife, but with more opinions and fewer sharp edges.
+
+|
+o  Doctor changes ------------------------------+
+|                                               |
+|  WhatsApp configured, enabled automatically.  |
+|                                               |
++-----------------------------------------------+
+|
+o  Doctor ----------------------------------------------+
+|                                                       |
+|  Run "openclaw doctor --fix" to apply these changes.  |
+|                                                       |
++-------------------------------------------------------+
+Service: Scheduled Task (registered)
+Runtime: stopped (state Ready, last run time 2/20/2026 10:32:10 AM)
+Service is loaded but not running.
+Logs: schtasks /Query /TN "OpenClaw Node" /V /FO LIST
+
+C:\Windows\System32>tailscale status
+100.115.103.60   desktop-nimcp7b-1               rsmolarz@  windows  -                                                  
+100.99.246.50    01-308bnew                      rsmolarz@  windows  offline, last seen 255d ago                        
+100.81.80.90     companionpi-1                   rsmolarz@  linux    offline, last seen 212d ago                        
+100.73.207.16    drnewstx                        rsmolarz@  windows  offline, last seen 82d ago                         
+100.80.169.25    framework                       rsmolarz@  windows  -                                                  
+100.123.90.49    gl-axt1800-1                    rsmolarz@  linux    offline, last seen 285d ago                        
+100.87.94.23     gl-axt1800-2                    rsmolarz@  linux    offline, last seen 275d ago                        
+100.106.16.25    gl-axt1800                      rsmolarz@  linux    offline, last seen 323d ago                        
+100.118.254.13   h2rgraphics                     rsmolarz@  linux    -                                                  
+100.77.164.57    homeassistant-1                 rsmolarz@  linux    -                                                  
+100.82.98.77     homeassistant                   rsmolarz@  linux    idle; offers exit node; offline, last seen 389d ago
+100.103.190.59   homepc                          rsmolarz@  windows  idle; offers exit node; offline, last seen 322d ago
+100.109.35.56    ip-172-31-9-172                 rsmolarz@  linux    offline, last seen 21d ago                         
+100.68.247.67    ipad-mini-6th-gen-wificellular  rsmolarz@  iOS      offline, last seen 144d ago                        
+100.117.192.22   ipad-mini-gen-5                 rsmolarz@  iOS      offline, last seen 317d ago                        
+100.102.178.127  ipad                            rsmolarz@  iOS      offline, last seen 412d ago                        
+100.108.225.21   iphone-15-pro-max               rsmolarz@  iOS      offline, last seen 378d ago                        
+100.123.49.90    iphone171                       rsmolarz@  iOS      -                                                  
+100.72.2.3       mac-mini-1438                   rsmolarz@  macOS    offline, last seen 346d ago                        
+100.106.6.33     pikvm-1                         rsmolarz@  linux    offline, last seen 24d ago                         
+100.123.153.103  podcastpc                       rsmolarz@  windows  -                                                  
+100.76.65.108    raspberrypi3                    rsmolarz@  linux    offline, last seen 476d ago                        
+100.104.247.59   raspberrypi4                    rsmolarz@  linux    offline, last seen 486d ago                        
+100.72.148.58    raspberrypi5                    rsmolarz@  linux    offline, last seen 347d ago                        
+100.84.58.107    rsmolarzbackup                  rsmolarz@  windows  offline, last seen 12h ago                         
+100.121.241.20   samsung-sm-x210                 rsmolarz@  android  offline, last seen 493d ago                        
+100.70.33.69     srv1390515                      rsmolarz@  linux    -                                                  
+100.126.220.103  surface-7                       rsmolarz@  windows  offline, last seen 353d ago                        
+100.120.17.101   surface-backup                  rsmolarz@  windows  offline, last seen 3d ago                          
+100.104.28.9     surface-travel                  rsmolarz@  windows  offline, last seen 35d ago                         
+100.75.158.12    travel-asusduo                  rsmolarz@  windows  offline, last seen 12h ago                         
+100.70.218.39    vient                           rsmolarz@  windows  -                                                  
+100.72.255.50    vient3stx                       rsmolarz@  windows  offline, last seen 295d ago                        
+100.105.145.41   vient4                          rsmolarz@  windows  -                                                  
+
+C:\Windows\System32>
