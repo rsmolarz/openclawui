@@ -1,0 +1,63 @@
+CArVprrovZtA+SMRua/xpFnW12hWJz3GX9wzIUut6exLlRowJauBI7seXt4jP8Rgw==","buildHash":"VLsNToSifLU6uyYzJzwXCA==","deviceProps":"ChFPcGVuQ2xhdyBIb21lIEJvdBIGCAoQDxgHGAEgACoXGIBQIAEwADgBQAFIAVABWAFgAXABeAA="},"pull":false},"msg":"not logged in, attempting registration..."}
+{"level":30,"time":"2026-02-25T01:25:46.604Z","pid":7524,"hostname":"PodcastPC","class":"baileys","trace":"Error: Connection Failure\n    at WebSocketClient.<anonymous> (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:785:13)\n    at WebSocketClient.emit (node:events:518:28)\n    at file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:464:35\n    at Object.decodeFrame (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:141:17)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async WebSocketClient.onMessageReceived (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:441:9)","msg":"connection errored"}
+[Bot] Connection closed: status=405, reason="Connection Failure"
+[Bot] Auto-reconnecting in 5s (attempt 1, reason: status 405)
+
+[Bot] Starting WhatsApp connection...
+[Bot] Existing session: false
+{"level":30,"time":"2026-02-25T01:25:51.870Z","pid":7524,"hostname":"PodcastPC","class":"baileys","browser":["OpenClaw Home Bot","Chrome","1.0"],"helloMsg":{"clientHello":{"ephemeral":"ROttartVAjtfOjcfh/nUXjqc2EU8P+j9SJV8z2rC0WI="}},"msg":"connected to WA"}
+{"level":30,"time":"2026-02-25T01:25:52.021Z","pid":7524,"hostname":"PodcastPC","class":"baileys","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1027934701},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAADA==","eKeytype":"BQ==","eIdent":"QkxnmjsjRadVQJ7dtuDr97ecV/msh9E23oXc/9k4eys=","eSkeyId":"AAAB","eSkeyVal":"hCq2ayPcDlidPUPl1EAr2MHHqauGItNJNp61v7RcbWM=","eSkeySig":"gvZqZn2i9toXkf/QKYtFuUpdLXeRF8eOtwQ6my7idrsmzkGyxf0IpIfWVlfTN1uTMQ2rQYzfCMqj53wHR1ldAA==","buildHash":"VLsNToSifLU6uyYzJzwXCA==","deviceProps":"ChFPcGVuQ2xhdyBIb21lIEJvdBIGCAoQDxgHGAEgACoXGIBQIAEwADgBQAFIAVABWAFgAXABeAA="},"pull":false},"msg":"not logged in, attempting registration..."}
+{"level":30,"time":"2026-02-25T01:25:55.840Z","pid":7524,"hostname":"PodcastPC","class":"baileys","trace":"Error: Connection Failure\n    at WebSocketClient.<anonymous> (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:785:13)\n    at WebSocketClient.emit (node:events:518:28)\n    at file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:464:35\n    at Object.decodeFrame (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:141:17)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async WebSocketClient.onMessageReceived (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:441:9)","msg":"connection errored"}
+[Bot] Connection closed: status=405, reason="Connection Failure"
+[Bot] Auto-reconnecting in 8s (attempt 2, reason: status 405)
+
+[Bot] Starting WhatsApp connection...
+[Bot] Existing session: false
+{"level":30,"time":"2026-02-25T01:26:03.582Z","pid":7524,"hostname":"PodcastPC","class":"baileys","browser":["OpenClaw Home Bot","Chrome","1.0"],"helloMsg":{"clientHello":{"ephemeral":"emJIlGMWmgGECdPsUxn33VnCWjSHrDzD7caG8UvpxH0="}},"msg":"connected to WA"}
+{"level":30,"time":"2026-02-25T01:26:03.736Z","pid":7524,"hostname":"PodcastPC","class":"baileys","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1027934701},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAAGA==","eKeytype":"BQ==","eIdent":"7w+GUibfrfPt3YN/aoOAG7tzf3lUOGwEwZAOgZNCxFo=","eSkeyId":"AAAB","eSkeyVal":"bVNvFnO3ixaNcCdsnO6g4mC3tZH9dLRh6kbE6I8uYSc=","eSkeySig":"o9yGgy+98V8Xz5j61BWyEL7DQyooaS1CW94OK59aGiiPGAFXGQSUWCw4pRkzFBr68mCz4A6MECGpGr6LyotGAQ==","buildHash":"VLsNToSifLU6uyYzJzwXCA==","deviceProps":"ChFPcGVuQ2xhdyBIb21lIEJvdBIGCAoQDxgHGAEgACoXGIBQIAEwADgBQAFIAVABWAFgAXABeAA="},"pull":false},"msg":"not logged in, attempting registration..."}
+{"level":30,"time":"2026-02-25T01:26:07.147Z","pid":7524,"hostname":"PodcastPC","class":"baileys","trace":"Error: Connection Failure\n    at WebSocketClient.<anonymous> (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:785:13)\n    at WebSocketClient.emit (node:events:518:28)\n    at file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:464:35\n    at Object.decodeFrame (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:141:17)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async WebSocketClient.onMessageReceived (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:441:9)","msg":"connection errored"}
+[Bot] Connection closed: status=405, reason="Connection Failure"
+[Bot] Auto-reconnecting in 11s (attempt 3, reason: status 405)
+
+[Bot] Starting WhatsApp connection...
+[Bot] Existing session: false
+{"level":30,"time":"2026-02-25T01:26:19.085Z","pid":7524,"hostname":"PodcastPC","class":"baileys","browser":["OpenClaw Home Bot","Chrome","1.0"],"helloMsg":{"clientHello":{"ephemeral":"657b3xo75auP8/vu1QqJJgwNF/mPoVLuUejlK5831gc="}},"msg":"connected to WA"}
+{"level":30,"time":"2026-02-25T01:26:19.291Z","pid":7524,"hostname":"PodcastPC","class":"baileys","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1027934701},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAAsA==","eKeytype":"BQ==","eIdent":"C4kphtTLtCypKW3iD4wzdnu2UTVL7S0A77Qvr0iHQgM=","eSkeyId":"AAAB","eSkeyVal":"+GUSbpl9/xB4ssnSShAhY5sr9PjMyj5eXBW6qPQM6Rc=","eSkeySig":"j46Y3VKjvtGlsQbJ0mjXFkgfVppss641UB0l5dzstkM5HcPiWh4wLuzajtrVHqF66OecB3aUthe5Fx7mdW7iDA==","buildHash":"VLsNToSifLU6uyYzJzwXCA==","deviceProps":"ChFPcGVuQ2xhdyBIb21lIEJvdBIGCAoQDxgHGAEgACoXGIBQIAEwADgBQAFIAVABWAFgAXABeAA="},"pull":false},"msg":"not logged in, attempting registration..."}
+{"level":30,"time":"2026-02-25T01:26:20.883Z","pid":7524,"hostname":"PodcastPC","class":"baileys","trace":"Error: Connection Failure\n    at WebSocketClient.<anonymous> (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:785:13)\n    at WebSocketClient.emit (node:events:518:28)\n    at file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:464:35\n    at Object.decodeFrame (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:141:17)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async WebSocketClient.onMessageReceived (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:441:9)","msg":"connection errored"}
+[Bot] Connection closed: status=405, reason="Connection Failure"
+[Bot] Auto-reconnecting in 17s (attempt 4, reason: status 405)
+
+[Bot] Shutting down gracefully (session preserved)...
+Terminate batch job (Y/N)? y
+
+C:\Users\rsmol\openclaw-whatsapp-bot>cd C:\Users\rsmol\openclaw-whatsapp-bot
+
+C:\Users\rsmol\openclaw-whatsapp-bot>npm install @whiskeysockets/baileys@latest
+
+up to date, audited 78 packages in 829ms
+
+13 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+C:\Users\rsmol\openclaw-whatsapp-bot>npm start
+
+> openclaw-whatsapp-home-bot@1.0.0 start
+> node openclaw-whatsapp.js
+
+Dashboard: https://e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev
+API Key: oc_697be...
+
+[Bot] Starting WhatsApp connection...
+[Bot] Existing session: false
+{"level":30,"time":"2026-02-25T01:26:46.000Z","pid":55864,"hostname":"PodcastPC","class":"baileys","browser":["OpenClaw Home Bot","Chrome","1.0"],"helloMsg":{"clientHello":{"ephemeral":"OFV9iExT5sFNEVP1Q/JpanBgisFlR54FboyLpJewzw0="}},"msg":"connected to WA"}
+{"level":30,"time":"2026-02-25T01:26:46.212Z","pid":55864,"hostname":"PodcastPC","class":"baileys","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1027934701},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAAiw==","eKeytype":"BQ==","eIdent":"qIx3D+AX5N3TtrstL4dUtF/60KYfOqiBqw3BY0hxLQI=","eSkeyId":"AAAB","eSkeyVal":"TjQHx4xQaDypJ0FosBf3N48HX6wseeNRffi6LmsoXG0=","eSkeySig":"8E9OP2JlVeBbZB+qhScNFP/nYtxkF13vcO8bbXP3mBfneZdI0u/wdWMrUoVjoYduQ4PxQpwTLagiBSkVzGcCBA==","buildHash":"VLsNToSifLU6uyYzJzwXCA==","deviceProps":"ChFPcGVuQ2xhdyBIb21lIEJvdBIGCAoQDxgHGAEgACoXGIBQIAEwADgBQAFIAVABWAFgAXABeAA="},"pull":false},"msg":"not logged in, attempting registration..."}
+{"level":30,"time":"2026-02-25T01:26:49.673Z","pid":55864,"hostname":"PodcastPC","class":"baileys","trace":"Error: Connection Failure\n    at WebSocketClient.<anonymous> (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:785:13)\n    at WebSocketClient.emit (node:events:518:28)\n    at file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:464:35\n    at Object.decodeFrame (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:141:17)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async WebSocketClient.onMessageReceived (file:///C:/Users/rsmol/openclaw-whatsapp-bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:441:9)","msg":"connection errored"}
+[Bot] Connection closed: status=405, reason="Connection Failure"
+[Bot] Auto-reconnecting in 5s (attempt 1, reason: status 405)
+
+[Bot] Starting WhatsApp connection...
+[Bot] Existing session: false
+{"level":30,"time":"2026-02-25T01:26:54.956Z","pid":55864,"hostname":"PodcastPC","class":"baileys","browser":["OpenClaw Home Bot","Chrome","1.0"],"helloMsg":{"clientHello":{"ephemeral":"miJYzxmdApvvmFjOgIeGkfRyT4TSW6xq8o9GFslYgm0="}},"msg":"connected to WA"}
+{"level":30,"time":"2026-02-25T01:26:55.044Z","pid":55864,"hostname":"PodcastPC","class":"baileys","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1027934701},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAAfw==","eKeytype":"BQ==","eIdent":"a1YagPMZr/EuBzB15h8SHtIL/IeAAgplI1khv9rNfz4=","eSkeyId":"AAAB","eSkeyVal":"QKycpY5Txs84rjVmpXZjSbGi7NEz6cZjY/8k3hy+TxA=","eSkeySig":"IlkbLVXlTmBJqx4/MdGpOkAmnkQuY1FeYrlW+5x+KKezdAboTD+qS2P3XgsJDxSMGkxeISPL4TOWuoUrmbkPCA==","buildHash":"VLsNToSifLU6uyYzJzwXCA==","deviceProps":"ChFPcGVuQ2xhdyBIb21lIEJvdBIGCAoQDxgHGAEgACoXGIBQIAEwADgBQAFIAVABWAFgAXABeAA="},"pull":false},"msg":"not logged in, attempting registration..."}
