@@ -923,18 +923,17 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
             const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
             const sshConfig = buildSSHConfigFromVps(vps);
             const start = Date.now();
-            const pairedResult = await executeSSHCommand("list-paired-nodes", sshConfig);
+            const nodeListResult = await executeSSHCommand("gateway-call-node-list", sshConfig);
             const latency = Date.now() - start;
 
-            if (pairedResult.success && pairedResult.output) {
+            if (nodeListResult.success && nodeListResult.output) {
               try {
-                let parsed = JSON.parse(pairedResult.output.trim());
-                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
-                if (Array.isArray(parsed)) {
+                const parsed = JSON.parse(nodeListResult.output.trim());
+                if (!parsed.error && parsed.nodes && Array.isArray(parsed.nodes)) {
                   const mIdentifiers = [machine.hostname, machine.name, machine.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
-                  const match = parsed.find((n: any) => {
-                    const nIds = [n.displayName, n.hostname, n.name, n.clientId, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
-                    return mIdentifiers.some((mid) => nIds.includes(mid));
+                  const match = parsed.nodes.find((n: any) => {
+                    const nIds = [n.displayName, n.hostname, n.name, n.clientId, n.nodeId, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
+                    return n.connected && mIdentifiers.some((mid: string) => nIds.includes(mid));
                   });
 
                   if (match) {
@@ -942,7 +941,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
                     await storage.updateMachine(machine.id, { status: "connected", lastSeen: new Date() });
                     return res.json({ nodeId: machine.id, status: "connected", lastChecked: new Date().toISOString(), results });
                   } else {
-                    results.push({ method: "gateway-ssh", reachable: false, error: "Node not found in gateway paired list" });
+                    results.push({ method: "gateway-ssh", reachable: false, error: "Node not found in gateway connected list" });
                   }
                 }
               } catch {}
@@ -1682,9 +1681,33 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
       const vps = instanceId ? await storage.getVpsConnection(instanceId) : null;
       if (vps?.vpsIp) {
+        const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+        const sshConfig = buildSSHConfigFromVps(vps);
+
         try {
-          const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
-          const sshConfig = buildSSHConfigFromVps(vps);
+          const nodeListResult = await executeSSHCommand("gateway-call-node-list", sshConfig);
+          if (nodeListResult.success && nodeListResult.output) {
+            const parsed = JSON.parse(nodeListResult.output.trim());
+            if (!parsed.error && parsed.nodes && Array.isArray(parsed.nodes)) {
+              const connectedNodes = parsed.nodes.filter((n: any) => n.connected);
+              const normalized = connectedNodes.map((n: any, idx: number) => ({
+                id: n.nodeId || n.id || `node-${idx}`,
+                hostname: n.displayName || n.name || n.hostname || `node-${idx}`,
+                displayName: n.displayName || n.name || n.hostname || `node-${idx}`,
+                name: n.displayName || n.name || n.hostname || `node-${idx}`,
+                clientId: n.nodeId || n.id || `node-${idx}`,
+                ip: n.ip || n.address || "",
+                os: n.platform || "",
+                version: n.version || "",
+                status: "paired",
+                connected: true,
+              }));
+              return res.json({ paired: normalized, source: "gateway" });
+            }
+          }
+        } catch {}
+
+        try {
           const result = await executeSSHCommand("list-paired-nodes", sshConfig);
           if (result.success && result.output) {
             try {
@@ -1730,21 +1753,24 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       let devices: any[] = [];
       let gatewayRunning = false;
       let usedCli = false;
+      let nodeListNodes: any[] = [];
 
       try {
-        const nodesResult = await executeSSHCommand("cli-nodes-status", sshConfig);
-        if (nodesResult.success && nodesResult.output) {
+        const nodeListResult = await executeSSHCommand("gateway-call-node-list", sshConfig);
+        if (nodeListResult.success && nodeListResult.output) {
           try {
-            const parsed = JSON.parse(nodesResult.output.trim());
-            if (!parsed.error) {
-              const rawNodes = Array.isArray(parsed) ? parsed : (parsed.nodes || parsed.data || Object.values(parsed));
-              nodes = (rawNodes as any[]).map((n: any, idx: number) => ({
-                name: n.name || n.displayName || n.hostname || `node-${idx}`,
-                id: n.id || n.nodeId || n.deviceId || `node-${idx}`,
+            const parsed = JSON.parse(nodeListResult.output.trim());
+            if (!parsed.error && parsed.nodes && Array.isArray(parsed.nodes)) {
+              nodeListNodes = parsed.nodes;
+              nodes = parsed.nodes.map((n: any, idx: number) => ({
+                name: n.displayName || n.name || n.hostname || `node-${idx}`,
+                id: n.nodeId || n.id || n.deviceId || `node-${idx}`,
                 ip: n.ip || n.address || "",
-                status: n.status || "unknown",
+                status: n.connected ? "connected" : "disconnected",
                 caps: n.caps || n.capabilities || "",
                 version: n.version || "",
+                platform: n.platform || "",
+                connectedAtMs: n.connectedAtMs || 0,
               }));
               gatewayRunning = true;
               usedCli = true;
@@ -1753,59 +1779,100 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         }
       } catch {}
 
+      if (!usedCli) {
+        try {
+          const nodesResult = await executeSSHCommand("cli-nodes-status", sshConfig);
+          if (nodesResult.success && nodesResult.output) {
+            try {
+              const parsed = JSON.parse(nodesResult.output.trim());
+              if (!parsed.error) {
+                const rawNodes = Array.isArray(parsed) ? parsed : (parsed.nodes || parsed.data || Object.values(parsed));
+                nodes = (rawNodes as any[]).map((n: any, idx: number) => ({
+                  name: n.name || n.displayName || n.hostname || `node-${idx}`,
+                  id: n.id || n.nodeId || n.deviceId || `node-${idx}`,
+                  ip: n.ip || n.address || "",
+                  status: n.status || "unknown",
+                  caps: n.caps || n.capabilities || "",
+                  version: n.version || "",
+                }));
+                gatewayRunning = true;
+                usedCli = true;
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+
       let cliPaired: any[] = [];
       let cliPending: any[] = [];
 
-      try {
-        const devicesResult = await executeSSHCommand("cli-devices-list", sshConfig);
-        if (devicesResult.success && devicesResult.output) {
-          try {
-            const parsed = JSON.parse(devicesResult.output.trim());
-            if (!parsed.error) {
-              if (parsed.paired && Array.isArray(parsed.paired)) {
-                cliPaired = parsed.paired.map((d: any, idx: number) => ({
-                  requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
-                  name: d.name || d.hostname || d.displayName || `device-${idx}`,
-                  displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
-                  role: d.role || "node",
-                  ip: d.ip || d.address || d.remoteIp || "",
-                  age: d.age || "",
-                  status: "paired",
-                }));
+      if (nodeListNodes.length > 0) {
+        cliPaired = nodeListNodes.filter((n: any) => n.connected).map((n: any, idx: number) => ({
+          requestId: n.nodeId || n.id || `node-${idx}`,
+          id: n.nodeId || n.id || `node-${idx}`,
+          name: n.displayName || n.name || n.hostname || `node-${idx}`,
+          displayName: n.displayName || n.name || n.hostname || `node-${idx}`,
+          hostname: n.displayName || n.name || n.hostname || `node-${idx}`,
+          clientId: n.nodeId || n.id || `node-${idx}`,
+          role: "node",
+          ip: n.ip || n.address || "",
+          os: n.platform || "",
+          version: n.version || "",
+          status: "paired",
+          connected: true,
+        }));
+      } else {
+        try {
+          const devicesResult = await executeSSHCommand("cli-devices-list", sshConfig);
+          if (devicesResult.success && devicesResult.output) {
+            try {
+              const parsed = JSON.parse(devicesResult.output.trim());
+              if (!parsed.error) {
+                if (parsed.paired && Array.isArray(parsed.paired)) {
+                  cliPaired = parsed.paired.map((d: any, idx: number) => ({
+                    requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                    name: d.name || d.hostname || d.displayName || `device-${idx}`,
+                    displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
+                    role: d.role || "node",
+                    ip: d.ip || d.address || d.remoteIp || "",
+                    age: d.age || "",
+                    status: "paired",
+                  }));
+                }
+                if (parsed.pending && Array.isArray(parsed.pending)) {
+                  cliPending = parsed.pending.map((d: any, idx: number) => ({
+                    requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                    name: d.name || d.hostname || d.displayName || `device-${idx}`,
+                    displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
+                    role: d.role || "node",
+                    ip: d.ip || d.address || d.remoteIp || "",
+                    age: d.age || "",
+                    status: "pending",
+                  }));
+                }
+                if (cliPaired.length > 0 || cliPending.length > 0 || (parsed.paired && parsed.pending)) {
+                  devices = [...cliPaired, ...cliPending];
+                  if (!usedCli) gatewayRunning = true;
+                  usedCli = true;
+                } else {
+                  const rawDevices = Array.isArray(parsed) ? parsed : (parsed.devices || parsed.data || Object.values(parsed));
+                  devices = (rawDevices as any[]).map((d: any, idx: number) => ({
+                    requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
+                    name: d.name || d.hostname || d.displayName || `device-${idx}`,
+                    displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
+                    role: d.role || "node",
+                    ip: d.ip || d.address || d.remoteIp || "",
+                    age: d.age || "",
+                    status: d.status || "unknown",
+                  }));
+                  if (!usedCli) gatewayRunning = true;
+                  usedCli = true;
+                }
               }
-              if (parsed.pending && Array.isArray(parsed.pending)) {
-                cliPending = parsed.pending.map((d: any, idx: number) => ({
-                  requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
-                  name: d.name || d.hostname || d.displayName || `device-${idx}`,
-                  displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
-                  role: d.role || "node",
-                  ip: d.ip || d.address || d.remoteIp || "",
-                  age: d.age || "",
-                  status: "pending",
-                }));
-              }
-              if (cliPaired.length > 0 || cliPending.length > 0 || (parsed.paired && parsed.pending)) {
-                devices = [...cliPaired, ...cliPending];
-                if (!usedCli) gatewayRunning = true;
-                usedCli = true;
-              } else {
-                const rawDevices = Array.isArray(parsed) ? parsed : (parsed.devices || parsed.data || Object.values(parsed));
-                devices = (rawDevices as any[]).map((d: any, idx: number) => ({
-                  requestId: d.requestId || d.id || d.deviceId || `device-${idx}`,
-                  name: d.name || d.hostname || d.displayName || `device-${idx}`,
-                  displayName: d.displayName || d.name || d.hostname || `device-${idx}`,
-                  role: d.role || "node",
-                  ip: d.ip || d.address || d.remoteIp || "",
-                  age: d.age || "",
-                  status: d.status || "unknown",
-                }));
-                if (!usedCli) gatewayRunning = true;
-                usedCli = true;
-              }
-            }
-          } catch {}
-        }
-      } catch {}
+            } catch {}
+          }
+        } catch {}
+      }
 
       if (!usedCli) {
         const statusCmd = `ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep ${gatewayPort} || echo 'not-listening'`;
@@ -1813,47 +1880,46 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         gatewayRunning = statusResult.success && statusResult.output ? (!statusResult.output.includes("not-listening") && statusResult.output.includes("openclaw")) : false;
       }
 
-      let paired: any[] = [];
-      let pending: any[] = [];
+      let paired: any[] = cliPaired;
+      let pending: any[] = cliPending;
 
-      if (usedCli && (cliPaired.length > 0 || cliPending.length > 0)) {
-        paired = cliPaired;
-        pending = cliPending;
-      } else if (usedCli) {
-        paired = devices.filter((d: any) => d.status === "paired");
-        pending = devices.filter((d: any) => d.status === "pending");
-      } else {
-        try {
-          const pairedResult = await executeSSHCommand("list-paired-nodes", sshConfig);
-          if (pairedResult.success && pairedResult.output) {
-            try {
-              let parsed = JSON.parse(pairedResult.output.trim());
-              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
-              if (Array.isArray(parsed)) {
-                paired = parsed.map((n: any, idx: number) => {
-                  if (typeof n === "string") return { id: n, hostname: n };
-                  return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
-                });
-              }
-            } catch {}
-          }
-        } catch {}
+      if (paired.length === 0 && pending.length === 0 && !nodeListNodes.length) {
+        if (usedCli) {
+          paired = devices.filter((d: any) => d.status === "paired");
+          pending = devices.filter((d: any) => d.status === "pending");
+        } else {
+          try {
+            const pairedResult = await executeSSHCommand("list-paired-nodes", sshConfig);
+            if (pairedResult.success && pairedResult.output) {
+              try {
+                let parsed = JSON.parse(pairedResult.output.trim());
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+                if (Array.isArray(parsed)) {
+                  paired = parsed.map((n: any, idx: number) => {
+                    if (typeof n === "string") return { id: n, hostname: n };
+                    return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
+                  });
+                }
+              } catch {}
+            }
+          } catch {}
 
-        try {
-          const pendingResult = await executeSSHCommand("list-pending-nodes", sshConfig);
-          if (pendingResult.success && pendingResult.output) {
-            try {
-              let parsed = JSON.parse(pendingResult.output.trim());
-              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
-              if (Array.isArray(parsed)) {
-                pending = parsed.map((n: any, idx: number) => {
-                  if (typeof n === "string") return { id: n, hostname: n };
-                  return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
-                });
-              }
-            } catch {}
-          }
-        } catch {}
+          try {
+            const pendingResult = await executeSSHCommand("list-pending-nodes", sshConfig);
+            if (pendingResult.success && pendingResult.output) {
+              try {
+                let parsed = JSON.parse(pendingResult.output.trim());
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+                if (Array.isArray(parsed)) {
+                  pending = parsed.map((n: any, idx: number) => {
+                    if (typeof n === "string") return { id: n, hostname: n };
+                    return { id: n.id || n.deviceId || n.hostname || `node-${idx}`, ...n };
+                  });
+                }
+              } catch {}
+            }
+          } catch {}
+        }
       }
 
       const allMachines = await storage.getMachines();
