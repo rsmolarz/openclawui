@@ -127,8 +127,27 @@ export default function SettingsDashboard() {
     window.open(nativeDashboardUrl, "_blank", "noopener,noreferrer");
   };
 
+  const botStatusQuery = useQuery<{
+    state: string;
+    phone: string | null;
+    error: string | null;
+    runtime?: string;
+    hostname?: string | null;
+    enabled?: boolean;
+  }>({
+    queryKey: ["/api/whatsapp/status"],
+    refetchInterval: 15000,
+  });
+
   const health = healthQuery.data;
-  const whatsapp = health?.channels?.whatsapp;
+  const gwWhatsapp = health?.channels?.whatsapp;
+  const botStatus = botStatusQuery.data;
+  const waConnected = gwWhatsapp?.connected || botStatus?.state === "connected";
+  const waPhone = gwWhatsapp?.self?.e164 || (botStatus?.phone ? `+${botStatus.phone}` : null);
+  const waError = gwWhatsapp?.lastError || botStatus?.error;
+  const waConfigured = gwWhatsapp?.configured || botStatus?.enabled;
+  const waRuntime = botStatus?.runtime;
+  const waHostname = botStatus?.hostname;
 
   if (!instanceId) {
     return (
@@ -200,19 +219,19 @@ export default function SettingsDashboard() {
           </CardContent>
         </Card>
 
-        <Card data-testid="card-whatsapp-status" className={whatsapp?.connected ? "border-green-500/30" : whatsapp !== undefined && !whatsapp?.connected ? "border-destructive/30" : ""}>
+        <Card data-testid="card-whatsapp-status" className={waConnected ? "border-green-500/30" : waConfigured && !waConnected ? "border-destructive/30" : ""}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-3">
-              <div className={`p-2.5 rounded-lg ${whatsapp?.connected ? "bg-green-100 dark:bg-green-900/30" : whatsapp !== undefined ? "bg-red-100 dark:bg-red-900/30" : "bg-muted"}`}>
-                <MessageSquare className={`h-5 w-5 ${whatsapp?.connected ? "text-green-600" : whatsapp !== undefined ? "text-red-500" : "text-muted-foreground"}`} />
+              <div className={`p-2.5 rounded-lg ${waConnected ? "bg-green-100 dark:bg-green-900/30" : waConfigured ? "bg-red-100 dark:bg-red-900/30" : "bg-muted"}`}>
+                <MessageSquare className={`h-5 w-5 ${waConnected ? "text-green-600" : waConfigured ? "text-red-500" : "text-muted-foreground"}`} />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-muted-foreground">WhatsApp Bot</p>
                 <div className="flex items-center gap-2">
-                  <p className={`text-lg font-bold ${whatsapp?.connected ? "text-green-700 dark:text-green-400" : whatsapp !== undefined && !whatsapp?.connected ? "text-red-600 dark:text-red-400" : ""}`} data-testid="text-whatsapp-gw-status">
-                    {healthQuery.isLoading ? "Checking..." : whatsapp?.connected ? "Online" : whatsapp?.linked ? "Disconnected" : whatsapp?.configured ? "Not Linked" : "Not Set Up"}
+                  <p className={`text-lg font-bold ${waConnected ? "text-green-700 dark:text-green-400" : waConfigured && !waConnected ? "text-red-600 dark:text-red-400" : ""}`} data-testid="text-whatsapp-gw-status">
+                    {healthQuery.isLoading && botStatusQuery.isLoading ? "Checking..." : waConnected ? "Online" : waConfigured ? "Disconnected" : "Not Set Up"}
                   </p>
-                  {whatsapp?.connected && (
+                  {waConnected && (
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
@@ -221,26 +240,32 @@ export default function SettingsDashboard() {
                 </div>
               </div>
             </div>
-            {whatsapp?.self?.e164 && (
+            {waPhone && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <Smartphone className="h-3 w-3" />
-                {whatsapp.self.e164}
+                <span className="font-mono">{waPhone}</span>
               </p>
             )}
-            {whatsapp?.connected && whatsapp?.lastMessageAt && (
+            {waConnected && waRuntime === "home-bot" && waHostname && (
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <Monitor className="h-3 w-3" />
+                Running on {waHostname}
+              </p>
+            )}
+            {gwWhatsapp?.connected && gwWhatsapp?.lastMessageAt && (
               <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                Last message: {new Date(whatsapp.lastMessageAt).toLocaleString()}
+                Last message: {new Date(gwWhatsapp.lastMessageAt).toLocaleString()}
               </p>
             )}
-            {!whatsapp?.connected && whatsapp?.lastError && (
+            {!waConnected && waError && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1.5" data-testid="text-whatsapp-error">
-                {whatsapp.lastError}
+                {waError}
               </p>
             )}
-            {!whatsapp?.linked && whatsapp !== undefined && !whatsapp?.connected && (
+            {!waConnected && waConfigured && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-1" data-testid="text-whatsapp-hint">
-                Go to OpenClaw Settings → WhatsApp to re-link
+                Go to OpenClaw Settings → WhatsApp to reconnect
               </p>
             )}
           </CardContent>
