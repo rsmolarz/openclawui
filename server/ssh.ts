@@ -1,7 +1,7 @@
 import { Client } from "ssh2";
 
 const SSH_TIMEOUT_MS = 30000;
-const CMD_TIMEOUT_MS = 60000;
+const CMD_TIMEOUT_MS = 120000;
 
 const ALLOWED_COMMANDS: Record<string, string> = {
   status: "ps aux | grep -E 'openclaw' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789 || echo 'Port 18789 not listening'",
@@ -76,6 +76,14 @@ chmod +x /usr/local/bin/openclaw-auto-approve.sh
 (crontab -l 2>/dev/null | grep -v openclaw-auto-approve; echo "*/1 * * * * /usr/local/bin/openclaw-auto-approve.sh >> /tmp/auto-approve.log 2>&1") | crontab -
 echo "Auto-approve cron installed (runs every minute)"
 crontab -l | grep openclaw`,
+  "install-ripgrep": "export DEBIAN_FRONTEND=noninteractive && apt-get update -qq 2>/dev/null && apt-get install -y -qq ripgrep 2>&1 | tail -3 && echo '---VERIFY---' && which rg && rg --version | head -1",
+  "install-ffmpeg": "export DEBIAN_FRONTEND=noninteractive && apt-get install -y -qq ffmpeg 2>&1 | tail -3 && echo '---VERIFY---' && which ffmpeg && ffmpeg -version | head -1",
+  "install-gh": "export DEBIAN_FRONTEND=noninteractive && (type gh >/dev/null 2>&1 && echo 'gh already installed' && gh --version) || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main' > /etc/apt/sources.list.d/github-cli.list && apt-get update -qq 2>/dev/null && apt-get install -y -qq gh 2>&1 | tail -3 && echo '---VERIFY---' && which gh && gh --version)",
+  "install-pip3": "export DEBIAN_FRONTEND=noninteractive && apt-get install -y -qq python3-pip python3-venv 2>&1 | tail -3 && echo '---VERIFY---' && which pip3 && pip3 --version",
+  "install-npm-tools": "npm install -g nano-pdf summarize xurl wacli goplaces obsidian-cli gifgrep ordercli openhue camsnap himalaya songsee sag 2>&1 | tail -20; echo '---VERIFY---'; npm -g ls --depth=0 2>/dev/null | tail -30",
+  "clawhub-install-missing": "export PATH=$HOME/.local/bin:$PATH && npx clawhub sync --all 2>&1 | tail -30; echo '---SKILLS---'; openclaw skills list 2>&1 | grep -E '✓|✗' | head -60",
+  "install-uv": "curl -LsSf https://astral.sh/uv/install.sh 2>/dev/null | sh 2>&1 | tail -5; echo '---VERIFY---'; which uv 2>/dev/null || echo 'uv not found'; export PATH=$HOME/.local/bin:$PATH; uv --version 2>/dev/null",
+  "check-skill-status": "openclaw skills list 2>&1",
   "add-replit-origin": `python3 -c "
 import json
 f='/root/.openclaw/openclaw.json'
