@@ -1616,6 +1616,41 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     }
   });
 
+  app.post("/api/nodes/remove", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const { node_id } = req.body;
+      if (!node_id) return res.status(400).json({ error: "node_id is required" });
+
+      const vps = await storage.getVpsConnection(instanceId);
+      let removed = false;
+
+      if (vps?.vpsIp) {
+        try {
+          const { executeRawSSHCommand, buildSSHConfigFromVps, buildRemoveDeviceCommand } = await import("./ssh");
+          const sshConfig = buildSSHConfigFromVps(vps);
+          const cmd = buildRemoveDeviceCommand(node_id);
+          console.log(`[nodes] Removing device: ${node_id}`);
+          const result = await executeRawSSHCommand(cmd, sshConfig);
+          console.log(`[nodes] Remove result: success=${result.success}, output=${result.output?.substring(0, 300)}`);
+          if (result.success && result.output) {
+            try {
+              const parsed = JSON.parse(result.output.trim());
+              if (parsed.success) removed = true;
+            } catch {}
+          }
+        } catch (e: any) {
+          console.error(`[nodes] Remove error:`, e.message);
+        }
+      }
+
+      res.json({ success: true, removed });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove device" });
+    }
+  });
+
   app.get("/api/nodes/paired", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);

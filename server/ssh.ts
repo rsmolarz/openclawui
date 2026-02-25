@@ -171,6 +171,37 @@ print(json.dumps({'success': True, 'node': node, 'remaining_pending': len(remain
 "`;
 }
 
+export function buildRemoveDeviceCommand(nodeId: string): string {
+  const safeId = nodeId.replace(/[^a-zA-Z0-9_\-]/g, "");
+  if (!safeId || safeId.length < 2 || safeId.length > 128) {
+    throw new Error("Invalid node ID for removal");
+  }
+  return `python3 -c "
+import json, os, sys
+paired_path = '/root/.openclaw/devices/paired.json'
+node_id = '${safeId}'
+if not os.path.exists(paired_path):
+    print(json.dumps({'error': 'No paired.json found'})); sys.exit(1)
+with open(paired_path) as f:
+    paired = json.load(f)
+if isinstance(paired, dict):
+    paired = list(paired.values()) if paired else []
+node = None
+remaining = []
+for n in paired:
+    nid = n.get('deviceId','') or n.get('id','') if isinstance(n, dict) else str(n)
+    if nid == node_id:
+        node = n
+    else:
+        remaining.append(n)
+if not node:
+    print(json.dumps({'error': 'Device not found in paired list'})); sys.exit(1)
+with open(paired_path, 'w') as f:
+    json.dump(remaining, f, indent=2)
+print(json.dumps({'success': True, 'removed': node, 'remaining_paired': len(remaining)}))
+"`;
+}
+
 function buildGatewayTokenExtract(): string {
   return `python3 << 'PYEOF'
 import json
