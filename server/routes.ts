@@ -2992,7 +2992,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
       const keys: Record<string, string | undefined> = {
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-        GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+        GITHUB_TOKEN: process.env.OPENCLAW_GITHUB_TOKEN || process.env.GITHUB_TOKEN,
         NOTION_API_KEY: process.env.NOTION_API_KEY,
         GEMINI_API_KEY: process.env.GEMINI_API_KEY,
         ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
@@ -3042,8 +3042,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
       const sshConfig = getSSHConfig() || undefined;
       if (!sshConfig) return res.status(500).json({ error: "No SSH config" });
-      const token = process.env.GITHUB_TOKEN;
-      if (!token) return res.status(400).json({ error: "GITHUB_TOKEN not set in secrets" });
+      const token = process.env.OPENCLAW_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+      if (!token) return res.status(400).json({ error: "OPENCLAW_GITHUB_TOKEN not set in secrets" });
 
       const cmd = `echo "${token.replace(/"/g, '\\"')}" | gh auth login --with-token 2>&1 && gh auth status 2>&1`;
       const result = await executeRawSSHCommand(cmd, sshConfig, 1, 30000);
