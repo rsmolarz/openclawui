@@ -471,11 +471,13 @@ export default function AiTaskRunnerPage() {
               <div className="grid grid-cols-2 gap-2 pt-2">
                 {[
                   "List connected nodes",
-                  "Check OpenClaw status",
+                  "Check Claude extension on all nodes",
+                  "Read VS Code settings from PodcastPC",
                   "Check disk space on all nodes",
-                  "Check VPS system resources",
-                  "What software is installed on each node?",
+                  "Fix settings on a node",
+                  "Retrieve a file from a node",
                   "Run a health check on all machines",
+                  "What extensions are installed on each node?",
                 ].map((suggestion) => (
                   <Button
                     key={suggestion}

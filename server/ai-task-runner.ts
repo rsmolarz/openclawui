@@ -82,6 +82,26 @@ const NODE_TOOLS: Record<string, { description: string; requiresNode: boolean; r
     requiresNode: true,
     requiresParams: ["command"],
   },
+  read_file: {
+    description: "Read a file from a remote node. Requires 'node' and 'path' parameters. Automatically uses the right command for the node's platform (cat on Linux/macOS, type on Windows).",
+    requiresNode: true,
+    requiresParams: ["path"],
+  },
+  write_file: {
+    description: "Write content to a file on a remote node. Requires 'node', 'path', and 'content' parameters. Use for fixing config files and settings. CONFIRM WITH USER BEFORE OVERWRITING.",
+    requiresNode: true,
+    requiresParams: ["path", "content"],
+  },
+  list_dir: {
+    description: "List files and directories at a path on a remote node. Requires 'node' and 'path' parameters.",
+    requiresNode: true,
+    requiresParams: ["path"],
+  },
+  check_extension: {
+    description: "Check the status of a VS Code / Cursor extension on a remote node. Requires 'node' and 'extension' parameters (extension ID like 'anthropics.claude-code'). Shows if installed, version, and config.",
+    requiresNode: true,
+    requiresParams: ["extension"],
+  },
   invoke_on_node: {
     description: "Invoke a specific capability command on a remote node (e.g. system.which, browser.proxy). Requires 'node', 'command' (the invoke command name), and optional 'params' JSON object.",
     requiresNode: true,
@@ -98,6 +118,9 @@ interface ToolCall {
   node?: string;
   command?: string;
   params?: string;
+  path?: string;
+  content?: string;
+  extension?: string;
 }
 
 function buildNodeCommand(toolCall: ToolCall): string {
@@ -116,6 +139,31 @@ function buildNodeCommand(toolCall: ToolCall): string {
       const paramsJson = JSON.stringify({ command: toolCall.command || "echo hello" });
       const timeout = (toolCall.command || "").length > 100 ? "60000" : "35000";
       return `openclaw nodes invoke --node "${sanitizeParam(toolCall.node || "")}" --command "system.run" --params '${sanitizeParam(paramsJson)}' --invoke-timeout ${timeout} --timeout ${timeout} ${urlPart} ${tokenPart} --json 2>&1`;
+    }
+
+    case "read_file": {
+      const filePath = sanitizeParam(toolCall.path || "");
+      const readCmd = JSON.stringify({ command: `cat "${filePath}" 2>/dev/null || type "${filePath.replace(/\//g, '\\\\')}" 2>nul` });
+      return `openclaw nodes invoke --node "${sanitizeParam(toolCall.node || "")}" --command "system.run" --params '${sanitizeParam(readCmd)}' --invoke-timeout 15000 --timeout 15000 ${urlPart} ${tokenPart} --json 2>&1`;
+    }
+
+    case "write_file": {
+      const wPath = sanitizeParam(toolCall.path || "");
+      const wContent = (toolCall.content || "").replace(/'/g, "'\\''");
+      const writeCmd = JSON.stringify({ command: `cat > "${wPath}" << 'OPENCLAW_EOF'\n${wContent}\nOPENCLAW_EOF` });
+      return `openclaw nodes invoke --node "${sanitizeParam(toolCall.node || "")}" --command "system.run" --params '${sanitizeParam(writeCmd)}' --invoke-timeout 20000 --timeout 20000 ${urlPart} ${tokenPart} --json 2>&1`;
+    }
+
+    case "list_dir": {
+      const dirPath = sanitizeParam(toolCall.path || ".");
+      const lsCmd = JSON.stringify({ command: `ls -la "${dirPath}" 2>/dev/null || dir "${dirPath.replace(/\//g, '\\\\')}" 2>nul` });
+      return `openclaw nodes invoke --node "${sanitizeParam(toolCall.node || "")}" --command "system.run" --params '${sanitizeParam(lsCmd)}' --invoke-timeout 15000 --timeout 15000 ${urlPart} ${tokenPart} --json 2>&1`;
+    }
+
+    case "check_extension": {
+      const ext = sanitizeParam(toolCall.extension || "");
+      const checkCmd = JSON.stringify({ command: `code --list-extensions --show-versions 2>/dev/null | grep -i "${ext}" || cursor --list-extensions --show-versions 2>/dev/null | grep -i "${ext}" || echo "Extension not found: ${ext}"` });
+      return `openclaw nodes invoke --node "${sanitizeParam(toolCall.node || "")}" --command "system.run" --params '${sanitizeParam(checkCmd)}' --invoke-timeout 20000 --timeout 20000 ${urlPart} ${tokenPart} --json 2>&1`;
     }
 
     case "invoke_on_node": {
@@ -209,6 +257,60 @@ Get a node's location:
 {"tool": "node_location", "node": "srv1390515"}
 \`\`\`
 
+## File & Settings Tools
+Read a file from a node:
+\`\`\`tool
+{"tool": "read_file", "node": "PodcastPC", "path": "C:/Users/rsmol/.vscode/extensions.json"}
+\`\`\`
+
+Write/fix a file on a node (ALWAYS confirm with user first):
+\`\`\`tool
+{"tool": "write_file", "node": "PodcastPC", "path": "/home/user/.config/settings.json", "content": "{\\"key\\": \\"value\\"}"}
+\`\`\`
+
+List directory contents:
+\`\`\`tool
+{"tool": "list_dir", "node": "PodcastPC", "path": "C:/Users/rsmol/AppData/Roaming/Code/User"}
+\`\`\`
+
+Check VS Code / Cursor extension:
+\`\`\`tool
+{"tool": "check_extension", "node": "PodcastPC", "extension": "claude"}
+\`\`\`
+
+## Platform-Specific Paths Reference
+
+### VS Code Settings & Extensions
+- **Windows**: C:/Users/<user>/AppData/Roaming/Code/User/settings.json
+- **macOS**: ~/Library/Application Support/Code/User/settings.json
+- **Linux**: ~/.config/Code/User/settings.json
+
+### VS Code Extensions Directory
+- **Windows**: C:/Users/<user>/.vscode/extensions/
+- **macOS**: ~/.vscode/extensions/
+- **Linux**: ~/.vscode/extensions/
+
+### Cursor Settings & Extensions
+- **Windows**: C:/Users/<user>/AppData/Roaming/Cursor/User/settings.json
+- **macOS**: ~/Library/Application Support/Cursor/User/settings.json
+- **Linux**: ~/.config/Cursor/User/settings.json
+
+### Cursor Extensions Directory
+- **Windows**: C:/Users/<user>/.cursor/extensions/
+- **macOS**: ~/.cursor/extensions/
+- **Linux**: ~/.cursor/extensions/
+
+### Claude Extension (anthropics.claude-code)
+- Config and logs are inside the extension directory
+- Check installed: \`code --list-extensions | grep claude\` or \`cursor --list-extensions | grep claude\`
+- Extension settings in VS Code/Cursor settings.json under "claude.*" keys
+
+### Common Config Files
+- **SSH config**: ~/.ssh/config (macOS/Linux), C:/Users/<user>/.ssh/config (Windows)
+- **Git config**: ~/.gitconfig or git config --list
+- **Shell profile**: ~/.bashrc, ~/.zshrc (macOS), PowerShell $PROFILE (Windows)
+- **OpenClaw config**: ~/.openclaw/ directory
+
 ## Guidelines
 1. When the user asks about a specific node/computer, use the node tools to interact with it through the gateway.
 2. When the user asks about the VPS/server itself, use the VPS tools.
@@ -216,11 +318,14 @@ Get a node's location:
 4. Only online/connected nodes can receive commands. If a node is offline, tell the user.
 5. Always explain what you're doing and why before running a command.
 6. After getting results, analyze them and provide clear recommendations.
-7. For destructive operations (restart, delete), confirm with the user first.
+7. For destructive operations (restart, delete, file writes), ALWAYS confirm with the user first.
 8. You can chain multiple tool calls across messages to diagnose complex issues.
 9. NEVER fabricate command output — only report what the tool actually returns.
 10. The "node" parameter can be a node ID, display name, or IP address.
-11. When running commands on nodes, be aware of the node's platform (linux vs win32 vs darwin) — use appropriate commands.`;
+11. When running commands on nodes, be aware of the node's platform (linux vs win32 vs darwin) — use appropriate commands.
+12. Use read_file, write_file, list_dir for file operations instead of raw shell commands when possible — they handle cross-platform differences.
+13. When checking extensions, try both "code" and "cursor" commands since users may use either editor.
+14. For fixing settings, always read the current file first, show the user what you plan to change, and get confirmation before writing.`;
 }
 
 function extractToolCall(content: string): ToolCall | null {
