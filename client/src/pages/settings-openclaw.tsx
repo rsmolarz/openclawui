@@ -1644,29 +1644,44 @@ export default function SettingsOpenclaw() {
                 botStatus?.state === "connecting" || botStatus?.state === "qr_ready" || botStatus?.state === "pairing_code_ready" ? "secondary" :
                 "destructive"
               }
+              className={botStatus?.state === "connected" ? "bg-green-600 hover:bg-green-700 text-white" : ""}
               data-testid="badge-bot-status"
             >
-              {botStatus?.state === "connected" ? "Connected" :
+              {botStatusLoading ? "Checking..." :
+               botStatus?.state === "connected" ? "Online" :
                botStatus?.state === "connecting" ? "Connecting..." :
                botStatus?.state === "qr_ready" ? "QR Ready" :
-               botStatus?.state === "pairing_code_ready" ? "Enter Code" : "Disconnected"}
+               botStatus?.state === "pairing_code_ready" ? "Enter Code" :
+               botStatus?.error ? "Error" : "Offline"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {botStatus?.state === "connected" && (
-            <div className="rounded-md bg-green-500/10 border border-green-500/20 p-4" data-testid="whatsapp-connected-info">
+            <div className="rounded-md bg-green-500/10 border-2 border-green-500/30 p-4" data-testid="whatsapp-connected-info">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">WhatsApp Connected</p>
-                  <p className="text-xs text-muted-foreground">
-                    The bot is running{botStatus.phone ? ` on +${botStatus.phone}` : ""}{botStatus.runtime === "home-bot" && botStatus.hostname ? ` via home computer (${botStatus.hostname})` : ""}. When someone messages this number, they will receive a pairing code. Approve them in the <strong>Pending Approvals</strong> section below.
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-green-700 dark:text-green-400">WhatsApp Active</p>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                    </span>
+                  </div>
+                  {botStatus.phone && (
+                    <p className="text-sm font-mono font-medium mt-0.5" data-testid="text-whatsapp-phone">+{botStatus.phone}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {botStatus.runtime === "home-bot" && botStatus.hostname
+                      ? `Running via home computer (${botStatus.hostname})`
+                      : "Bot is online and receiving messages"}
+                    . Approve new users in <strong>Pending Approvals</strong> below.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1693,12 +1708,33 @@ export default function SettingsOpenclaw() {
           )}
 
           {botStatus?.error && botStatus?.state !== "connecting" && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-4 space-y-3" data-testid="whatsapp-error-banner">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
-                <p className="text-sm font-medium text-destructive" data-testid="text-bot-error">Bot Disconnected</p>
+            <div className="rounded-md bg-destructive/10 border-2 border-destructive/30 p-4 space-y-3" data-testid="whatsapp-error-banner">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/20 shrink-0">
+                  <XCircle className="h-5 w-5 text-destructive" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-destructive" data-testid="text-bot-error">WhatsApp Disconnected</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">The bot lost its connection and is not receiving messages.</p>
+                </div>
               </div>
-              <p className="text-xs text-destructive/80">{botStatus.error}</p>
+              <div className="rounded bg-destructive/5 border border-destructive/10 p-3">
+                <p className="text-xs font-medium text-destructive/90 mb-1">Error Details:</p>
+                <p className="text-xs text-destructive/70 font-mono break-all" data-testid="text-error-details">{botStatus.error}</p>
+              </div>
+              <div className="rounded bg-muted/50 p-3">
+                <p className="text-xs font-medium mb-1.5">Troubleshooting:</p>
+                <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                  {botStatus.error?.toLowerCase().includes("ip") || botStatus.error?.toLowerCase().includes("datacenter") ? (
+                    <li>WhatsApp blocked the server IP. Use the <strong>Home Network Bot</strong> instead.</li>
+                  ) : null}
+                  {botStatus.error?.toLowerCase().includes("auth") || botStatus.error?.toLowerCase().includes("credentials") || botStatus.error?.toLowerCase().includes("logout") ? (
+                    <li>Session expired. Re-link using phone number or QR code.</li>
+                  ) : null}
+                  <li>Try reconnecting — transient network issues often resolve on retry.</li>
+                  <li>If reconnecting fails, re-link the bot using the phone number option below.</li>
+                </ul>
+              </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   size="sm"

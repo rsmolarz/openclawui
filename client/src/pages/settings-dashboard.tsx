@@ -200,28 +200,47 @@ export default function SettingsDashboard() {
           </CardContent>
         </Card>
 
-        <Card data-testid="card-whatsapp-status">
+        <Card data-testid="card-whatsapp-status" className={whatsapp?.connected ? "border-green-500/30" : whatsapp !== undefined && !whatsapp?.connected ? "border-destructive/30" : ""}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-3">
-              <div className={`p-2 rounded-lg ${whatsapp?.connected ? "bg-green-100 dark:bg-green-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
-                <MessageSquare className={`h-5 w-5 ${whatsapp?.connected ? "text-green-600" : "text-amber-600"}`} />
+              <div className={`p-2.5 rounded-lg ${whatsapp?.connected ? "bg-green-100 dark:bg-green-900/30" : whatsapp !== undefined ? "bg-red-100 dark:bg-red-900/30" : "bg-muted"}`}>
+                <MessageSquare className={`h-5 w-5 ${whatsapp?.connected ? "text-green-600" : whatsapp !== undefined ? "text-red-500" : "text-muted-foreground"}`} />
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">WhatsApp (Gateway)</p>
-                <p className="text-lg font-bold" data-testid="text-whatsapp-gw-status">
-                  {healthQuery.isLoading ? "..." : whatsapp?.connected ? "Connected" : whatsapp?.linked ? "Disconnected" : whatsapp?.configured ? "Not Linked" : "Not Configured"}
-                </p>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground">WhatsApp Bot</p>
+                <div className="flex items-center gap-2">
+                  <p className={`text-lg font-bold ${whatsapp?.connected ? "text-green-700 dark:text-green-400" : whatsapp !== undefined && !whatsapp?.connected ? "text-red-600 dark:text-red-400" : ""}`} data-testid="text-whatsapp-gw-status">
+                    {healthQuery.isLoading ? "Checking..." : whatsapp?.connected ? "Online" : whatsapp?.linked ? "Disconnected" : whatsapp?.configured ? "Not Linked" : "Not Set Up"}
+                  </p>
+                  {whatsapp?.connected && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             {whatsapp?.self?.e164 && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <Smartphone className="h-3 w-3" />
                 {whatsapp.self.e164}
               </p>
             )}
-            {!whatsapp?.linked && whatsapp !== undefined && (
+            {whatsapp?.connected && whatsapp?.lastMessageAt && (
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Last message: {new Date(whatsapp.lastMessageAt).toLocaleString()}
+              </p>
+            )}
+            {!whatsapp?.connected && whatsapp?.lastError && (
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1.5" data-testid="text-whatsapp-error">
+                {whatsapp.lastError}
+              </p>
+            )}
+            {!whatsapp?.linked && whatsapp !== undefined && !whatsapp?.connected && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-1" data-testid="text-whatsapp-hint">
-                Run `openclaw channels login` on VPS to re-link
+                Go to OpenClaw Settings → WhatsApp to re-link
               </p>
             )}
           </CardContent>
