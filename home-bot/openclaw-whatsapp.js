@@ -153,29 +153,45 @@ async function startBot() {
     }
   });
 
-  client.on("message", async (msg) => {
-    if (msg.fromMe || !msg.body || !msg.body.trim()) return;
+  client.on("message_create", async (msg) => {
+    console.log(`[Bot] message_create event: fromMe=${msg.fromMe}, from=${msg.from}, body="${(msg.body || "").substring(0, 40)}"`);
 
-    const contact = await msg.getContact();
-    const chat = await msg.getChat();
-    const isGroup = chat.isGroup;
-    const senderPhone = contact.id?.user || msg.from.replace("@c.us", "").replace("@g.us", "");
-    const pushName = contact.pushname || contact.name || undefined;
+    if (msg.fromMe || !msg.body || !msg.body.trim()) return;
+    if (msg.from === "status@broadcast") return;
+
+    let senderPhone, pushName;
+    try {
+      const contact = await msg.getContact();
+      senderPhone = contact.id?.user || msg.from.replace("@c.us", "").replace("@g.us", "");
+      pushName = contact.pushname || contact.name || undefined;
+    } catch (err) {
+      senderPhone = msg.from.replace("@c.us", "").replace("@g.us", "");
+      pushName = undefined;
+      console.warn(`[Bot] Could not get contact info: ${err.message}`);
+    }
 
     console.log(`[Bot] Message from ${senderPhone} (${pushName || "unknown"}): "${msg.body.substring(0, 80)}"`);
 
+    let chat;
     try {
+      chat = await msg.getChat();
       await chat.sendStateTyping();
     } catch {}
 
     const reply = await processMessage(senderPhone, msg.body.trim(), pushName);
 
     try {
-      await chat.clearState();
+      if (chat) await chat.clearState();
       await msg.reply(reply);
       console.log(`[Bot] Reply sent to ${senderPhone} (${reply.length} chars)`);
     } catch (err) {
       console.error(`[Bot] Failed to send reply to ${senderPhone}:`, err.message);
+      try {
+        await client.sendMessage(msg.from, reply);
+        console.log(`[Bot] Reply sent via sendMessage to ${senderPhone}`);
+      } catch (err2) {
+        console.error(`[Bot] sendMessage also failed:`, err2.message);
+      }
     }
   });
 
