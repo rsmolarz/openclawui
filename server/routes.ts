@@ -2984,6 +2984,75 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
   });
 
   // ──────────── SSH Remote Gateway Control ────────────
+  app.post("/api/ssh/push-env-keys", requireAuth, async (req, res) => {
+    try {
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.status(500).json({ error: "No SSH config" });
+
+      const keys: Record<string, string | undefined> = {
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+        NOTION_API_KEY: process.env.NOTION_API_KEY,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+      };
+
+      const lines: string[] = [];
+      const set: string[] = [];
+      const skipped: string[] = [];
+
+      for (const [k, v] of Object.entries(keys)) {
+        if (v) {
+          lines.push(`export ${k}="${v.replace(/"/g, '\\"')}"`);
+          set.push(k);
+        } else {
+          skipped.push(k);
+        }
+      }
+
+      if (lines.length === 0) {
+        return res.json({ success: false, error: "No API keys found in Replit secrets" });
+      }
+
+      const envFileLines = lines.map(l => l.replace("export ", ""));
+      const envFileContent = envFileLines.join("\\n");
+
+      const bashrcCmd = lines.map(line => {
+        const key = line.split("=")[0].replace("export ", "");
+        return `grep -q "^export ${key}=" /root/.bashrc && sed -i "s|^export ${key}=.*|${line.replace(/\|/g, '\\|')}|" /root/.bashrc || echo '${line}' >> /root/.bashrc`;
+      }).join(" && ");
+
+      const envFileCmd = `printf '${envFileContent}\\n' > /etc/openclaw-env`;
+      const systemdPatch = `grep -q '^EnvironmentFile=' /etc/systemd/system/openclaw-gateway.service || sed -i '/^\\[Service\\]/a EnvironmentFile=/etc/openclaw-env' /etc/systemd/system/openclaw-gateway.service`;
+      const waBotPatch = `test -f /etc/systemd/system/openclaw-whatsapp.service && (grep -q '^EnvironmentFile=' /etc/systemd/system/openclaw-whatsapp.service || sed -i '/^\\[Service\\]/a EnvironmentFile=/etc/openclaw-env' /etc/systemd/system/openclaw-whatsapp.service) || true`;
+      const reloadAndRestart = `systemctl daemon-reload && systemctl restart openclaw-gateway && sleep 2 && systemctl is-active openclaw-gateway`;
+
+      const cmd = `${bashrcCmd} && ${envFileCmd} && ${systemdPatch} && ${waBotPatch} && ${reloadAndRestart} && echo "---SET---" && cat /etc/openclaw-env | sed 's/=.*/=***/' && echo "---DONE---"`;
+
+      const result = await executeRawSSHCommand(cmd, sshConfig, 1, 45000);
+      res.json({ success: result.success, set, skipped, output: result.output?.substring(0, 500) });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/ssh/setup-github-auth", requireAuth, async (req, res) => {
+    try {
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.status(500).json({ error: "No SSH config" });
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) return res.status(400).json({ error: "GITHUB_TOKEN not set in secrets" });
+
+      const cmd = `echo "${token.replace(/"/g, '\\"')}" | gh auth login --with-token 2>&1 && gh auth status 2>&1`;
+      const result = await executeRawSSHCommand(cmd, sshConfig, 1, 30000);
+      res.json({ success: result.success, output: result.output?.substring(0, 500) });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   app.post("/api/ssh/gateway/:action", requireAuth, async (req, res) => {
     try {
       const { executeSSHCommand, listAllowedCommands, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");

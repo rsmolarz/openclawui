@@ -84,6 +84,7 @@ crontab -l | grep openclaw`,
   "clawhub-install-missing": "export PATH=$HOME/.local/bin:$PATH && npx clawhub sync --all 2>&1 | tail -30; echo '---SKILLS---'; openclaw skills list 2>&1 | grep -E '✓|✗' | head -60",
   "install-uv": "curl -LsSf https://astral.sh/uv/install.sh 2>/dev/null | sh 2>&1 | tail -5; echo '---VERIFY---'; which uv 2>/dev/null || echo 'uv not found'; export PATH=$HOME/.local/bin:$PATH; uv --version 2>/dev/null",
   "check-env-keys": "env | grep -iE 'OPENAI|GITHUB|NOTION|GEMINI|GOOGLE|ELEVENLABS|TRELLO|DISCORD|SLACK' 2>/dev/null; echo '---BASHRC---'; grep -iE 'export.*(OPENAI|GITHUB|NOTION|GEMINI|GOOGLE|ELEVENLABS|TRELLO)' /root/.bashrc /root/.profile /root/.env 2>/dev/null; echo '---OPENCLAW-ENV---'; cat /root/.openclaw/openclaw.json 2>/dev/null | grep -iE 'apiKey|api_key|token' | head -20",
+  "set-env-key": "echo 'Use set-api-keys instead'",
   "check-skill-status": "openclaw skills list 2>&1",
   "add-replit-origin": `python3 -c "
 import json
