@@ -1,0 +1,69 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\WINDOWS\system32> wsl
+The Windows Subsystem for Linux is not installed. You can install by running 'wsl.exe --install'.
+For more information please visit https://aka.ms/wslinstall
+
+Press any key to install Windows Subsystem for Linux.
+Press CTRL-C or close this window to cancel.
+This prompt will time out in 60 seconds.
+Downloading: Windows Subsystem for Linux 2.6.3
+Installing: Windows Subsystem for Linux 2.6.3
+Windows Subsystem for Linux 2.6.3 has been installed.
+Installing Windows optional component: VirtualMachinePlatform
+
+Deployment Image Servicing and Management tool
+Version: 10.0.26100.5074
+
+Image Version: 10.0.26100.7462
+
+Enabling feature(s)
+[==========================100.0%==========================]
+The operation completed successfully.
+The requested operation is successful. Changes will not be effective until the system is rebooted.
+Windows Subsystem for Linux has no installed distributions.
+You can resolve this by installing a distribution with the instructions below:
+
+Use 'wsl.exe --list --online' to list available distributions
+and 'wsl.exe --install <Distro>' to install.
+PS C:\WINDOWS\system32> sl.ese
+sl.ese : The term 'sl.ese' is not recognized as the name of a cmdlet,
+function, script file, or operable program. Check the spelling of the
+name, or if a path was included, verify that the path is correct and
+try again.
+At line:1 char:1
++ sl.ese
++ ~~~~~~
+    + CategoryInfo          : ObjectNotFound: (sl.ese:String) [], Comma
+   ndNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32> wsl
+Windows Subsystem for Linux has no installed distributions.
+You can resolve this by installing a distribution with the instructions below:
+
+Use 'wsl.exe --list --online' to list available distributions
+and 'wsl.exe --install <Distro>' to install.
+PS C:\WINDOWS\system32> wsl
+Windows Subsystem for Linux has no installed distributions.
+You can resolve this by installing a distribution with the instructions below:
+
+Use 'wsl.exe --list --online' to list available distributions
+and 'wsl.exe --install <Distro>' to install.
+PS C:\WINDOWS\system32> openclaw node run --host srv1390515.tail55cf63.ts.net --port 443 --tls --display-name "vient4"
+openclaw : The term 'openclaw' is not recognized as the name of a
+cmdlet, function, script file, or operable program. Check the spelling
+of the name, or if a path was included, verify that the path is correct
+and try again.
+At line:1 char:1
++ openclaw node run --host srv1390515.tail55cf63.ts.net --port 443 --tl
+...
++ ~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (openclaw:String) [], Com
+   mandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\WINDOWS\system32>
