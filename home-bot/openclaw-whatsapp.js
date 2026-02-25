@@ -156,8 +156,12 @@ async function startBot() {
   client.on("message_create", async (msg) => {
     console.log(`[Bot] message_create event: fromMe=${msg.fromMe}, from=${msg.from}, body="${(msg.body || "").substring(0, 40)}"`);
 
-    if (msg.fromMe || !msg.body || !msg.body.trim()) return;
+    if (!msg.body || !msg.body.trim()) return;
     if (msg.from === "status@broadcast") return;
+    if (msg.fromMe) {
+      console.log("[Bot] Skipping own message");
+      return;
+    }
 
     let senderPhone, pushName;
     try {
