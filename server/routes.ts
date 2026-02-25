@@ -2095,10 +2095,13 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       if (!pairingCode || typeof pairingCode !== "string") {
         return res.status(400).json({ error: "Pairing code is required" });
       }
+      console.log(`[WhatsApp] Approve by code request: "${pairingCode}"`);
       const session = await storage.approveWhatsappSessionByCode(pairingCode);
       if (!session) {
+        console.log(`[WhatsApp] No session found for code: "${pairingCode}"`);
         return res.status(404).json({ error: "No pending session found with that pairing code" });
       }
+      console.log(`[WhatsApp] Approved session: phone=${session.phone}, name=${session.displayName}`);
       if (!isProductionRuntime) {
         try {
           const bot = await getWhatsappBot();
@@ -2106,7 +2109,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         } catch {}
       }
       res.json(session);
-    } catch (error) {
+    } catch (error: any) {
+      console.error(`[WhatsApp] Approve by code error:`, error);
       res.status(500).json({ error: "Failed to approve session by pairing code" });
     }
   });
@@ -2193,13 +2197,26 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
   app.get("/api/whatsapp/status", async (req, res) => {
     try {
-      if (homeBotStatus.lastReport && (Date.now() - homeBotStatus.lastReport.getTime()) < 120000 && homeBotStatus.state !== "disconnected") {
+      if (homeBotStatus.lastReport && (Date.now() - homeBotStatus.lastReport.getTime()) < 120000) {
         return res.json({
           state: homeBotStatus.state,
           qrDataUrl: null,
           pairingCode: null,
           phone: homeBotStatus.phone,
           error: homeBotStatus.error,
+          runtime: "home-bot",
+          hostname: homeBotStatus.hostname,
+          enabled: true,
+        });
+      }
+
+      if (homeBotStatus.lastReport) {
+        return res.json({
+          state: "disconnected",
+          qrDataUrl: null,
+          pairingCode: null,
+          phone: homeBotStatus.phone,
+          error: "Home bot has not reported in over 2 minutes. Check if it's still running on " + (homeBotStatus.hostname || "the host machine") + ".",
           runtime: "home-bot",
           hostname: homeBotStatus.hostname,
           enabled: true,
