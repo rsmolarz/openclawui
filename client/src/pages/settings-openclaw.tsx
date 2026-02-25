@@ -322,6 +322,282 @@ function VpsBotControls() {
   );
 }
 
+interface SkillKeyInfo {
+  key: string;
+  label: string;
+  description: string;
+  prefix: string;
+  skills: string[];
+  configured: boolean;
+  maskedValue: string | null;
+}
+
+function SkillApiKeysCard() {
+  const { toast } = useToast();
+  const [revealedKeys, setRevealedKeys] = useState<Record<string, string>>({});
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [revealPassword, setRevealPassword] = useState("");
+  const [revealTarget, setRevealTarget] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const keysQuery = useQuery<{ keys: SkillKeyInfo[] }>({
+    queryKey: ["/api/ssh/skill-keys"],
+    refetchInterval: 60000,
+  });
+
+  const revealMutation = useMutation({
+    mutationFn: async ({ key, password }: { key: string; password: string }) => {
+      const res = await apiRequest("POST", "/api/ssh/skill-keys/reveal", { key, password });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setRevealedKeys(prev => ({ ...prev, [data.key]: data.value }));
+      setRevealTarget(null);
+      setRevealPassword("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Access Denied", description: err.message || "Invalid password", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ key, value, password }: { key: string; value: string; password: string }) => {
+      const res = await apiRequest("POST", "/api/ssh/skill-keys/update", { key, value, password });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Key Updated", description: "API key saved to VPS and gateway restarted." });
+      setEditingKey(null);
+      setEditValue("");
+      setEditPassword("");
+      queryClient.invalidateQueries({ queryKey: ["/api/ssh/skill-keys"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await apiRequest("POST", "/api/ssh/push-env-keys");
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Keys Synced", description: `Pushed ${data.set?.length || 0} keys to VPS.` });
+        queryClient.invalidateQueries({ queryKey: ["/api/ssh/skill-keys"] });
+      } else {
+        toast({ title: "Sync Issue", description: data.error || "Some keys may not have synced.", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Sync Failed", description: e.message, variant: "destructive" });
+    }
+    setSyncing(false);
+  };
+
+  const keys = keysQuery.data?.keys || [];
+  const configuredCount = keys.filter(k => k.configured).length;
+
+  return (
+    <Card data-testid="card-skill-api-keys">
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Skills API Keys
+            {keysQuery.data && (
+              <Badge variant="secondary" className="ml-1 text-xs" data-testid="badge-skill-keys-count">
+                {configuredCount}/{keys.length}
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>API keys deployed on your VPS for OpenClaw skills. Enter your password to reveal values.</CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSync}
+            disabled={syncing}
+            data-testid="button-sync-skill-keys"
+          >
+            {syncing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+            Sync from Replit
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {keysQuery.isLoading && (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        )}
+        {keys.map((k) => (
+          <div
+            key={k.key}
+            className={`rounded-md border p-3 transition-colors ${k.configured ? "bg-muted/30 border-green-500/20" : "bg-muted/10 border-dashed"}`}
+            data-testid={`row-skill-key-${k.key}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium" data-testid={`text-skill-key-label-${k.key}`}>{k.label}</p>
+                  <Badge variant={k.configured ? "default" : "secondary"} className="text-xs" data-testid={`badge-skill-key-status-${k.key}`}>
+                    {k.configured ? "Configured" : "Not Set"}
+                  </Badge>
+                  {k.skills.map(s => (
+                    <Badge key={s} variant="outline" className="text-xs font-mono">{s}</Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">{k.description}</p>
+                {k.configured && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <code className="text-xs text-muted-foreground font-mono" data-testid={`text-skill-key-value-${k.key}`}>
+                      {revealedKeys[k.key] || k.maskedValue || "••••••••"}
+                    </code>
+                    {revealedKeys[k.key] && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          navigator.clipboard.writeText(revealedKeys[k.key]);
+                          toast({ title: "Copied", description: `${k.label} key copied to clipboard.` });
+                        }}
+                        data-testid={`button-copy-skill-key-${k.key}`}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {revealTarget === k.key && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Input
+                      type="password"
+                      placeholder="Enter dashboard password"
+                      value={revealPassword}
+                      onChange={(e) => setRevealPassword(e.target.value)}
+                      className="h-8 text-xs max-w-[220px]"
+                      onKeyDown={(e) => e.key === "Enter" && revealPassword && revealMutation.mutate({ key: k.key, password: revealPassword })}
+                      data-testid={`input-reveal-password-${k.key}`}
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8"
+                      onClick={() => revealMutation.mutate({ key: k.key, password: revealPassword })}
+                      disabled={!revealPassword || revealMutation.isPending}
+                      data-testid={`button-confirm-reveal-${k.key}`}
+                    >
+                      {revealMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Reveal"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-8" onClick={() => { setRevealTarget(null); setRevealPassword(""); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+
+                {editingKey === k.key && (
+                  <div className="space-y-2 mt-2">
+                    <Input
+                      type="password"
+                      placeholder={k.prefix ? `${k.prefix}...` : "Paste API key"}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="text-xs max-w-[400px] font-mono"
+                      data-testid={`input-edit-skill-key-${k.key}`}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="password"
+                        placeholder="Dashboard password to confirm"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        className="text-xs max-w-[220px]"
+                        onKeyDown={(e) => e.key === "Enter" && editValue && editPassword && updateMutation.mutate({ key: k.key, value: editValue, password: editPassword })}
+                        data-testid={`input-edit-password-${k.key}`}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => updateMutation.mutate({ key: k.key, value: editValue, password: editPassword })}
+                        disabled={!editValue || !editPassword || updateMutation.isPending}
+                        data-testid={`button-save-skill-key-${k.key}`}
+                      >
+                        {updateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingKey(null); setEditValue(""); setEditPassword(""); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {k.configured && !revealedKeys[k.key] && revealTarget !== k.key && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => { setRevealTarget(k.key); setRevealPassword(""); }}
+                    data-testid={`button-reveal-skill-key-${k.key}`}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                )}
+                {revealedKeys[k.key] && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setRevealedKeys(prev => { const n = { ...prev }; delete n[k.key]; return n; })}
+                    data-testid={`button-hide-skill-key-${k.key}`}
+                  >
+                    <EyeOff className="h-4 w-4" />
+                  </Button>
+                )}
+                {editingKey !== k.key && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => { setEditingKey(k.key); setEditValue(""); setEditPassword(""); }}
+                    data-testid={`button-edit-skill-key-${k.key}`}
+                  >
+                    <Wrench className="h-4 w-4" />
+                  </Button>
+                )}
+                {k.configured && editingKey !== k.key && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => {
+                      const pw = prompt(`Enter dashboard password to remove ${k.label} key:`);
+                      if (pw) {
+                        updateMutation.mutate({ key: k.key, value: "", password: pw });
+                      }
+                    }}
+                    data-testid={`button-delete-skill-key-${k.key}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        {!keysQuery.isLoading && keys.length > 0 && (
+          <p className="text-xs text-muted-foreground pt-1">
+            {configuredCount} of {keys.length} keys configured. Use "Sync from Replit" to push keys stored in Replit secrets to the VPS.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function UpdateCheckerCard() {
   const { toast } = useToast();
   const versionQuery = useQuery<{
@@ -2409,6 +2685,8 @@ export default function SettingsOpenclaw() {
           </div>
         </CardContent>
       </Card>
+
+      <SkillApiKeysCard />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">

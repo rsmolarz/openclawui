@@ -2984,6 +2984,129 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
   });
 
   // ──────────── SSH Remote Gateway Control ────────────
+  const SKILL_API_KEYS = [
+    { key: "OPENAI_API_KEY", label: "OpenAI", description: "AI image gen, Whisper transcription, GPT models", prefix: "sk-", skills: ["openai-image-gen", "openai-whisper-api", "nano-banana-pro"] },
+    { key: "GITHUB_TOKEN", label: "GitHub", description: "Repo management, PRs, issues via gh CLI", prefix: "github_pat_", skills: ["github", "gh-issues"] },
+    { key: "NOTION_API_KEY", label: "Notion", description: "Page and database management", prefix: "ntn_", skills: ["notion"] },
+    { key: "GEMINI_API_KEY", label: "Google Gemini", description: "Gemini AI image gen and CLI", prefix: "AIza", skills: ["gemini", "nano-banana-pro"] },
+    { key: "ELEVENLABS_API_KEY", label: "ElevenLabs", description: "Text-to-speech via sag CLI", prefix: "", skills: ["sag"] },
+    { key: "DISCORD_BOT_TOKEN", label: "Discord", description: "Discord bot integration", prefix: "", skills: ["discord"] },
+    { key: "SLACK_BOT_TOKEN", label: "Slack", description: "Slack workspace integration", prefix: "xoxb-", skills: ["slack"] },
+    { key: "TRELLO_API_KEY", label: "Trello", description: "Board, list, and card management", prefix: "", skills: ["trello"] },
+    { key: "TRELLO_TOKEN", label: "Trello Token", description: "Trello user auth token", prefix: "", skills: ["trello"] },
+    { key: "SPOTIFY_CLIENT_ID", label: "Spotify Client ID", description: "Spotify playback control", prefix: "", skills: ["spotify-player"] },
+    { key: "SPOTIFY_CLIENT_SECRET", label: "Spotify Secret", description: "Spotify API auth", prefix: "", skills: ["spotify-player"] },
+    { key: "GOOGLE_PLACES_API_KEY", label: "Google Places", description: "Place search and details via goplaces", prefix: "AIza", skills: ["goplaces"] },
+    { key: "X_BEARER_TOKEN", label: "X (Twitter)", description: "X/Twitter API access via xurl", prefix: "", skills: ["xurl"] },
+  ];
+
+  app.get("/api/ssh/skill-keys", requireAuth, async (req, res) => {
+    try {
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.status(500).json({ error: "No SSH config" });
+
+      const keyNames = SKILL_API_KEYS.map(k => k.key).join("|");
+      const cmd = `cat /etc/openclaw-env 2>/dev/null; echo '---BASHRC---'; grep -E '^export (${keyNames})=' /root/.bashrc 2>/dev/null | sed 's/^export //'`;
+      const result = await executeRawSSHCommand(cmd, sshConfig, 1, 15000);
+
+      const envValues: Record<string, string> = {};
+      if (result.output) {
+        const lines = result.output.split("\n");
+        for (const line of lines) {
+          if (line === "---BASHRC---") continue;
+          const match = line.match(/^([A-Z_]+)="?(.*?)"?\s*$/);
+          if (match && SKILL_API_KEYS.some(k => k.key === match[1])) {
+            envValues[match[1]] = match[2];
+          }
+        }
+      }
+
+      const keys = SKILL_API_KEYS.map(k => ({
+        ...k,
+        configured: !!envValues[k.key],
+        maskedValue: envValues[k.key]
+          ? envValues[k.key].substring(0, 6) + "•".repeat(Math.max(0, envValues[k.key].length - 10)) + envValues[k.key].substring(envValues[k.key].length - 4)
+          : null,
+      }));
+
+      res.json({ keys });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ssh/skill-keys/reveal", requireAuth, async (req, res) => {
+    try {
+      const { password, key } = req.body;
+      if (!password) return res.status(400).json({ error: "Password required" });
+
+      const instances = await storage.getInstances();
+      const defaultInstance = instances.find(i => i.isDefault) || instances[0];
+      const cfg = defaultInstance ? await storage.getOpenclawConfig(defaultInstance.id) : undefined;
+      if (!cfg || password !== cfg.gatewayPassword) {
+        return res.status(403).json({ error: "Invalid password" });
+      }
+
+      if (!SKILL_API_KEYS.some(k => k.key === key)) {
+        return res.status(400).json({ error: "Unknown key" });
+      }
+
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.status(500).json({ error: "No SSH config" });
+
+      const cmd = `grep -E '^(export )?${key}=' /etc/openclaw-env /root/.bashrc 2>/dev/null | head -1 | sed 's/.*=//' | sed 's/^"//' | sed 's/"$//'`;
+      const result = await executeRawSSHCommand(cmd, sshConfig, 1, 10000);
+      const value = result.output?.trim() || "";
+      res.json({ key, value });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ssh/skill-keys/update", requireAuth, async (req, res) => {
+    try {
+      const { key, value, password } = req.body;
+      if (!key || value === undefined) return res.status(400).json({ error: "key and value required" });
+      if (!password) return res.status(400).json({ error: "Password required" });
+      if (!SKILL_API_KEYS.some(k => k.key === key)) return res.status(400).json({ error: "Unknown key" });
+
+      const instances = await storage.getInstances();
+      const defaultInstance = instances.find(i => i.isDefault) || instances[0];
+      const cfg = defaultInstance ? await storage.getOpenclawConfig(defaultInstance.id) : undefined;
+      if (!cfg || password !== cfg.gatewayPassword) {
+        return res.status(403).json({ error: "Invalid password" });
+      }
+
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.status(500).json({ error: "No SSH config" });
+
+      const escaped = value.replace(/"/g, '\\"');
+
+      if (!value) {
+        const removeCmd = `sed -i '/^${key}=/d' /etc/openclaw-env 2>/dev/null; sed -i '/^export ${key}=/d' /root/.bashrc 2>/dev/null; echo 'removed'`;
+        const result = await executeRawSSHCommand(removeCmd, sshConfig, 1, 15000);
+        return res.json({ success: result.success, action: "removed" });
+      }
+
+      const envLine = `${key}="${escaped}"`;
+      const bashrcLine = `export ${key}="${escaped}"`;
+      const updateCmd = [
+        `grep -q "^${key}=" /etc/openclaw-env 2>/dev/null && sed -i "s|^${key}=.*|${envLine}|" /etc/openclaw-env || echo '${envLine}' >> /etc/openclaw-env`,
+        `grep -q "^export ${key}=" /root/.bashrc && sed -i "s|^export ${key}=.*|${bashrcLine}|" /root/.bashrc || echo '${bashrcLine}' >> /root/.bashrc`,
+        `systemctl daemon-reload && systemctl restart openclaw-gateway 2>/dev/null`,
+        `echo 'updated'`,
+      ].join(" && ");
+
+      const result = await executeRawSSHCommand(updateCmd, sshConfig, 1, 30000);
+      res.json({ success: result.success, action: "updated" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   app.post("/api/ssh/push-env-keys", requireAuth, async (req, res) => {
     try {
       const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
