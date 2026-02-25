@@ -48,8 +48,6 @@ waitForPort = 5000
 
 [userenv.shared]
 OPENCLAW_DID_BASE_URL = "https://did-login.replit.app"
-OPENCLAW_DID_CLIENT_ID = "mi_7372fbc05a34a6226ce0d31d1ff5cec9"
-OPENCLAW_GATEWAY_TOKEN = "b39f5f185b247f6fb7f3d708d57c7c34c2009de0535b1359"
 
 [userenv.production]
 APP_BASE_URL = "https://claw-settings.replit.app"
