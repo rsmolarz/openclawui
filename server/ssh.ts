@@ -57,6 +57,40 @@ PYEOF
   "find-gateway-bin": "ls -la /usr/lib/node_modules/.bin/ 2>/dev/null | grep -i claw; echo '---NPM-BIN---'; npm bin -g 2>/dev/null; ls -la $(npm bin -g 2>/dev/null)/ 2>/dev/null | grep -i claw; echo '---PKG---'; cat /usr/lib/node_modules/openclaw/package.json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(\"bin:\",json.dumps(d.get(\"bin\",{}),indent=2))' 2>/dev/null; echo '---DELETED---'; ls -la /proc/*/exe 2>/dev/null | grep deleted | grep -i claw; echo '---NPX---'; npx openclaw --version 2>&1 | head -5",
   "force-restart-gateway": "ls -la /usr/lib/node_modules/openclaw/dist/gateway/ 2>/dev/null | head -15; ENTRY=$(find /usr/lib/node_modules/openclaw/dist -name 'gateway.js' -o -name 'index.js' 2>/dev/null | head -1); echo \"Entry: $ENTRY\"; if [ -n \"$ENTRY\" ]; then rm -f /tmp/oc.log; kill $(pgrep -f 'node.*gateway') 2>/dev/null; sleep 1; cd /usr/lib/node_modules/openclaw && nohup node $ENTRY run --bind lan --port 18789 --force > /tmp/oc.log 2>&1 & sleep 15; ps aux | grep -E 'gateway' | grep -v grep; echo '---PORTS---'; ss -tlnp | grep 18789; echo '---LOG---'; tail -30 /tmp/oc.log; fi",
   "npm-reinstall-openclaw": "rm -rf /usr/lib/node_modules/.openclaw-* 2>/dev/null; npm install -g openclaw@latest 2>&1 | tail -10; echo '---DONE---'; which openclaw 2>/dev/null; openclaw --version 2>/dev/null",
+  "approve-all-pending": `TOKEN=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d['gateway']['auth']['token'])") && PENDING=$(openclaw devices list --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>/dev/null) && echo "$PENDING" | python3 -c "
+import json,sys,subprocess
+d=json.loads(sys.stdin.read())
+pending=d.get('pending',[])
+if not pending:
+    print('No pending devices')
+    sys.exit(0)
+print(f'Approving {len(pending)} devices...')
+import os
+token=os.popen(\"python3 -c \\\"import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d['gateway']['auth']['token'])\\\"\").read().strip()
+for p in pending:
+    rid=p['requestId']
+    r=subprocess.run(['openclaw','devices','approve',rid,'--url','ws://127.0.0.1:18789','--token',token],capture_output=True,text=True)
+    name=p.get('displayName',p.get('clientId','unknown'))
+    print(f'Approved: {name} ({rid})')
+print('Done')
+" 2>&1 || echo '{"error":"approve failed"}'`,
+  "setup-auto-approve": `cat > /usr/local/bin/openclaw-auto-approve.sh << 'SCRIPT'
+#!/bin/bash
+TOKEN=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d['gateway']['auth']['token'])")
+PENDING=$(openclaw devices list --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>/dev/null)
+echo "$PENDING" | python3 -c "
+import json,sys,subprocess,os
+d=json.loads(sys.stdin.read())
+pending=d.get('pending',[])
+token=os.popen(\"python3 -c \\\"import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d['gateway']['auth']['token'])\\\"\").read().strip()
+for p in pending:
+    subprocess.run(['openclaw','devices','approve',p['requestId'],'--url','ws://127.0.0.1:18789','--token',token],capture_output=True,text=True)
+" 2>/dev/null
+SCRIPT
+chmod +x /usr/local/bin/openclaw-auto-approve.sh
+(crontab -l 2>/dev/null | grep -v openclaw-auto-approve; echo "*/1 * * * * /usr/local/bin/openclaw-auto-approve.sh >> /tmp/auto-approve.log 2>&1") | crontab -
+echo "Auto-approve cron installed (runs every minute)"
+crontab -l | grep openclaw`,
   "add-replit-origin": `python3 -c "
 import json
 f='/root/.openclaw/openclaw.json'

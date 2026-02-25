@@ -1407,11 +1407,11 @@ export default function SettingsOpenclaw() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => sshMutation.mutate("bind-lan")}
+                onClick={() => sshMutation.mutate("set-gateway-mode")}
                 disabled={!!sshRunning}
                 data-testid="button-ssh-bind-lan"
               >
-                {sshRunning === "bind-lan" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Globe className="h-3 w-3 mr-1" />}
+                {sshRunning === "set-gateway-mode" ? <RotateCw className="h-3 w-3 mr-1 animate-spin" /> : <Globe className="h-3 w-3 mr-1" />}
                 Set LAN Bind
               </Button>
               <Button
