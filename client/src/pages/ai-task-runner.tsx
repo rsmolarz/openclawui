@@ -7,6 +7,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Bot,
   Send,
   Plus,
@@ -18,6 +24,18 @@ import {
   AlertCircle,
   User,
   Wrench,
+  Monitor,
+  Laptop,
+  Server,
+  Smartphone,
+  Wifi,
+  WifiOff,
+  Clock,
+  Cpu,
+  HardDrive,
+  RefreshCw,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 
 interface AiConversation {
@@ -41,6 +59,172 @@ interface AiMessage {
 
 function formatToolOutput(output: string): string {
   return output.replace(/\[Tool Result for \w+\]:\n?/, "");
+}
+
+interface LiveNode {
+  name: string;
+  id: string;
+  ip: string;
+  status: string;
+  caps: string;
+  version: string;
+  platform: string;
+  connectedAtMs: number;
+}
+
+interface LiveStatusData {
+  nodes: LiveNode[];
+  pairedCount: number;
+  connectedCount: number;
+  pendingCount: number;
+}
+
+function getPlatformIcon(platform: string) {
+  switch (platform) {
+    case "win32": return <Monitor className="h-3.5 w-3.5" />;
+    case "darwin": return <Laptop className="h-3.5 w-3.5" />;
+    case "linux": return <Server className="h-3.5 w-3.5" />;
+    default: return <Cpu className="h-3.5 w-3.5" />;
+  }
+}
+
+function getPlatformLabel(platform: string) {
+  switch (platform) {
+    case "win32": return "Windows";
+    case "darwin": return "macOS";
+    case "linux": return "Linux";
+    default: return platform || "Unknown";
+  }
+}
+
+function formatUptime(connectedAtMs: number): string {
+  if (!connectedAtMs) return "";
+  const diff = Date.now() - connectedAtMs;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ${hrs % 24}h`;
+}
+
+function NodePanel({ onInsertCommand, showPanel }: { onInsertCommand: (cmd: string) => void; showPanel: boolean }) {
+  const { data: liveStatus, isLoading, refetch } = useQuery<LiveStatusData>({
+    queryKey: ["/api/nodes/live-status"],
+    refetchInterval: 15000,
+  });
+
+  if (!showPanel) return null;
+
+  const connectedNodes = liveStatus?.nodes?.filter(n => n.status === "connected") || [];
+  const disconnectedNodes = liveStatus?.nodes?.filter(n => n.status !== "connected") || [];
+
+  return (
+    <div className="w-72 border-l bg-muted/20 flex flex-col overflow-hidden" data-testid="node-panel">
+      <div className="p-3 border-b flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Wifi className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold">Nodes</span>
+          {liveStatus && (
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">
+              {connectedNodes.length}/{(liveStatus.nodes || []).length}
+            </Badge>
+          )}
+        </div>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => refetch()} data-testid="button-refresh-nodes">
+          <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+      <ScrollArea className="flex-1">
+        <div className="p-2 space-y-1">
+          {isLoading && (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {connectedNodes.map((node) => (
+            <TooltipProvider key={node.id} delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className="rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2 cursor-pointer hover:bg-green-500/10 transition-colors"
+                    onClick={() => onInsertCommand(`Run a command on ${node.name}`)}
+                    data-testid={`node-card-${node.id}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                      </span>
+                      <span className="text-xs font-medium truncate flex-1">{node.name}</span>
+                      {getPlatformIcon(node.platform)}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 ml-4">
+                      <span className="text-[10px] text-muted-foreground">{getPlatformLabel(node.platform)}</span>
+                      {node.connectedAtMs > 0 && (
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                          <Clock className="h-2.5 w-2.5" />
+                          {formatUptime(node.connectedAtMs)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-xs">
+                  <div className="space-y-1 text-xs">
+                    <p className="font-medium">{node.name}</p>
+                    <p>Platform: {getPlatformLabel(node.platform)}</p>
+                    <p>Version: {node.version || "unknown"}</p>
+                    {node.caps && <p>Caps: {node.caps}</p>}
+                    {node.ip && <p>IP: {node.ip}</p>}
+                    <p className="text-muted-foreground pt-1">Click to run a command on this node</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ))}
+          {disconnectedNodes.length > 0 && (
+            <div className="pt-2">
+              <p className="text-[10px] text-muted-foreground uppercase font-medium px-1 mb-1">Offline</p>
+              {disconnectedNodes.map((node) => (
+                <div
+                  key={node.id}
+                  className="rounded-lg border border-muted px-3 py-2 opacity-50"
+                  data-testid={`node-card-offline-${node.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <WifiOff className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground truncate flex-1">{node.name}</span>
+                    {getPlatformIcon(node.platform)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!isLoading && (!liveStatus?.nodes || liveStatus.nodes.length === 0) && (
+            <p className="text-xs text-muted-foreground text-center py-4">No nodes found</p>
+          )}
+        </div>
+      </ScrollArea>
+      <div className="p-2 border-t space-y-1">
+        <p className="text-[10px] text-muted-foreground uppercase font-medium px-1 mb-1">Quick Actions</p>
+        {[
+          { label: "Check all nodes", cmd: "List all connected nodes and their status" },
+          { label: "System health check", cmd: "Check disk, memory, and CPU on all connected nodes" },
+          { label: "Fix disconnected nodes", cmd: "Which nodes are offline? Can you help me reconnect them?" },
+        ].map((action) => (
+          <button
+            key={action.label}
+            className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            onClick={() => onInsertCommand(action.cmd)}
+            data-testid={`quick-action-${action.label.toLowerCase().replace(/\s/g, "-")}`}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function ToolOutputBlock({ toolName, output }: { toolName: string; output: string }) {
@@ -103,8 +287,13 @@ function MessageBubble({ message }: { message: AiMessage }) {
 export default function AiTaskRunnerPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [showNodePanel, setShowNodePanel] = useState(true);
   const [streamingMessages, setStreamingMessages] = useState<Array<{role: string; content: string; toolName?: string; toolOutput?: string}>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleInsertCommand = (cmd: string) => {
+    setInput(cmd);
+  };
 
   const { data: conversations = [], isLoading: loadingConversations } = useQuery<AiConversation[]>({
     queryKey: ["/api/ai/conversations"],
@@ -283,8 +472,10 @@ export default function AiTaskRunnerPage() {
                 {[
                   "List connected nodes",
                   "Check OpenClaw status",
-                  "What can my nodes do?",
+                  "Check disk space on all nodes",
                   "Check VPS system resources",
+                  "What software is installed on each node?",
+                  "Run a health check on all machines",
                 ].map((suggestion) => (
                   <Button
                     key={suggestion}
@@ -391,9 +582,20 @@ export default function AiTaskRunnerPage() {
             >
               <Send className="h-4 w-4" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowNodePanel(!showNodePanel)}
+              className="shrink-0"
+              data-testid="button-toggle-node-panel"
+            >
+              {showNodePanel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
       </div>
+
+      <NodePanel onInsertCommand={handleInsertCommand} showPanel={showNodePanel} />
     </div>
   );
 }

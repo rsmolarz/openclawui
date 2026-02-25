@@ -36,7 +36,10 @@ The application follows a client-server architecture.
 - **Pairing Bypass**: Gateway JS files are patched via `/usr/local/bin/patch-openclaw-gateway.sh` on every restart to bypass DID pairing requirement (sets `silent: true`, skips publicKey check, provides fallback paired object)
 - **Tailscale Serve**: Proxies `https://srv1390515.tail55cf63.ts.net:443` → `http://127.0.0.1:18789`
 - **SSH Key Auth**: frameworks machine has SSH key access to VPS (ed25519 key in authorized_keys)
-- **Connected Nodes**: srv1390515 (VPS, Linux), frameworks (Windows, via SSH tunnel to localhost:18789), vient1 (Windows, via Tailscale)
+- **Connected Nodes (9/9)**: DESKTOP-NIMCP7B (Windows), Mac Mini (macOS, mac-mini-1438), Podcast PC (Windows), RSmolarzBackup (Windows, SSH tunnel), Claw Master Pro / srv1390515 (Linux VPS), Travel AsusDuo (Windows, SSH tunnel), Everywhere / frameworks (Windows), vient1 (Windows), Ryan's Patient Computer / vient4 (Windows)
 - **Node Connection Methods**:
   - Via Tailscale: `openclaw node run --host srv1390515.tail55cf63.ts.net --port 443 --tls --display-name "<name>"`
-  - Via SSH tunnel: `ssh -i ~/.ssh/id_ed25519_vps -L 18789:127.0.0.1:18789 root@72.60.167.64` then `openclaw node run --host 127.0.0.1 --port 18789 --display-name "<name>"`
+  - Via SSH tunnel: `ssh -N -L 28789:127.0.0.1:18789 root@72.60.167.64` then `openclaw node run --host 127.0.0.1 --port 28789 --display-name "<name>"`
+- **Node List Cache**: In-memory 15s TTL cache in server/routes.ts via `getCachedNodeList()` — shared by health-check and live-status endpoints
+- **AI Task Runner**: Chat-based LLM interface (OpenRouter) with VPS SSH tools and remote node execution via `openclaw nodes invoke`. Node panel shows live connected/disconnected status on right side.
+- **Port Startup**: Robust port 5000 binding with kill-and-retry logic, `waitForPortFree` polling, and `exclusive: false` for faster recovery

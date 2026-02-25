@@ -246,26 +246,45 @@ app.use((req, res, next) => {
         const myPid = process.pid;
         const otherPids = pids.split(/\s+/).filter(p => p && parseInt(p) !== myPid);
         if (otherPids.length === 0) return true;
+        execSync(`kill -9 ${otherPids.join(" ")} 2>/dev/null || true`);
       } catch {
         return true;
       }
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1000));
     }
     return false;
   };
 
+  const net = await import("net");
+  const tryBindPort = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const tester = net.createServer();
+      tester.once("error", () => { resolve(false); });
+      tester.once("listening", () => { tester.close(() => resolve(true)); });
+      tester.listen({ port, host: "0.0.0.0", exclusive: false });
+    });
+  };
+
+  await killPortHolder(2000);
+  await waitForPortFree(8000);
+
   let portRetries = 0;
-  const MAX_PORT_RETRIES = 10;
-  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+  const MAX_PORT_RETRIES = 5;
+
+  const startListening = () => {
+    httpServer.listen({ port, host: "0.0.0.0", exclusive: false }, () => {
+      log(`serving on port ${port}${portRetries > 0 ? ` (after retry ${portRetries})` : ""}`);
+    });
+  };
+
+  httpServer.on("error", async (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE" && portRetries < MAX_PORT_RETRIES) {
       portRetries++;
       log(`Port ${port} in use (attempt ${portRetries}/${MAX_PORT_RETRIES}) — killing old process and retrying...`);
-      killPortHolder(2000).then(async () => {
-        await waitForPortFree(5000);
-        httpServer.listen({ port, host: "0.0.0.0" }, () => {
-          log(`serving on port ${port} (after retry ${portRetries})`);
-        });
-      });
+      await killPortHolder(2000);
+      await waitForPortFree(5000);
+      await new Promise(r => setTimeout(r, 1000));
+      startListening();
     } else if (err.code === "EADDRINUSE") {
       console.error(`Port ${port} still in use after ${MAX_PORT_RETRIES} retries. Exiting.`);
       process.exit(1);
@@ -275,16 +294,5 @@ app.use((req, res, next) => {
     }
   });
 
-  await killPortHolder(2000);
-  await waitForPortFree(8000);
-
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  startListening();
 })();
