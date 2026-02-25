@@ -555,6 +555,30 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
+  app.get("/api/gateway/health", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance specified" });
+      const vps = await storage.getVpsConnection(instanceId);
+      if (!vps) return res.json({ error: "No VPS configured", ok: false });
+
+      const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const sshConfig = buildSSHConfigFromVps(vps);
+      const result = await executeSSHCommand("gateway-call-health", sshConfig);
+      if (result.success && result.output) {
+        try {
+          const data = JSON.parse(result.output.trim());
+          return res.json(data);
+        } catch {
+          return res.json({ ok: false, error: "Failed to parse health response", raw: result.output?.substring(0, 500) });
+        }
+      }
+      return res.json({ ok: false, error: result.output || "Health check failed" });
+    } catch (error: any) {
+      res.json({ ok: false, error: error.message || "Gateway health check failed" });
+    }
+  });
+
   app.get("/api/gateway/sync-config", requireAuth, async (req, res) => {
     try {
       const instanceId = await resolveInstanceId(req);
