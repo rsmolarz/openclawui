@@ -1,14 +1,15 @@
 {
   "name": "openclaw-whatsapp-home-bot",
-  "version": "2.0.0",
-  "description": "OpenClaw WhatsApp AI Bot — runs on your home network using whatsapp-web.js",
+  "version": "3.0.0",
+  "description": "OpenClaw WhatsApp AI Bot — runs on your home network using Baileys",
   "main": "openclaw-whatsapp.js",
+  "type": "module",
   "scripts": {
     "start": "node openclaw-whatsapp.js",
     "install-service": "node install-service.js"
   },
   "dependencies": {
-    "whatsapp-web.js": "^1.34.6",
+    "@whiskeysockets/baileys": "^6.7.16",
     "qrcode-terminal": "^0.12.0"
   }
 }

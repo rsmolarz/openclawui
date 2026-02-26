@@ -2475,12 +2475,47 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         return res.status(404).json({ error: "Home bot files not found" });
       }
 
+      const keys = await storage.getApiKeys();
+      const activeKey = keys.find(k => k.active && k.permissions === "admin");
+      const openclawConfig = await storage.getOpenclawConfig(
+        (await storage.getInstances()).find(i => i.isDefault)?.id || ""
+      );
+      const phone = openclawConfig?.whatsappPhone?.replace(/[^0-9]/g, "") || "";
+
+      const prodUrl = process.env.REPLIT_DEPLOYMENT_URL
+        ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
+        : process.env.REPLIT_DEV_DOMAIN
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : "https://claw-settings.replit.app";
+
+      const dynamicConfig = JSON.stringify({
+        dashboardUrl: "https://claw-settings.replit.app",
+        dashboardUrlDev: prodUrl !== "https://claw-settings.replit.app" ? prodUrl : undefined,
+        apiKey: activeKey?.key || "YOUR_API_KEY_HERE",
+        phoneNumber: phone,
+        botName: "OpenClaw AI",
+        usePairingCode: true,
+        autoRestart: true,
+      }, null, 2);
+
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", "attachment; filename=openclaw-whatsapp-bot.zip");
 
       const archive = archiver("zip", { zlib: { level: 9 } });
       archive.pipe(res);
-      archive.directory(botDir, "openclaw-whatsapp-bot");
+
+      const files = fs.readdirSync(botDir);
+      for (const file of files) {
+        if (file === "config.json") {
+          archive.append(dynamicConfig, { name: "openclaw-whatsapp-bot/config.json" });
+        } else {
+          const filePath = path.default.join(botDir, file);
+          if (fs.statSync(filePath).isFile()) {
+            archive.file(filePath, { name: `openclaw-whatsapp-bot/${file}` });
+          }
+        }
+      }
+
       archive.finalize();
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to create download" });

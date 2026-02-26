@@ -1,62 +1,71 @@
-#!/usr/bin/env node
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const qrcode = require("qrcode-terminal");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
+import { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } from "@whiskeysockets/baileys";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
+import { hostname } from "os";
+import { fileURLToPath } from "url";
 
-const CONFIG_FILE = path.join(__dirname, "config.json");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const CONFIG_FILE = join(__dirname, "config.json");
+const AUTH_DIR = join(__dirname, "auth_state");
 const RECONNECT_DELAY_MS = 5000;
 const MAX_RECONNECT_DELAY_MS = 120000;
-const STATUS_REPORT_INTERVAL_MS = 30000;
-const HEALTH_CHECK_INTERVAL_MS = 60000;
-const MAX_RECONNECT_ATTEMPTS = 50;
+const KEEPALIVE_INTERVAL_MS = 30000;
+const STATUS_INTERVAL_MS = 30000;
 
 let config = {};
-let client = null;
-let reconnectAttempts = 0;
+let sock = null;
+let reconnectTimer = null;
+let keepaliveTimer = null;
 let statusTimer = null;
-let healthTimer = null;
-let connectedPhone = null;
-let lastMessageTime = Date.now();
-let isRestarting = false;
+let reconnectAttempts = 0;
+let currentState = "disconnected";
+let currentPhone = null;
+let currentError = null;
+let isStarting = false;
+let pairingCodeRequested = false;
+let lastPongTime = Date.now();
+let sentMessageIds = new Set();
 
 function loadConfig() {
-  if (!fs.existsSync(CONFIG_FILE)) {
+  if (!existsSync(CONFIG_FILE)) {
     console.log("\n=== OpenClaw WhatsApp Bot - First Time Setup ===\n");
-    console.log("No config.json found. Creating one...\n");
     const defaultConfig = {
       dashboardUrl: "https://claw-settings.replit.app",
       apiKey: "YOUR_API_KEY_HERE",
+      phoneNumber: "",
       botName: "OpenClaw AI",
+      usePairingCode: true,
       autoRestart: true,
     };
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
-    console.log(`Created ${CONFIG_FILE} — edit it with your API key and dashboard URL, then run again.\n`);
+    writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
+    console.log(`Created ${CONFIG_FILE} — edit it with your API key and phone number, then run again.`);
     process.exit(0);
   }
-  config = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+  config = JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
   if (!config.dashboardUrl || !config.apiKey || config.apiKey === "YOUR_API_KEY_HERE") {
-    console.error("ERROR: Please set dashboardUrl and apiKey in config.json");
+    console.error("ERROR: Set dashboardUrl and apiKey in config.json");
     process.exit(1);
   }
   config.dashboardUrl = config.dashboardUrl.replace(/\/$/, "");
-  console.log(`Dashboard: ${config.dashboardUrl}`);
-  console.log(`API Key: ${config.apiKey.substring(0, 8)}...`);
-  console.log(`Hostname: ${os.hostname()}`);
+  console.log(`[Bot] Dashboard: ${config.dashboardUrl}`);
+  console.log(`[Bot] Phone: ${config.phoneNumber || "not set"}`);
+  console.log(`[Bot] Pairing mode: ${config.usePairingCode ? "pairing code" : "QR code"}`);
+  console.log(`[Bot] Host: ${hostname()}`);
 }
 
 async function reportStatus(state, phone, error) {
+  currentState = state;
+  if (phone) currentPhone = phone;
+  currentError = error;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
     await fetch(`${config.dashboardUrl}/api/whatsapp/home-bot-status`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": config.apiKey,
-      },
-      body: JSON.stringify({ state, phone, error, runtime: "home-bot-wwebjs", hostname: os.hostname() }),
+      headers: { "Content-Type": "application/json", "X-API-Key": config.apiKey },
+      body: JSON.stringify({ state, phone, error, runtime: "home-bot", hostname: hostname() }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -65,17 +74,14 @@ async function reportStatus(state, phone, error) {
   }
 }
 
-async function processMessage(senderPhone, text, pushName) {
+async function processMessage(phone, text, pushName) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
     const resp = await fetch(`${config.dashboardUrl}/api/whatsapp/home-bot-message`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": config.apiKey,
-      },
-      body: JSON.stringify({ phone: senderPhone, text, pushName }),
+      headers: { "Content-Type": "application/json", "X-API-Key": config.apiKey },
+      body: JSON.stringify({ phone, text, pushName }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -86,258 +92,309 @@ async function processMessage(senderPhone, text, pushName) {
     const data = await resp.json();
     return data.reply || "I couldn't generate a response.";
   } catch (err) {
-    console.error("[Bot] Failed to process message via dashboard:", err.message);
-    return "Sorry, I'm having trouble connecting to the AI service. Please try again in a moment.";
+    console.error("[Bot] Message processing failed:", err.message);
+    return "Sorry, I'm having trouble connecting to the AI service. Please try again.";
   }
 }
 
 function clearTimers() {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  if (keepaliveTimer) { clearInterval(keepaliveTimer); keepaliveTimer = null; }
   if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
-  if (healthTimer) { clearInterval(healthTimer); healthTimer = null; }
+}
+
+function startKeepalive() {
+  if (keepaliveTimer) clearInterval(keepaliveTimer);
+  lastPongTime = Date.now();
+  keepaliveTimer = setInterval(async () => {
+    if (!sock || currentState !== "connected") return;
+    try {
+      await sock.sendPresenceUpdate("available");
+      lastPongTime = Date.now();
+    } catch (err) {
+      const silent = Date.now() - lastPongTime;
+      console.warn(`[Bot] Keepalive failed (silent ${Math.round(silent / 1000)}s): ${err.message}`);
+      if (silent > KEEPALIVE_INTERVAL_MS * 3) {
+        console.error("[Bot] Connection dead — forcing reconnect");
+        handleDeadConnection();
+      }
+    }
+  }, KEEPALIVE_INTERVAL_MS);
 }
 
 function startStatusReporter() {
   if (statusTimer) clearInterval(statusTimer);
   statusTimer = setInterval(() => {
-    reportStatus("connected", connectedPhone, null);
-  }, STATUS_REPORT_INTERVAL_MS);
+    reportStatus(currentState, currentPhone, currentError);
+  }, STATUS_INTERVAL_MS);
 }
 
-function startHealthMonitor() {
-  if (healthTimer) clearInterval(healthTimer);
-  healthTimer = setInterval(async () => {
-    if (!client) return;
-
-    try {
-      const state = await client.getState();
-      if (state !== "CONNECTED") {
-        console.warn(`[Bot] Health check: state is "${state}" — not connected`);
-        if (!isRestarting) {
-          console.log("[Bot] Health monitor triggering reconnect...");
-          await safeRestart("Health monitor detected disconnected state");
-        }
-      }
-    } catch (err) {
-      console.warn("[Bot] Health check failed:", err.message);
-      if (!isRestarting && err?.message && (err.message.includes("Protocol error") || err.message.includes("Session closed"))) {
-        console.log("[Bot] Health monitor: session appears dead, restarting...");
-        await safeRestart("Health monitor: " + err.message);
-      }
-    }
-  }, HEALTH_CHECK_INTERVAL_MS);
-}
-
-async function safeRestart(reason) {
-  if (isRestarting) return;
-  isRestarting = true;
-  console.log(`[Bot] Safe restart triggered: ${reason}`);
+function handleDeadConnection() {
   clearTimers();
-  connectedPhone = null;
-  reportStatus("reconnecting", null, reason);
-
-  if (client) {
-    try { await client.destroy(); } catch (e) { console.warn("[Bot] Destroy error:", e.message); }
-    client = null;
+  if (sock) {
+    try { sock.end(undefined); } catch {}
+    sock = null;
   }
+  isStarting = false;
+  scheduleReconnect("connection dead");
+}
 
+function scheduleReconnect(reason) {
   reconnectAttempts++;
-  if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-    console.error(`[Bot] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Resetting counter and waiting 5 minutes.`);
-    reconnectAttempts = 0;
-    reportStatus("disconnected", null, "Max reconnect attempts reached. Waiting 5 minutes before trying again.");
-    setTimeout(() => { isRestarting = false; startBot(); }, 300000);
-    return;
-  }
+  const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, Math.min(reconnectAttempts - 1, 15)), MAX_RECONNECT_DELAY_MS);
+  console.log(`[Bot] Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts}, reason: ${reason})`);
+  reportStatus("connecting", currentPhone, `Reconnecting... (${reason})`);
+  reconnectTimer = setTimeout(() => startBot(), delay);
+}
 
-  const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(1.3, reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS);
-  console.log(`[Bot] Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-  setTimeout(() => { isRestarting = false; startBot(); }, delay);
+function hasAuthState() {
+  return existsSync(join(AUTH_DIR, "creds.json"));
+}
+
+async function sendMessage(jid, text) {
+  if (!sock) return;
+  try {
+    const result = await sock.sendMessage(jid, { text });
+    if (result?.key?.id) sentMessageIds.add(result.key.id);
+    if (sentMessageIds.size > 500) {
+      const arr = [...sentMessageIds];
+      sentMessageIds = new Set(arr.slice(-250));
+    }
+  } catch (err) {
+    console.error(`[Bot] Failed to send message to ${jid}:`, err.message);
+  }
 }
 
 async function startBot() {
-  if (isRestarting) return;
-  console.log("\n[Bot] Starting WhatsApp connection (whatsapp-web.js)...");
-  console.log("[Bot] Session is saved locally — no QR code needed after first link.\n");
-
-  reportStatus("connecting", null, null);
-
-  const authPath = path.join(__dirname, ".wwebjs_auth");
-  const hasAuth = fs.existsSync(path.join(authPath, "session"));
-  if (hasAuth) {
-    console.log("[Bot] Found existing session — reconnecting without QR code");
-  } else {
-    console.log("[Bot] No existing session — QR code will be displayed");
+  if (isStarting && sock) {
+    console.log("[Bot] Already starting, skip");
+    return;
+  }
+  if (isStarting && !sock) {
+    console.log("[Bot] isStarting flag stuck, resetting");
   }
 
-  client = new Client({
-    authStrategy: new LocalAuth({ dataPath: authPath }),
-    puppeteer: {
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-first-run",
-        "--disable-gpu",
-        "--single-process",
-      ],
-    },
-    restartOnAuthFail: true,
-  });
-
-  client.on("qr", (qr) => {
-    console.log("\n[Bot] Scan this QR code with WhatsApp:\n");
-    qrcode.generate(qr, { small: true });
-    console.log("\nOpen WhatsApp on your phone > Settings > Linked Devices > Link a Device");
-    console.log("Then scan the QR code above.\n");
-    reportStatus("qr_ready", null, null);
-  });
-
-  client.on("authenticated", () => {
-    console.log("[Bot] Authenticated successfully! Session saved.");
-  });
-
-  client.on("auth_failure", async (msg) => {
-    console.error("[Bot] Authentication failed:", msg);
-    reportStatus("disconnected", null, `Auth failed: ${msg}`);
-    console.log("[Bot] Clearing auth data and retrying...");
-    try {
-      const sessionDir = path.join(authPath, "session");
-      if (fs.existsSync(sessionDir)) {
-        fs.rmSync(sessionDir, { recursive: true, force: true });
-        console.log("[Bot] Old session cleared. Will need QR code on next start.");
-      }
-    } catch (e) { console.warn("[Bot] Failed to clear session:", e.message); }
-    await safeRestart("Auth failure — cleared old session");
-  });
-
-  client.on("ready", async () => {
-    reconnectAttempts = 0;
-    lastMessageTime = Date.now();
-    try {
-      const info = client.info;
-      connectedPhone = info?.wid?.user || info?.me?.user || null;
-    } catch (e) {
-      connectedPhone = null;
-    }
-    console.log(`\n[Bot] Connected as +${connectedPhone || "unknown"}\n`);
-    console.log("[Bot] WhatsApp bot is running. Session is locked in — will auto-reconnect if disconnected.\n");
-    console.log("[Bot] Press Ctrl+C to stop.\n");
-    reportStatus("connected", connectedPhone, null);
-    startStatusReporter();
-    startHealthMonitor();
-  });
-
-  client.on("disconnected", async (reason) => {
-    console.log(`[Bot] Disconnected: ${reason}`);
-    clearTimers();
-    const savedPhone = connectedPhone;
-    connectedPhone = null;
-    reportStatus("disconnected", null, `Disconnected: ${reason}`);
-
-    if (reason === "LOGOUT" || reason === "CONFLICT") {
-      console.log(`[Bot] ${reason} — clearing session and stopping auto-reconnect.`);
-      try {
-        const sessionDir = path.join(authPath, "session");
-        if (fs.existsSync(sessionDir)) {
-          fs.rmSync(sessionDir, { recursive: true, force: true });
-        }
-      } catch (e) {}
-      reportStatus("disconnected", null, `${reason}: Session ended. Run the bot again and scan a new QR code.`);
-      return;
-    }
-
-    if (config.autoRestart !== false) {
-      await safeRestart(`Disconnected: ${reason}`);
-    }
-  });
-
-  client.on("change_state", (state) => {
-    console.log(`[Bot] State changed: ${state}`);
-    if (state === "CONFLICT" || state === "UNLAUNCHED" || state === "UNPAIRED") {
-      console.warn(`[Bot] Problematic state: ${state}`);
-    }
-  });
-
-  client.on("message_create", async (msg) => {
-    if (!msg.body || !msg.body.trim()) return;
-    if (msg.from === "status@broadcast") return;
-    if (msg.fromMe) return;
-
-    lastMessageTime = Date.now();
-
-    let senderPhone, pushName;
-    try {
-      const contact = await msg.getContact();
-      senderPhone = contact.id?.user || msg.from.replace("@c.us", "").replace("@g.us", "");
-      pushName = contact.pushname || contact.name || undefined;
-    } catch (err) {
-      senderPhone = msg.from.replace("@c.us", "").replace("@g.us", "");
-      pushName = undefined;
-    }
-
-    console.log(`[Bot] Message from ${senderPhone} (${pushName || "unknown"}): "${msg.body.substring(0, 80)}"`);
-
-    let chat;
-    try {
-      chat = await msg.getChat();
-      await chat.sendStateTyping();
-    } catch {}
-
-    const reply = await processMessage(senderPhone, msg.body.trim(), pushName);
-
-    try {
-      if (chat) await chat.clearState();
-      await msg.reply(reply);
-      console.log(`[Bot] Reply sent to ${senderPhone} (${reply.length} chars)`);
-    } catch (err) {
-      console.error(`[Bot] Failed to send reply to ${senderPhone}:`, err.message);
-      try {
-        await client.sendMessage(msg.from, reply);
-        console.log(`[Bot] Reply sent via sendMessage to ${senderPhone}`);
-      } catch (err2) {
-        console.error(`[Bot] sendMessage also failed:`, err2.message);
-      }
-    }
-  });
+  isStarting = true;
+  clearTimers();
+  pairingCodeRequested = false;
 
   try {
-    await client.initialize();
-  } catch (err) {
-    console.error("[Bot] Failed to initialize:", err.message);
-    if (config.autoRestart !== false) {
-      await safeRestart("Initialize failed: " + err.message);
-    }
+    reportStatus("connecting", null, null);
+    const existingAuth = hasAuthState();
+    console.log(`[Bot] Starting WhatsApp connection... (existing auth: ${existingAuth})`);
+
+    mkdirSync(AUTH_DIR, { recursive: true });
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const { version } = await fetchLatestBaileysVersion();
+    console.log(`[Bot] Baileys version: ${version.join(".")}`);
+
+    const newSock = makeWASocket({
+      auth: state,
+      version,
+      browser: ["Ubuntu", "Chrome", "22.04.4"],
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      retryRequestDelayMs: 500,
+      printQRInTerminal: false,
+      markOnlineOnConnect: false,
+      generateHighQualityLinkPreview: false,
+      syncFullHistory: false,
+      getMessage: async () => ({ conversation: "" }),
+    });
+
+    sock = newSock;
+
+    newSock.ev.on("creds.update", async () => {
+      try {
+        await saveCreds();
+      } catch (err) {
+        console.error("[Bot] Failed to save credentials:", err.message);
+      }
+    });
+
+    newSock.ev.on("connection.update", async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        if (config.usePairingCode && config.phoneNumber && !pairingCodeRequested) {
+          pairingCodeRequested = true;
+          try {
+            const code = await newSock.requestPairingCode(config.phoneNumber);
+            const formatted = code?.match(/.{1,4}/g)?.join("-") || code;
+            console.log(`[Bot] ============================`);
+            console.log(`[Bot] PAIRING CODE: ${formatted}`);
+            console.log(`[Bot] Enter this code in WhatsApp > Linked Devices > Link with Phone Number`);
+            console.log(`[Bot] ============================`);
+            reportStatus("pairing_code_ready", null, null);
+          } catch (err) {
+            console.error("[Bot] Pairing code request failed:", err.message);
+            console.log("[Bot] Showing QR code instead...");
+            const qrterm = await import("qrcode-terminal");
+            qrterm.default.generate(qr, { small: true });
+            reportStatus("qr_ready", null, null);
+          }
+          return;
+        }
+
+        console.log("[Bot] Scan this QR code with WhatsApp:");
+        const qrterm = await import("qrcode-terminal");
+        qrterm.default.generate(qr, { small: true });
+        reportStatus("qr_ready", null, null);
+      }
+
+      if (connection === "close") {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const errorMsg = lastDisconnect?.error?.message || "unknown";
+        const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+        const isBadSession = statusCode === DisconnectReason.badSession;
+        const isRestartRequired = statusCode === DisconnectReason.restartRequired;
+
+        console.log(`[Bot] Connection closed: status=${statusCode}, reason="${errorMsg}"`);
+        clearTimers();
+        sock = null;
+        isStarting = false;
+
+        if (isLoggedOut || statusCode === 401) {
+          console.log("[Bot] Session invalid — clearing auth and restarting");
+          try {
+            const { rmSync } = await import("fs");
+            rmSync(AUTH_DIR, { recursive: true, force: true });
+            mkdirSync(AUTH_DIR, { recursive: true });
+            console.log("[Bot] Auth state cleared");
+          } catch {}
+          pairingCodeRequested = false;
+          reconnectAttempts = 0;
+          scheduleReconnect(`session invalid (${statusCode})`);
+          return;
+        }
+
+        if (isBadSession) {
+          console.log("[Bot] Bad session — clearing and restarting");
+          try {
+            const { rmSync } = await import("fs");
+            rmSync(AUTH_DIR, { recursive: true, force: true });
+            mkdirSync(AUTH_DIR, { recursive: true });
+          } catch {}
+          pairingCodeRequested = false;
+          reconnectAttempts = 0;
+          scheduleReconnect("bad session");
+          return;
+        }
+
+        if (isRestartRequired) {
+          reconnectAttempts = 0;
+          scheduleReconnect("restart required");
+          return;
+        }
+
+        reportStatus("disconnected", currentPhone, `status ${statusCode}: ${errorMsg}`);
+        scheduleReconnect(`status ${statusCode}: ${errorMsg}`);
+      }
+
+      if (connection === "open") {
+        console.log("[Bot] Connected to WhatsApp!");
+        const phone = newSock.user?.id?.split(":")[0] || newSock.user?.id?.split("@")[0] || null;
+        currentPhone = phone;
+        reconnectAttempts = 0;
+        isStarting = false;
+
+        console.log(`[Bot] Logged in as +${phone || "unknown"}`);
+        console.log("[Bot] Bot is running. Press Ctrl+C to stop.\n");
+        reportStatus("connected", phone, null);
+        startKeepalive();
+        startStatusReporter();
+      }
+    });
+
+    newSock.ev.on("messages.upsert", async (m) => {
+      if (m.type !== "notify" && m.type !== "append") return;
+      const botJid = newSock.user?.id;
+      const botPhone = botJid?.split(":")[0] || botJid?.split("@")[0] || "";
+
+      for (const msg of m.messages) {
+        const jid = msg.key?.remoteJid;
+        const fromMe = msg.key?.fromMe;
+        const msgId = msg.key?.id;
+
+        if (!jid || jid === "status@broadcast") continue;
+        if (fromMe && sentMessageIds.has(msgId)) continue;
+
+        const isGroup = jid.endsWith("@g.us");
+        const actualSender = isGroup
+          ? (msg.key?.participant || "").replace("@s.whatsapp.net", "")
+          : jid.replace("@s.whatsapp.net", "");
+
+        if (fromMe && !isGroup && actualSender !== botPhone) {
+          console.log(`[Bot] Message from linked device ${actualSender}`);
+        } else if (fromMe) {
+          continue;
+        }
+
+        if (!msg.message) continue;
+
+        const text =
+          msg.message.conversation ||
+          msg.message.extendedTextMessage?.text ||
+          msg.message.imageMessage?.caption ||
+          msg.message.videoMessage?.caption ||
+          msg.message.buttonsResponseMessage?.selectedDisplayText ||
+          msg.message.listResponseMessage?.title ||
+          "";
+
+        if (!text.trim()) continue;
+
+        const senderPhone = actualSender;
+        const pushName = msg.pushName || undefined;
+        console.log(`[Bot] Message from ${senderPhone} (${pushName || "?"}): "${text.trim().substring(0, 80)}"`);
+
+        try {
+          await newSock.sendPresenceUpdate("composing", jid);
+        } catch {}
+
+        const reply = await processMessage(senderPhone, text.trim(), pushName);
+
+        try {
+          await newSock.sendPresenceUpdate("paused", jid);
+        } catch {}
+
+        if (reply && reply.trim()) {
+          await sendMessage(jid, reply);
+          console.log(`[Bot] Reply sent to ${senderPhone} (${reply.length} chars)`);
+        }
+      }
+    });
+  } catch (error) {
+    console.error("[Bot] Failed to start:", error.message);
+    clearTimers();
+    isStarting = false;
+    sock = null;
+    reportStatus("disconnected", null, `Start failed: ${error.message}`);
+    scheduleReconnect("start error");
   }
 }
 
 process.on("SIGINT", async () => {
-  console.log("\n[Bot] Shutting down gracefully (session preserved for auto-reconnect)...");
+  console.log("\n[Bot] Shutting down gracefully...");
   clearTimers();
-  reportStatus("disconnected", connectedPhone, "Manual shutdown");
-  if (client) {
-    try { await client.destroy(); } catch {}
-  }
+  await reportStatus("disconnected", currentPhone, "Manual shutdown");
+  if (sock) { try { sock.end(undefined); } catch {} }
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
-  console.log("\n[Bot] Received SIGTERM, shutting down (session preserved)...");
+  console.log("\n[Bot] SIGTERM received...");
   clearTimers();
-  reportStatus("disconnected", connectedPhone, "Service stopped");
-  if (client) {
-    try { await client.destroy(); } catch {}
-  }
+  await reportStatus("disconnected", currentPhone, "Service stopped");
+  if (sock) { try { sock.end(undefined); } catch {} }
   process.exit(0);
 });
 
-process.on("uncaughtException", async (err) => {
+process.on("uncaughtException", (err) => {
   console.error("[Bot] Uncaught exception:", err.message);
   console.error(err.stack);
-  reportStatus("disconnected", connectedPhone, "Crash: " + err.message);
-  if (!isRestarting) {
-    await safeRestart("Uncaught exception: " + err.message);
+  if (!isStarting) {
+    reportStatus("disconnected", currentPhone, "Crash: " + err.message);
+    scheduleReconnect("uncaught exception");
   }
 });
 
@@ -346,8 +403,9 @@ process.on("unhandledRejection", (reason) => {
 });
 
 loadConfig();
+console.log("[Bot] OpenClaw WhatsApp Home Bot (Baileys v3) starting...");
 startBot().catch((err) => {
-  console.error("[Bot] Fatal error:", err);
+  console.error("[Bot] Fatal:", err);
   reportStatus("disconnected", null, "Fatal: " + err.message);
   setTimeout(() => startBot(), 30000);
 });

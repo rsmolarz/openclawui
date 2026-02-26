@@ -1,9 +1,8 @@
 {
-  "dashboardUrl": "https://e9f5643a-f49a-4d48-b14e-dbaa161af703-00-9kow68y9izu5.kirk.replit.dev",
-  "apiKey": "oc_697beb6d1aa6452d92220fbd2250a2e9",
+  "dashboardUrl": "https://claw-settings.replit.app",
+  "apiKey": "YOUR_API_KEY_HERE",
   "phoneNumber": "",
   "botName": "OpenClaw AI",
   "usePairingCode": true,
-  "autoRestart": true,
-  "socksProxy": ""
+  "autoRestart": true
 }

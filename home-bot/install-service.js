@@ -1,20 +1,22 @@
-#!/usr/bin/env node
-const { execSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
+import { execSync } from "child_process";
+import { writeFileSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { platform, userInfo, hostname } from "os";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const botDir = __dirname;
-const botScript = path.join(botDir, "openclaw-whatsapp.js");
+const botScript = join(botDir, "openclaw-whatsapp.js");
 
-if (os.platform() === "win32") {
+if (platform() === "win32") {
   installWindows();
 } else {
   installLinux();
 }
 
 function installWindows() {
-  console.log("\n=== Installing OpenClaw WhatsApp Bot as Windows Service ===\n");
+  console.log("\n=== Installing OpenClaw WhatsApp Bot as Windows Startup Task ===\n");
 
   const taskName = "OpenClawWhatsAppBot";
   const nodePath = process.execPath;
@@ -29,7 +31,7 @@ function installWindows() {
 
   try {
     execSync(cmd, { stdio: "inherit" });
-    console.log(`\n✓ Scheduled task "${taskName}" created successfully.`);
+    console.log(`\nScheduled task "${taskName}" created successfully.`);
     console.log("  The bot will start automatically when you log in.\n");
     console.log("To start it now:");
     console.log(`  schtasks /run /tn "${taskName}"\n`);
@@ -46,7 +48,7 @@ function installLinux() {
 
   const serviceName = "openclaw-whatsapp";
   const nodePath = process.execPath;
-  const user = os.userInfo().username;
+  const user = userInfo().username;
 
   const serviceContent = `[Unit]
 Description=OpenClaw WhatsApp AI Bot
@@ -69,11 +71,11 @@ WantedBy=multi-user.target
   const servicePath = `/etc/systemd/system/${serviceName}.service`;
 
   try {
-    fs.writeFileSync(servicePath, serviceContent);
+    writeFileSync(servicePath, serviceContent);
     execSync("systemctl daemon-reload", { stdio: "inherit" });
     execSync(`systemctl enable ${serviceName}`, { stdio: "inherit" });
     execSync(`systemctl start ${serviceName}`, { stdio: "inherit" });
-    console.log(`\n✓ Service "${serviceName}" installed and started.`);
+    console.log(`\nService "${serviceName}" installed and started.`);
     console.log(`\nUseful commands:`);
     console.log(`  sudo systemctl status ${serviceName}`);
     console.log(`  sudo journalctl -u ${serviceName} -f`);
