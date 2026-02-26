@@ -2403,29 +2403,53 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
           if (sshConfig) {
             const result = await executeRawSSHCommand(
-              `SERVICE_ACTIVE=$(systemctl is-active openclaw-whatsapp 2>/dev/null || echo "inactive"); LOG_TAIL=$(journalctl -u openclaw-whatsapp --no-pager -n 20 2>/dev/null || tail -20 /tmp/whatsapp-bot.log 2>/dev/null || echo ""); CONNECTED=$(echo "$LOG_TAIL" | grep -c "connected to WA" || echo 0); echo "SERVICE=$SERVICE_ACTIVE"; echo "CONNECTED=$CONNECTED"; echo "---LOG---"; echo "$LOG_TAIL" | tail -5`,
+              `SERVICE_ACTIVE=$(systemctl is-active openclaw-whatsapp 2>/dev/null || echo "inactive"); HAS_AUTH=$(ls /root/openclaw-whatsapp/auth_state/creds.json 2>/dev/null && echo "yes" || echo "no"); LOG_TAIL=$(journalctl -u openclaw-whatsapp --no-pager -n 10 2>/dev/null || echo ""); echo "SERVICE=$SERVICE_ACTIVE"; echo "HAS_AUTH=$HAS_AUTH"; echo "---LOG---"; echo "$LOG_TAIL" | tail -5`,
               sshConfig, 0, 10000
             );
             if (result.output) {
               const serviceActive = result.output.includes("SERVICE=active");
-              const connCount = parseInt(result.output.match(/CONNECTED=(\d+)/)?.[1] || "0");
+              const hasAuth = result.output.includes("HAS_AUTH=yes");
               const lastLogLines = result.output.split("---LOG---")[1]?.trim() || "";
-              const isReconnecting = lastLogLines.includes("reconnecting") || lastLogLines.includes("Connection Failure");
+              const isQrReady = lastLogLines.includes("QR code ready");
+              const isConnectedOpen = lastLogLines.includes("Connected as");
               const vpsHostname = sshConfig.host || "VPS";
               const configPhone = ocConfig?.whatsappPhone?.replace(/^\+/, "") || null;
 
               if (serviceActive) {
-                const actuallyConnected = connCount > 0 && !isReconnecting;
-                return res.json({
-                  state: actuallyConnected ? "connected" : "reconnecting",
-                  qrDataUrl: null,
-                  pairingCode: null,
-                  phone: actuallyConnected ? configPhone : null,
-                  error: actuallyConnected ? null : "VPS bot is running but experiencing connection issues",
-                  runtime: "vps-bot",
-                  hostname: vpsHostname,
-                  enabled: true,
-                });
+                if (isConnectedOpen && hasAuth) {
+                  return res.json({
+                    state: "connected",
+                    qrDataUrl: null,
+                    pairingCode: null,
+                    phone: configPhone,
+                    error: null,
+                    runtime: "vps-bot",
+                    hostname: vpsHostname,
+                    enabled: true,
+                  });
+                } else if (isQrReady) {
+                  return res.json({
+                    state: "qr_ready",
+                    qrDataUrl: null,
+                    pairingCode: null,
+                    phone: null,
+                    error: "VPS bot is waiting for QR scan. Open the WhatsApp settings page to scan.",
+                    runtime: "vps-bot",
+                    hostname: vpsHostname,
+                    enabled: true,
+                  });
+                } else {
+                  return res.json({
+                    state: "connecting",
+                    qrDataUrl: null,
+                    pairingCode: null,
+                    phone: null,
+                    error: "VPS bot is running, waiting for connection...",
+                    runtime: "vps-bot",
+                    hostname: vpsHostname,
+                    enabled: true,
+                  });
+                }
               }
             }
           }

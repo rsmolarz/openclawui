@@ -3,7 +3,7 @@ import makeWASocketDefault from "@whiskeysockets/baileys";
 import { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import * as QRCode from "qrcode";
-import { readFileSync, existsSync, writeFileSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { hostname } from "os";
@@ -13,9 +13,8 @@ const makeWASocket = makeWASocketDefault.default || makeWASocketDefault;
 
 const CONFIG_FILE = join(__dirname, "config.json");
 const AUTH_DIR = join(__dirname, "auth_state");
-const MAX_QR_RETRIES = 5;
-const RECONNECT_DELAY_MS = 3000;
-const MAX_RECONNECT_DELAY_MS = 60000;
+const RECONNECT_DELAY_MS = 5000;
+const MAX_RECONNECT_DELAY_MS = 120000;
 const STATUS_INTERVAL_MS = 20000;
 const KEEPALIVE_INTERVAL_MS = 25000;
 
@@ -33,6 +32,7 @@ let currentError = null;
 let currentQrDataUrl = null;
 let isStarting = false;
 let sentMessageIds = new Set();
+let pairingCodeRequested = false;
 
 function loadConfig() {
   if (!existsSync(CONFIG_FILE)) {
@@ -40,6 +40,8 @@ function loadConfig() {
       dashboardUrl: "https://claw-settings.replit.app",
       apiKey: "YOUR_API_KEY_HERE",
       botName: "OpenClaw AI",
+      phoneNumber: "13405140344",
+      usePairingCode: true,
     };
     writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
     console.log(`Created ${CONFIG_FILE} — edit it with your API key and dashboard URL, then run again.`);
@@ -52,32 +54,41 @@ function loadConfig() {
   }
   config.dashboardUrl = config.dashboardUrl.replace(/\/$/, "");
   console.log(`[VPS-Bot] Dashboard: ${config.dashboardUrl}`);
-  console.log(`[VPS-Bot] API Key: ${config.apiKey.substring(0, 8)}...`);
+  console.log(`[VPS-Bot] Phone: ${config.phoneNumber || "not set"}`);
+  console.log(`[VPS-Bot] Pairing mode: ${config.usePairingCode ? "pairing code" : "QR code"}`);
   console.log(`[VPS-Bot] Host: ${hostname()}`);
 }
 
 async function reportStatus(state, phone, error, qrDataUrl, pairingCode) {
   currentState = state;
-  currentPhone = phone || currentPhone;
+  if (phone) currentPhone = phone;
   currentError = error;
   currentQrDataUrl = qrDataUrl || null;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    await fetch(`${config.dashboardUrl}/api/whatsapp/home-bot-status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": config.apiKey },
-      body: JSON.stringify({
-        state,
-        phone: phone || currentPhone,
-        error,
-        hostname: hostname(),
-        runtime: "vps-baileys",
-        qrDataUrl: qrDataUrl || null,
-        pairingCode: pairingCode || null,
-      }),
-      signal: controller.signal,
-    });
+    const urls = [config.dashboardUrl];
+    if (config.dashboardUrlProd && config.dashboardUrlProd !== config.dashboardUrl) {
+      urls.push(config.dashboardUrlProd);
+    }
+    for (const url of urls) {
+      try {
+        await fetch(`${url}/api/whatsapp/home-bot-status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-API-Key": config.apiKey },
+          body: JSON.stringify({
+            state,
+            phone: phone || currentPhone,
+            error,
+            hostname: hostname(),
+            runtime: "vps-baileys",
+            qrDataUrl: qrDataUrl || null,
+            pairingCode: pairingCode || null,
+          }),
+          signal: controller.signal,
+        });
+      } catch {}
+    }
     clearTimeout(timeout);
   } catch (err) {
     if (state !== "connecting") {
@@ -90,19 +101,32 @@ async function processMessage(phone, text, pushName) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
-    const resp = await fetch(`${config.dashboardUrl}/api/whatsapp/home-bot-message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": config.apiKey },
-      body: JSON.stringify({ phone, text, pushName }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!resp.ok) {
-      const err = await resp.text();
-      throw new Error(`API error ${resp.status}: ${err}`);
+    const urls = [config.dashboardUrl];
+    if (config.dashboardUrlProd && config.dashboardUrlProd !== config.dashboardUrl) {
+      urls.push(config.dashboardUrlProd);
     }
-    const data = await resp.json();
-    return data.reply || "I couldn't generate a response.";
+    let lastError = null;
+    for (const url of urls) {
+      try {
+        const resp = await fetch(`${url}/api/whatsapp/home-bot-message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-API-Key": config.apiKey },
+          body: JSON.stringify({ phone, text, pushName }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!resp.ok) {
+          const err = await resp.text();
+          lastError = new Error(`API error ${resp.status}: ${err}`);
+          continue;
+        }
+        const data = await resp.json();
+        return data.reply || "I couldn't generate a response.";
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("All dashboard URLs failed");
   } catch (err) {
     console.error("[VPS-Bot] Message processing failed:", err.message);
     return "Sorry, I'm having trouble connecting to the AI service. Please try again.";
@@ -153,7 +177,7 @@ function handleDeadConnection() {
 
 function scheduleReconnect(reason) {
   reconnectAttempts++;
-  const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS);
+  const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(1.5, Math.min(reconnectAttempts - 1, 15)), MAX_RECONNECT_DELAY_MS);
   console.log(`[VPS-Bot] Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts}, reason: ${reason})`);
   reportStatus("connecting", currentPhone, `Reconnecting... (${reason})`, null, null);
   reconnectTimer = setTimeout(() => startBot(), delay);
@@ -173,6 +197,10 @@ async function sendMessage(jid, text) {
   }
 }
 
+function hasAuthState() {
+  return existsSync(join(AUTH_DIR, "creds.json"));
+}
+
 async function startBot() {
   if (isStarting && sock) {
     console.log("[VPS-Bot] Already starting, skip");
@@ -185,14 +213,17 @@ async function startBot() {
   isStarting = true;
   clearTimers();
   qrCycleCount = 0;
+  pairingCodeRequested = false;
 
   try {
     reportStatus("connecting", null, null, null, null);
-    console.log("[VPS-Bot] Starting WhatsApp connection...");
+    const existingAuth = hasAuthState();
+    console.log(`[VPS-Bot] Starting WhatsApp connection... (existing auth: ${existingAuth})`);
 
+    mkdirSync(AUTH_DIR, { recursive: true });
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const { version } = await fetchLatestBaileysVersion();
-    console.log(`[VPS-Bot] Using Baileys version: ${version.join(".")}`);
+    console.log(`[VPS-Bot] Baileys version: ${version.join(".")}`);
 
     const newSock = makeWASocket({
       auth: state,
@@ -222,17 +253,33 @@ async function startBot() {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        qrCycleCount++;
-        if (qrCycleCount > MAX_QR_RETRIES) {
-          console.log(`[VPS-Bot] QR expired after ${MAX_QR_RETRIES} cycles`);
-          reportStatus("disconnected", null, "QR code expired. Restart the bot to try again.", null, null);
-          isStarting = false;
-          if (sock) { try { sock.end(undefined); } catch {} sock = null; }
+        if (config.usePairingCode && config.phoneNumber && !pairingCodeRequested) {
+          pairingCodeRequested = true;
+          try {
+            const code = await newSock.requestPairingCode(config.phoneNumber);
+            const formatted = code?.match(/.{1,4}/g)?.join("-") || code;
+            console.log(`[VPS-Bot] ============================`);
+            console.log(`[VPS-Bot] PAIRING CODE: ${formatted}`);
+            console.log(`[VPS-Bot] Enter this code in WhatsApp > Linked Devices > Link with Phone Number`);
+            console.log(`[VPS-Bot] ============================`);
+            reportStatus("pairing_code_ready", null, null, null, formatted);
+          } catch (err) {
+            console.error("[VPS-Bot] Pairing code request failed:", err.message);
+            console.log("[VPS-Bot] Falling back to QR code...");
+            try {
+              const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+              qrCycleCount++;
+              console.log(`[VPS-Bot] QR code ready (cycle ${qrCycleCount}) — scan with your phone or view in dashboard`);
+              reportStatus("qr_ready", null, null, qrDataUrl, null);
+            } catch {}
+          }
           return;
         }
+
+        qrCycleCount++;
         try {
           const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
-          console.log(`[VPS-Bot] QR code ready (cycle ${qrCycleCount}/${MAX_QR_RETRIES}) — scan with your phone or view in dashboard`);
+          console.log(`[VPS-Bot] QR code ready (cycle ${qrCycleCount}) — scan with your phone or view in dashboard`);
           reportStatus("qr_ready", null, null, qrDataUrl, null);
         } catch (err) {
           console.error("[VPS-Bot] QR code generation failed:", err.message);
@@ -253,11 +300,19 @@ async function startBot() {
         isStarting = false;
 
         if (isConflict) {
-          console.log("[VPS-Bot] Conflict — another session replaced this one");
-          reportStatus("disconnected", currentPhone, "Another WhatsApp session replaced this connection. Restart to reconnect.", null, null);
+          console.log("[VPS-Bot] Conflict — another session replaced this one. Waiting 60s then retrying.");
+          reportStatus("disconnected", currentPhone, "Session conflict detected. Auto-retrying in 60s...", null, null);
+          reconnectTimer = setTimeout(() => { reconnectAttempts = 0; startBot(); }, 60000);
         } else if (isLoggedOut || isBadSession) {
-          console.log("[VPS-Bot] Session invalid — will need new QR scan");
-          reportStatus("disconnected", null, isLoggedOut ? "Logged out. Restart bot to scan QR again." : "Bad session. Restart bot.", null, null);
+          console.log("[VPS-Bot] Session invalid — clearing auth and restarting");
+          try {
+            const { rmSync } = await import("fs");
+            rmSync(AUTH_DIR, { recursive: true, force: true });
+            console.log("[VPS-Bot] Auth state cleared");
+          } catch {}
+          reconnectAttempts = 0;
+          reportStatus("disconnected", null, "Session expired. Re-pairing automatically...", null, null);
+          reconnectTimer = setTimeout(() => startBot(), 5000);
         } else if (isRestartRequired) {
           console.log("[VPS-Bot] Restart required, reconnecting immediately...");
           reconnectAttempts = 0;
@@ -273,6 +328,7 @@ async function startBot() {
         const phone = newSock.user?.id?.split(":")[0] || newSock.user?.id?.split("@")[0] || null;
         currentPhone = phone;
         console.log(`[VPS-Bot] Connected as +${phone}`);
+        console.log(`[VPS-Bot] WhatsApp is now active. Auth state saved — will auto-reconnect on restart.`);
         reportStatus("connected", phone, null, null, null);
         startKeepalive();
         startStatusReporter();
