@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles, Loader2, AlertTriangle, RefreshCw, Download, Monitor } from "lucide-react";
+import { Save, Cog, Network, MessageSquare, Globe, CheckCircle, XCircle, Shield, Key, Plus, Trash2, Eye, EyeOff, Play, Square, RotateCw, Phone, UserCheck, Clock, ExternalLink, Copy, Smartphone, Terminal, ChevronDown, ChevronRight, Wrench, Sparkles, Loader2, AlertTriangle, RefreshCw, Download, Monitor, Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstance } from "@/hooks/use-instance";
 import type { OpenclawConfig, DockerService, LlmApiKey, WhatsappSession, OpenclawInstance } from "@shared/schema";
@@ -908,6 +908,43 @@ export default function SettingsOpenclaw() {
   const { data: pendingWaSessions } = useQuery<WhatsappSession[]>({
     queryKey: ["/api/whatsapp/pending"],
     refetchInterval: 5000,
+  });
+
+  interface TelegramStatus {
+    state: string;
+    error: string | null;
+    botUsername: string | null;
+    botName: string | null;
+    messageCount: number;
+    enabled: boolean;
+  }
+
+  const { data: telegramStatus } = useQuery<TelegramStatus>({
+    queryKey: ["/api/telegram/status"],
+    refetchInterval: 10000,
+  });
+
+  const startTelegramMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/telegram/start");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/telegram/status"] });
+      toast({ title: "Telegram bot started" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const stopTelegramMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/telegram/stop");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/telegram/status"] });
+      toast({ title: "Telegram bot stopped" });
+    },
   });
 
   const startBotMutation = useMutation({
@@ -2284,6 +2321,113 @@ export default function SettingsOpenclaw() {
                 Save
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Telegram Bot
+            </CardTitle>
+            <CardDescription>Connect a Telegram bot to OpenClaw AI. Create a bot via @BotFather and add the token.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                telegramStatus?.state === "connected" ? "default" :
+                telegramStatus?.state === "connecting" ? "secondary" :
+                "outline"
+              }
+              className={telegramStatus?.state === "connected" ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+              data-testid="badge-telegram-status"
+            >
+              {telegramStatus?.state === "connected" ? "Online" :
+               telegramStatus?.state === "connecting" ? "Connecting..." :
+               telegramStatus?.state === "error" ? "Error" :
+               !telegramStatus?.enabled ? "Not Configured" : "Offline"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {telegramStatus?.state === "connected" && (
+            <div className="rounded-md bg-green-500/10 border-2 border-green-500/30 p-4" data-testid="telegram-connected-info">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-green-700 dark:text-green-400">Telegram Active</p>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                    </span>
+                  </div>
+                  {telegramStatus.botUsername && (
+                    <p className="text-sm font-mono font-medium mt-0.5" data-testid="text-telegram-username">@{telegramStatus.botUsername}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Messages handled: {telegramStatus.messageCount}
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => stopTelegramMutation.mutate()}
+                  disabled={stopTelegramMutation.isPending}
+                  data-testid="button-stop-telegram"
+                >
+                  <Square className="h-4 w-4 mr-1" />
+                  Stop
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {telegramStatus?.state === "error" && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/30 p-3" data-testid="telegram-error">
+              <p className="text-sm text-destructive font-medium">Connection Error</p>
+              <p className="text-xs text-destructive/70 mt-1">{telegramStatus.error}</p>
+            </div>
+          )}
+
+          {!telegramStatus?.enabled && (
+            <div className="rounded-md bg-muted/50 border border-muted p-4 space-y-3" data-testid="telegram-setup-guide">
+              <p className="text-sm font-medium">Setup Instructions</p>
+              <ol className="text-xs text-muted-foreground list-decimal list-inside space-y-1.5">
+                <li>Open Telegram and search for <strong>@BotFather</strong></li>
+                <li>Send <code className="bg-muted px-1 rounded">/newbot</code> and follow the prompts</li>
+                <li>Copy the bot token (looks like <code className="bg-muted px-1 rounded">123456:ABC-DEF...</code>)</li>
+                <li>Add it as <code className="bg-muted px-1 rounded">TELEGRAM_BOT_TOKEN</code> in the environment secrets</li>
+                <li>Restart the application</li>
+              </ol>
+            </div>
+          )}
+
+          {telegramStatus?.enabled && telegramStatus?.state === "disconnected" && (
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => startTelegramMutation.mutate()}
+                disabled={startTelegramMutation.isPending}
+                data-testid="button-start-telegram"
+              >
+                {startTelegramMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Start Telegram Bot
+              </Button>
+            </div>
+          )}
+
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">
+              <strong>Multi-Platform Support:</strong> OpenClaw supports WhatsApp, Telegram, and Slack (coming soon). All platforms share the same AI backend and can be active simultaneously.
+            </p>
           </div>
         </CardContent>
       </Card>

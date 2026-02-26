@@ -2342,7 +2342,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       if (session.status === "approved") {
         await storage.updateWhatsappSessionLastMessage(phone);
         const { chat } = await import("./bot/openrouter");
-        const response = await chat(text, pushName || session.displayName || undefined);
+        const response = await chat(text, pushName || session.displayName || undefined, "WhatsApp");
         return res.json({ reply: response || "I couldn't generate a response.", approved: true });
       }
 
@@ -3877,6 +3877,88 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       res.status(500).json({ error: error.message });
     }
   });
+
+  app.get("/api/telegram/status", requireAuth, async (_req, res) => {
+    try {
+      const { getTelegramStatus } = await import("./bot/telegram");
+      res.json(getTelegramStatus());
+    } catch (error: any) {
+      res.json({ state: "error", error: error.message, enabled: false });
+    }
+  });
+
+  app.post("/api/telegram/start", requireAuth, async (_req, res) => {
+    try {
+      const { startTelegramBot } = await import("./bot/telegram");
+      await startTelegramBot();
+      const { getTelegramStatus } = await import("./bot/telegram");
+      res.json(getTelegramStatus());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/telegram/stop", requireAuth, async (_req, res) => {
+    try {
+      const { stopTelegramBot } = await import("./bot/telegram");
+      stopTelegramBot();
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/messaging/platforms", requireAuth, async (_req, res) => {
+    try {
+      const homeBotStatus = getResolvedHomeBotStatus();
+      const { getTelegramStatus } = await import("./bot/telegram");
+      const telegramStatus = getTelegramStatus();
+
+      const platforms = [
+        {
+          id: "whatsapp",
+          name: "WhatsApp",
+          state: homeBotStatus.state,
+          phone: homeBotStatus.phone,
+          hostname: homeBotStatus.hostname,
+          error: homeBotStatus.error,
+          enabled: true,
+        },
+        {
+          id: "telegram",
+          name: "Telegram",
+          state: telegramStatus.state,
+          botUsername: telegramStatus.botUsername,
+          botName: telegramStatus.botName,
+          messageCount: telegramStatus.messageCount,
+          error: telegramStatus.error,
+          enabled: telegramStatus.enabled,
+        },
+        {
+          id: "slack",
+          name: "Slack",
+          state: "not_configured",
+          error: null,
+          enabled: false,
+        },
+      ];
+
+      res.json(platforms);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  setTimeout(async () => {
+    try {
+      if (process.env.TELEGRAM_BOT_TOKEN) {
+        const { startTelegramBot } = await import("./bot/telegram");
+        await startTelegramBot();
+      }
+    } catch (err: any) {
+      console.error("[Startup] Telegram auto-start failed:", err.message);
+    }
+  }, 3000);
 
   return httpServer;
 }
