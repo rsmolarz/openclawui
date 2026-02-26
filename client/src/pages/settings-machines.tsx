@@ -559,8 +559,37 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
     staleTime: 15000,
   });
 
-  const nodes = liveStatus?.nodes ?? [];
-  const hasNodes = nodes.length > 0;
+  const { data: allMachines } = useQuery<any[]>({
+    queryKey: ["/api/machines"],
+  });
+
+  const gatewayNodes = liveStatus?.nodes ?? [];
+  const connectedNames = new Set(
+    gatewayNodes.map((n: any) => (n.name || "").toLowerCase())
+  );
+
+  const offlineMachines = (allMachines ?? [])
+    .filter((m: any) => {
+      const names = [m.hostname, m.name, m.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
+      return !names.some((n: string) => connectedNames.has(n));
+    })
+    .filter((m: any) => m.os !== "WhatsApp")
+    .map((m: any) => ({
+      name: m.displayName || m.hostname || m.name,
+      id: m.id,
+      ip: m.ipAddress || "",
+      status: "offline",
+      caps: "",
+      version: "",
+      platform: m.os || "",
+      source: "database",
+    }));
+
+  const mergedNodes = [
+    ...gatewayNodes.map((n: any) => ({ ...n, source: "gateway" })),
+    ...offlineMachines,
+  ];
+  const hasNodes = mergedNodes.length > 0;
 
   if (!instanceId) return null;
 
@@ -571,10 +600,10 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <Signal className="h-4 w-4" />
-              Gateway Nodes (Live)
+              All Nodes
             </CardTitle>
             <CardDescription>
-              Real-time node connection status from the gateway.
+              {gatewayNodes.length} connected to gateway, {offlineMachines.length} offline.
               {liveStatus?.source === "cli" && (
                 <Badge variant="secondary" className="ml-2 text-[10px]">CLI</Badge>
               )}
@@ -585,6 +614,7 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
             size="sm"
             onClick={() => {
               refetch();
+              queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
               toast({ title: "Refreshing", description: "Fetching latest node status..." });
             }}
             disabled={isFetching}
@@ -607,32 +637,38 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
           </div>
         ) : hasNodes ? (
           <div className="space-y-2">
-            {nodes.map((node, idx) => {
-              const isConnected = node.status?.includes("connected") && !node.status?.includes("disconnected");
-              const truncatedId = node.id.length > 12 ? `${node.id.slice(0, 12)}...` : node.id;
+            {mergedNodes.map((node: any, idx: number) => {
+              const isConnected = node.source === "gateway" && node.status?.includes("connected") && !node.status?.includes("disconnected");
+              const isOffline = node.source === "database";
+              const truncatedId = (node.id || "").length > 12 ? `${node.id.slice(0, 12)}...` : (node.id || "");
               return (
                 <div
                   key={node.id || idx}
-                  className="flex items-center justify-between gap-3 p-2.5 rounded-md bg-muted/30"
+                  className={`flex items-center justify-between gap-3 p-2.5 rounded-md ${isConnected ? "bg-muted/30" : "bg-muted/15 opacity-70"}`}
                   data-testid={`row-live-node-${node.id || idx}`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isConnected ? "bg-green-500/10" : "bg-destructive/10"}`}>
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isConnected ? "bg-green-500/10" : isOffline ? "bg-muted" : "bg-destructive/10"}`}>
                       {isConnected ? (
                         <Wifi className="h-3.5 w-3.5 text-green-600" />
                       ) : (
-                        <WifiOff className="h-3.5 w-3.5 text-destructive" />
+                        <WifiOff className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate" data-testid={`text-live-node-name-${node.id || idx}`}>{node.name}</p>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge variant="outline" className="text-[10px] cursor-default">{truncatedId}</Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>{node.id}</TooltipContent>
-                        </Tooltip>
+                        {node.source === "gateway" && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="text-[10px] cursor-default">{truncatedId}</Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>{node.id}</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {node.platform && (
+                          <Badge variant="secondary" className="text-[10px]">{node.platform}</Badge>
+                        )}
                         {node.ip && (
                           <span className="text-[10px] text-muted-foreground">{node.ip}</span>
                         )}
@@ -646,11 +682,11 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
                     </div>
                   </div>
                   <Badge
-                    variant={isConnected ? "default" : "destructive"}
-                    className="text-[10px] shrink-0"
+                    variant={isConnected ? "default" : "outline"}
+                    className={`text-[10px] shrink-0 ${isConnected ? "" : "text-muted-foreground"}`}
                     data-testid={`badge-live-node-status-${node.id || idx}`}
                   >
-                    {isConnected ? "Connected" : "Disconnected"}
+                    {isConnected ? "Connected" : "Offline"}
                   </Badge>
                 </div>
               );

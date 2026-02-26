@@ -153,7 +153,14 @@ async function pollUpdates(): Promise<void> {
       console.error("[Telegram] Bot token is invalid. Stopping.");
       return;
     }
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    if (err.message.includes("Conflict") || err.message.includes("terminated by other")) {
+      console.warn("[Telegram] Another bot instance is running. Retrying in 10s...");
+      connectionState = "connecting";
+      connectionError = "Another instance running — retrying";
+      await new Promise(resolve => setTimeout(resolve, 10000));
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
   }
 
   if (pollingActive) {
