@@ -149,8 +149,10 @@ export async function registerRoutes(
           (await storage.getInstances()).find((i: any) => i.isDefault)?.id || ""
         );
         const phone = openclawConfig?.whatsappPhone?.replace(/[^0-9]/g, "") || "";
+        const devDomain = process.env.REPLIT_DEV_DOMAIN;
+        const dashboardUrl = devDomain ? `https://${devDomain}` : "https://claw-settings.replit.app";
         return res.json({
-          dashboardUrl: "https://claw-settings.replit.app",
+          dashboardUrl,
           apiKey: activeKey?.key || "YOUR_API_KEY_HERE",
           phoneNumber: phone,
           botName: "OpenClaw AI",
