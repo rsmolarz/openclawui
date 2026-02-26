@@ -17,6 +17,7 @@ import {
   Activity,
   Terminal,
   Bot,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -39,6 +40,7 @@ const navItems = [
   { title: "Node Setup", url: "/node-setup", icon: Wand2 },
   { title: "Commands", url: "/commands", icon: Terminal },
   { title: "AI Task Runner", url: "/ai-tasks", icon: Bot },
+  { title: "Admin", url: "/admin", icon: Shield },
 ];
 
 const settingsItems = [

@@ -2347,6 +2347,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
   app.get("/api/whatsapp/status", async (req, res) => {
     try {
+      const homeBotStatus = getResolvedHomeBotStatus();
+
       if (homeBotStatus.lastReport && (Date.now() - homeBotStatus.lastReport.getTime()) < 120000) {
         return res.json({
           state: homeBotStatus.state,
@@ -3685,6 +3687,86 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         return res.status(404).json({ error: "Conversation not found" });
       }
       await storage.deleteAiConversation(convId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/guardian/logs", requireAuth, async (req, res) => {
+    try {
+      const logs = await storage.getGuardianLogs(200);
+      res.json(logs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/guardian/scan", requireAuth, async (req, res) => {
+    try {
+      const { scanSystem } = await import("./code-guardian");
+      await scanSystem();
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/guardian/fix/:id", requireAuth, async (req, res) => {
+    try {
+      const logId = req.params.id;
+      const logs = await storage.getGuardianLogs(200);
+      const log = logs.find(l => l.id === logId);
+      if (!log) return res.status(404).json({ error: "Guardian log not found" });
+      if (log.status === "fixed") return res.status(400).json({ error: "Issue already fixed" });
+      const { attemptFix } = await import("./code-guardian");
+      await attemptFix(logId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/features", requireAuth, async (req, res) => {
+    try {
+      const proposals = await storage.getFeatureProposals();
+      res.json(proposals);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/features/generate", requireAuth, async (req, res) => {
+    try {
+      const { generateProposals } = await import("./feature-agent");
+      const proposals = await generateProposals();
+      res.json(proposals);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/admin/features/:id", requireAuth, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const validStatuses = ["proposed", "approved", "rejected", "implementing", "completed"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      const updated = await storage.updateFeatureProposal(req.params.id, {
+        status,
+        ...(status === "approved" || status === "rejected" ? { reviewedAt: new Date() } as any : {}),
+      });
+      if (!updated) return res.status(404).json({ error: "Proposal not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/admin/features/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteFeatureProposal(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

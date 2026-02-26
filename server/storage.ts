@@ -17,9 +17,11 @@ import {
   type OnboardingChecklist, type InsertOnboardingChecklist,
   type AiConversation, type InsertAiConversation,
   type AiMessage, type InsertAiMessage,
+  type GuardianLog, type InsertGuardianLog,
+  type FeatureProposal, type InsertFeatureProposal,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
-  aiConversations, aiMessages,
+  aiConversations, aiMessages, guardianLogs, featureProposals,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -120,6 +122,16 @@ export interface IStorage {
 
   getAiMessages(conversationId: string): Promise<AiMessage[]>;
   createAiMessage(data: InsertAiMessage): Promise<AiMessage>;
+
+  getGuardianLogs(limit?: number): Promise<GuardianLog[]>;
+  createGuardianLog(data: InsertGuardianLog): Promise<GuardianLog>;
+  updateGuardianLog(id: string, data: Partial<InsertGuardianLog>): Promise<GuardianLog | undefined>;
+
+  getFeatureProposals(): Promise<FeatureProposal[]>;
+  getFeatureProposal(id: string): Promise<FeatureProposal | undefined>;
+  createFeatureProposal(data: InsertFeatureProposal): Promise<FeatureProposal>;
+  updateFeatureProposal(id: string, data: Partial<InsertFeatureProposal>): Promise<FeatureProposal | undefined>;
+  deleteFeatureProposal(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -638,6 +650,43 @@ export class DatabaseStorage implements IStorage {
   async createAiMessage(data: InsertAiMessage): Promise<AiMessage> {
     const [msg] = await db.insert(aiMessages).values(data).returning();
     return msg;
+  }
+
+  async getGuardianLogs(limit = 100): Promise<GuardianLog[]> {
+    return db.select().from(guardianLogs).orderBy(desc(guardianLogs.createdAt)).limit(limit);
+  }
+
+  async createGuardianLog(data: InsertGuardianLog): Promise<GuardianLog> {
+    const [log] = await db.insert(guardianLogs).values(data).returning();
+    return log;
+  }
+
+  async updateGuardianLog(id: string, data: Partial<InsertGuardianLog>): Promise<GuardianLog | undefined> {
+    const [log] = await db.update(guardianLogs).set(data).where(eq(guardianLogs.id, id)).returning();
+    return log;
+  }
+
+  async getFeatureProposals(): Promise<FeatureProposal[]> {
+    return db.select().from(featureProposals).orderBy(desc(featureProposals.createdAt));
+  }
+
+  async getFeatureProposal(id: string): Promise<FeatureProposal | undefined> {
+    const [proposal] = await db.select().from(featureProposals).where(eq(featureProposals.id, id));
+    return proposal;
+  }
+
+  async createFeatureProposal(data: InsertFeatureProposal): Promise<FeatureProposal> {
+    const [proposal] = await db.insert(featureProposals).values(data).returning();
+    return proposal;
+  }
+
+  async updateFeatureProposal(id: string, data: Partial<InsertFeatureProposal>): Promise<FeatureProposal | undefined> {
+    const [proposal] = await db.update(featureProposals).set({ ...data, updatedAt: new Date() }).where(eq(featureProposals.id, id)).returning();
+    return proposal;
+  }
+
+  async deleteFeatureProposal(id: string): Promise<void> {
+    await db.delete(featureProposals).where(eq(featureProposals.id, id));
   }
 }
 

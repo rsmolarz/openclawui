@@ -279,6 +279,36 @@ export const insertOnboardingChecklistSchema = createInsertSchema(onboardingChec
 export type OnboardingChecklist = typeof onboardingChecklist.$inferSelect;
 export type InsertOnboardingChecklist = z.infer<typeof insertOnboardingChecklistSchema>;
 
+export const guardianLogs = pgTable("guardian_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type").notNull(),
+  severity: text("severity").notNull().default("info"),
+  message: text("message").notNull(),
+  details: text("details"),
+  status: text("status").notNull().default("detected"),
+  source: text("source"),
+  resolution: text("resolution"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const featureProposals = pgTable("feature_proposals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull().default("enhancement"),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("proposed"),
+  proposedBy: text("proposed_by").notNull().default("agent"),
+  rationale: text("rationale"),
+  implementationPlan: text("implementation_plan"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertGuardianLogSchema = createInsertSchema(guardianLogs).omit({ id: true, createdAt: true });
+export const insertFeatureProposalSchema = createInsertSchema(featureProposals).omit({ id: true, createdAt: true, updatedAt: true, reviewedAt: true });
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertIntegrationSchema = createInsertSchema(integrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLlmApiKeySchema = createInsertSchema(llmApiKeys).omit({ id: true, createdAt: true });
@@ -293,3 +323,7 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type WhatsappSession = typeof whatsappSessions.$inferSelect;
 export type InsertWhatsappSession = z.infer<typeof insertWhatsappSessionSchema>;
+export type GuardianLog = typeof guardianLogs.$inferSelect;
+export type InsertGuardianLog = z.infer<typeof insertGuardianLogSchema>;
+export type FeatureProposal = typeof featureProposals.$inferSelect;
+export type InsertFeatureProposal = z.infer<typeof insertFeatureProposalSchema>;
