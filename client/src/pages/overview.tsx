@@ -314,9 +314,9 @@ export default function Overview() {
         />
         <StatCard
           title="WhatsApp Bot"
-          value={botStatus?.state === "connected" ? "Connected" : botStatus?.state === "qr_ready" ? "QR Ready" : botStatus?.state === "connecting" ? "Connecting" : "Not Running"}
+          value={botStatus?.state === "connected" ? "Connected" : botStatus?.state === "reconnecting" ? "Reconnecting" : botStatus?.state === "qr_ready" ? "QR Ready" : botStatus?.state === "connecting" ? "Connecting" : "Not Running"}
           icon={MessageSquare}
-          description={botStatus?.state === "connected" && botStatus.phone ? `+${botStatus.phone}` : botStatus?.state === "disconnected" || !botStatus ? "Start from OpenClaw Config" : "Setting up..."}
+          description={botStatus?.state === "connected" && botStatus.phone ? `+${botStatus.phone}` : botStatus?.state === "reconnecting" ? "VPS bot is reconnecting..." : botStatus?.state === "disconnected" || !botStatus ? "Start from OpenClaw Config" : "Setting up..."}
           testId="card-stat-whatsapp"
         />
       </div>

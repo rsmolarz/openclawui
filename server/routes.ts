@@ -2359,14 +2359,57 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         });
       }
 
-      const bot = await getWhatsappBot();
-      const status = bot.getStatus();
       const instanceId = await resolveInstanceId(req);
+      let ocConfig: any = null;
       let enabled = false;
       if (instanceId) {
-        const config = await storage.getOpenclawConfig(instanceId);
-        enabled = !!config?.whatsappEnabled;
+        ocConfig = await storage.getOpenclawConfig(instanceId);
+        enabled = !!ocConfig?.whatsappEnabled;
       }
+
+      if (enabled) {
+        try {
+          const { executeRawSSHCommand, getSSHConfig, buildSSHConfigFromVps } = await import("./ssh");
+          let sshConfig;
+          if (instanceId) {
+            const vps = await storage.getVpsConnection(instanceId);
+            if (vps) sshConfig = buildSSHConfigFromVps(vps);
+          }
+          if (!sshConfig) sshConfig = getSSHConfig() || undefined;
+
+          if (sshConfig) {
+            const result = await executeRawSSHCommand(
+              `SERVICE_ACTIVE=$(systemctl is-active openclaw-whatsapp 2>/dev/null || echo "inactive"); LOG_TAIL=$(journalctl -u openclaw-whatsapp --no-pager -n 20 2>/dev/null || tail -20 /tmp/whatsapp-bot.log 2>/dev/null || echo ""); CONNECTED=$(echo "$LOG_TAIL" | grep -c "connected to WA" || echo 0); echo "SERVICE=$SERVICE_ACTIVE"; echo "CONNECTED=$CONNECTED"; echo "---LOG---"; echo "$LOG_TAIL" | tail -5`,
+              sshConfig, 0, 10000
+            );
+            if (result.output) {
+              const serviceActive = result.output.includes("SERVICE=active");
+              const connCount = parseInt(result.output.match(/CONNECTED=(\d+)/)?.[1] || "0");
+              const lastLogLines = result.output.split("---LOG---")[1]?.trim() || "";
+              const isReconnecting = lastLogLines.includes("reconnecting") || lastLogLines.includes("Connection Failure");
+              const vpsHostname = sshConfig.host || "VPS";
+              const configPhone = ocConfig?.whatsappPhone?.replace(/^\+/, "") || null;
+
+              if (serviceActive) {
+                const actuallyConnected = connCount > 0 && !isReconnecting;
+                return res.json({
+                  state: actuallyConnected ? "connected" : "reconnecting",
+                  qrDataUrl: null,
+                  pairingCode: null,
+                  phone: actuallyConnected ? configPhone : null,
+                  error: actuallyConnected ? null : "VPS bot is running but experiencing connection issues",
+                  runtime: "vps-bot",
+                  hostname: vpsHostname,
+                  enabled: true,
+                });
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const bot = await getWhatsappBot();
+      const status = bot.getStatus();
       res.json({ ...status, runtime: "local", enabled });
     } catch (error) {
       res.status(500).json({ error: "Failed to get WhatsApp status" });
