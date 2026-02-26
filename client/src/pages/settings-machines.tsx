@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network, Link2, Zap, Server } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network, Link2, Zap, Server, ScreenShare, Pencil } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
@@ -186,11 +186,60 @@ function ConnectCommandDialog({ machine, gatewayHost, gatewayPort, gatewayToken,
   );
 }
 
+function RemotePcEditDialog({ machine, onSave }: { machine: Machine; onSave: (id: string, alias: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [alias, setAlias] = useState(machine.remotePcAlias || "");
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (v) setAlias(machine.remotePcAlias || ""); }}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" data-testid={`button-edit-remotepc-${machine.id}`}>
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ScreenShare className="h-5 w-5" />
+            RemotePC Settings
+          </DialogTitle>
+          <DialogDescription>
+            Set the RemotePC alias for "{machine.displayName || machine.name}" to enable quick remote access.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">RemotePC Alias / Computer Name</label>
+            <Input
+              placeholder="e.g. PodcastPC or My-Desktop"
+              value={alias}
+              onChange={(e) => setAlias(e.target.value)}
+              data-testid={`input-remotepc-alias-${machine.id}`}
+            />
+            <p className="text-xs text-muted-foreground">
+              This is the name your computer is registered under in RemotePC. You can find it in the RemotePC app under "Computer Name".
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={() => { onSave(machine.id, alias); setOpen(false); }}
+            data-testid={`button-save-remotepc-${machine.id}`}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function NodeCard({
   machine,
   onDelete,
   onStatusChange,
   onHealthCheck,
+  onRemotePcSave,
   isCheckingHealth,
   healthResult,
   gatewayHost,
@@ -202,6 +251,7 @@ function NodeCard({
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
   onHealthCheck: (id: string) => void;
+  onRemotePcSave: (id: string, alias: string) => void;
   isCheckingHealth: boolean;
   healthResult?: { status: string; lastChecked: string; results: { method: string; reachable: boolean; latencyMs?: number; error?: string }[]; noChecksPossible?: boolean } | null;
   gatewayHost: string;
@@ -308,8 +358,32 @@ function NodeCard({
           </div>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-2">
           <ConnectCommandDialog machine={machine} gatewayHost={gatewayHost} gatewayPort={gatewayPort} gatewayToken={gatewayToken} vpsIp={vpsIp} />
+          {machine.remotePcAlias ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => window.open(`https://login.remotepc.com/rpc/connect?computer=${encodeURIComponent(machine.remotePcAlias!)}`, "_blank")}
+                  data-testid={`button-remote-into-${machine.id}`}
+                >
+                  <ScreenShare className="h-3.5 w-3.5" />
+                  Remote Into
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Open RemotePC session to {machine.remotePcAlias}</TooltipContent>
+            </Tooltip>
+          ) : null}
+          <RemotePcEditDialog machine={machine} onSave={onRemotePcSave} />
+          {machine.remotePcAlias && (
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <ScreenShare className="h-3 w-3" />
+              {machine.remotePcAlias}
+            </span>
+          )}
         </div>
 
         {healthResult && (
@@ -994,6 +1068,19 @@ export default function SettingsMachines() {
     },
   });
 
+  const remotePcMutation = useMutation({
+    mutationFn: async ({ id, remotePcAlias }: { id: string; remotePcAlias: string }) => {
+      await apiRequest("PATCH", `/api/machines/${id}`, { remotePcAlias: remotePcAlias || null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
+      toast({ title: "RemotePC updated", description: "RemotePC alias has been saved." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update RemotePC alias.", variant: "destructive" });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/machines/${id}`);
@@ -1200,6 +1287,19 @@ export default function SettingsMachines() {
                     )}
                   />
                 </div>
+                <FormField
+                  control={form.control}
+                  name="remotePcAlias"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>RemotePC Alias (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. PodcastPC" {...field} value={field.value ?? ""} data-testid="input-remotepc-alias" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <DialogFooter>
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-node">
                     {createMutation.isPending ? "Adding..." : "Add Node"}
@@ -1497,6 +1597,7 @@ export default function SettingsMachines() {
                 onDelete={(id) => deleteMutation.mutate(id)}
                 onStatusChange={(id, status) => updateMutation.mutate({ id, status })}
                 onHealthCheck={handleHealthCheck}
+                onRemotePcSave={(id, alias) => remotePcMutation.mutate({ id, remotePcAlias: alias })}
                 isCheckingHealth={checkingHealthIds.has(machine.id)}
                 healthResult={healthResults[machine.id] || null}
                 gatewayHost={gatewayHost}
