@@ -23,6 +23,7 @@ export const machines = pgTable("machines", {
   status: text("status").notNull().default("pending"),
   pairingCode: text("pairing_code"),
   displayName: text("display_name"),
+  remotePcAlias: text("remote_pc_alias"),
   lastSeen: timestamp("last_seen"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

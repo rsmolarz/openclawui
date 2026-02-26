@@ -1,0 +1,168 @@
++ cd C:\openclaw-bot; Remove-Item -Recurse -Force auth_info_baileys -Er ...
++ ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\openclaw-bot:String) [Set-Location], ItemNotFoundException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.SetLocationCommand
+
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Windows\system32\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Windows\system32\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\rsmol\AppData\Local\npm-cache\_logs\2026-02-26T14_48_17_870Z-debug-0.log
+PS C:\Windows\system32>
+PS C:\Windows\system32> PS C:\Windows\system32> cd C:\openclaw-bot; Remove-Item -Recurse -Force auth_info_baileys -ErrorAction SilentlyContinue; npm start
+Get-Process : A positional parameter cannot be found that accepts argument 'cd'.
+At line:1 char:1
++ PS C:\Windows\system32> cd C:\openclaw-bot; Remove-Item -Recurse -For ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-Process], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.GetProcessCommand
+
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Windows\system32\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Windows\system32\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\rsmol\AppData\Local\npm-cache\_logs\2026-02-26T14_49_04_701Z-debug-0.log
+PS C:\Windows\system32> cd : Cannot find path 'C:\openclaw-bot' because it does not exist.
+Set-Location : A positional parameter cannot be found that accepts argument 'Cannot'.
+At line:1 char:1
++ cd : Cannot find path 'C:\openclaw-bot' because it does not exist.
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Set-Location], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.SetLocationCommand
+
+PS C:\Windows\system32> At line:1 char:1
+The AT command has been deprecated. Please use schtasks.exe instead.
+
+Invalid command.
+
+The AT command schedules commands and programs to run on a computer at
+a specified time and date. The Schedule service must be running to use
+the AT command.
+
+AT [\\computername] [ [id] [/DELETE] | /DELETE [/YES]]
+AT [\\computername] time [/INTERACTIVE]
+    [ /EVERY:date[,...] | /NEXT:date[,...]] "command"
+
+\\computername     Specifies a remote computer. Commands are scheduled on the
+                   local computer if this parameter is omitted.
+id                 Is an identification number assigned to a scheduled
+                   command.
+/delete            Cancels a scheduled command. If id is omitted, all the
+                   scheduled commands on the computer are canceled.
+/yes               Used with cancel all jobs command when no further
+                   confirmation is desired.
+time               Specifies the time when command is to run.
+/interactive       Allows the job to interact with the desktop of the user
+                   who is logged on at the time the job runs.
+/every:date[,...]  Runs the command on each specified day(s) of the week or
+                   month. If date is omitted, the current day of the month
+                   is assumed.
+/next:date[,...]   Runs the specified command on the next occurrence of the
+                   day (for example, next Thursday).  If date is omitted, the
+                   current day of the month is assumed.
+"command"          Is the Windows NT command, or batch program to be run.
+
+PS C:\Windows\system32> + cd C:\openclaw-bot; Remove-Item -Recurse -Force auth_info_baileys -Er ...
+At line:1 char:2
++ + cd C:\openclaw-bot; Remove-Item -Recurse -Force auth_info_baileys - ...
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + cd C:\openclaw-bot; Remove-Item -Recurse -Force auth_info_baileys - ...
++   ~~
+Unexpected token 'cd' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\Windows\system32> + ~~~~~~~~~~~~~~~~~~
+At line:1 char:2
++ + ~~~~~~~~~~~~~~~~~~
++  ~
+Missing expression after unary operator '+'.
+At line:1 char:3
++ + ~~~~~~~~~~~~~~~~~~
++   ~~~~~~~~~~~~~~~~~~
+Unexpected token '~~~~~~~~~~~~~~~~~~' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\Windows\system32>     + CategoryInfo          : ObjectNotFound: (C:\openclaw-bot:String) [Set-Location], ItemNotFoundException
+At line:1 char:6
++     + CategoryInfo          : ObjectNotFound: (C:\openclaw-bot:String ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + CategoryInfo          : ObjectNotFound: (C:\openclaw-bot:String ...
++       ~~~~~~~~~~~~
+Unexpected token 'CategoryInfo' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\Windows\system32>     + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.SetLocationCommand
+At line:1 char:6
++     + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Comma ...
++      ~
+Missing expression after unary operator '+'.
+At line:1 char:7
++     + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Comma ...
++       ~~~~~~~~~~~~~~~~~~~~~
+Unexpected token 'FullyQualifiedErrorId' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS C:\Windows\system32>
+PS C:\Windows\system32> npm error code ENOENT
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> npm error syscall open
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> npm error path C:\Windows\system32\package.json
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> npm error errno -4058
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Windows\system32\package.json'
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> npm error enoent This is related to npm not being able to find a file.
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> npm error enoent
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> npm error A complete log of this run can be found in: C:\Users\rsmol\AppData\Local\npm-cache\_logs\2026-02-26T14_48_17_870Z-debug-0.log
+Unknown command: "error"
+
+To see a list of supported npm commands, run:
+  npm help
+PS C:\Windows\system32> PS C:\Windows\system32>
+PS : Cannot find a process with the name "C:\Windows\system32>". Verify the process name and call the cmdlet again.
+At line:1 char:1
++ PS C:\Windows\system32>
++ ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Windows\system32>:String) [Get-Process], ProcessCommandException
+    + FullyQualifiedErrorId : NoProcessFoundForGivenName,Microsoft.PowerShell.Commands.GetProcessCommand
+
+PS C:\Windows\system32>
