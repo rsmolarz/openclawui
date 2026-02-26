@@ -2006,7 +2006,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       }
 
       for (const m of allMachines) {
-        const mIdentifiers = [m.hostname, m.name, m.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
+        const mIdentifiers = [m.hostname, m.name, m.displayName, m.ipAddress].filter(Boolean).map((s: string) => s.toLowerCase());
         const isConnected = mIdentifiers.some((id) => connectedIds.has(id));
 
         if (isConnected && m.status !== "connected") {
@@ -2015,6 +2015,51 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
           await storage.updateMachine(m.id, { status: "disconnected" });
         }
       }
+
+      const trackedMachines = allMachines
+        .filter((m: any) => m.os !== "WhatsApp")
+        .map((m: any) => {
+          const mIds = [m.hostname, m.name, m.displayName, m.ipAddress].filter(Boolean).map((s: string) => s.toLowerCase());
+          const matchedGatewayNode = nodes.find((n: any) => {
+            const nIds = [n.name, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
+            return mIds.some((mid: string) => nIds.includes(mid));
+          });
+          return {
+            id: m.id,
+            name: m.displayName || m.hostname || m.name,
+            hostname: m.hostname || m.name,
+            ip: m.ipAddress || matchedGatewayNode?.ip || "",
+            os: m.os || matchedGatewayNode?.platform || "",
+            status: matchedGatewayNode ? "connected" : (m.status || "disconnected"),
+            caps: matchedGatewayNode?.caps || "",
+            version: matchedGatewayNode?.version || "",
+            platform: matchedGatewayNode?.platform || m.os || "",
+            lastSeen: m.lastSeen,
+            source: matchedGatewayNode ? "gateway" : "database",
+          };
+        });
+
+      const gatewayOnlyNodes = nodes.filter((n: any) => {
+        const nIds = [n.name, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
+        return !allMachines.some((m: any) => {
+          const mIds = [m.hostname, m.name, m.displayName, m.ipAddress].filter(Boolean).map((s: string) => s.toLowerCase());
+          return mIds.some((mid: string) => nIds.includes(mid));
+        });
+      }).map((n: any) => ({
+        id: n.id,
+        name: n.name,
+        hostname: n.name,
+        ip: n.ip || "",
+        os: n.platform || "",
+        status: "connected",
+        caps: n.caps || "",
+        version: n.version || "",
+        platform: n.platform || "",
+        lastSeen: null,
+        source: "gateway",
+      }));
+
+      const allNodes = [...trackedMachines, ...gatewayOnlyNodes];
 
       res.json({
         gateway: gatewayRunning ? "online" : "offline",
@@ -2026,6 +2071,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         pendingCount: pending.length,
         gatewayProcess: gatewayRunning,
         source: usedCli ? "cli" : "file",
+        allNodes,
+        totalTracked: allMachines.filter((m: any) => m.os !== "WhatsApp").length,
       });
     } catch (error: any) {
       res.status(500).json({ gateway: "error", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message });

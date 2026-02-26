@@ -559,37 +559,10 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
     staleTime: 15000,
   });
 
-  const { data: allMachines } = useQuery<any[]>({
-    queryKey: ["/api/machines"],
-  });
-
-  const gatewayNodes = liveStatus?.nodes ?? [];
-  const connectedNames = new Set(
-    gatewayNodes.map((n: any) => (n.name || "").toLowerCase())
-  );
-
-  const offlineMachines = (allMachines ?? [])
-    .filter((m: any) => {
-      const names = [m.hostname, m.name, m.displayName].filter(Boolean).map((s: string) => s.toLowerCase());
-      return !names.some((n: string) => connectedNames.has(n));
-    })
-    .filter((m: any) => m.os !== "WhatsApp")
-    .map((m: any) => ({
-      name: m.displayName || m.hostname || m.name,
-      id: m.id,
-      ip: m.ipAddress || "",
-      status: "offline",
-      caps: "",
-      version: "",
-      platform: m.os || "",
-      source: "database",
-    }));
-
-  const mergedNodes = [
-    ...gatewayNodes.map((n: any) => ({ ...n, source: "gateway" })),
-    ...offlineMachines,
-  ];
-  const hasNodes = mergedNodes.length > 0;
+  const allNodes: any[] = (liveStatus as any)?.allNodes ?? [];
+  const gatewayConnectedCount = allNodes.filter((n: any) => n.source === "gateway" || n.status === "connected").length;
+  const offlineCount = allNodes.filter((n: any) => n.status !== "connected").length;
+  const hasNodes = allNodes.length > 0;
 
   if (!instanceId) return null;
 
@@ -603,7 +576,7 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
               All Nodes
             </CardTitle>
             <CardDescription>
-              {gatewayNodes.length} connected to gateway, {offlineMachines.length} offline.
+              {gatewayConnectedCount} connected to gateway, {offlineCount} offline.
               {liveStatus?.source === "cli" && (
                 <Badge variant="secondary" className="ml-2 text-[10px]">CLI</Badge>
               )}
@@ -637,9 +610,9 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
           </div>
         ) : hasNodes ? (
           <div className="space-y-2">
-            {mergedNodes.map((node: any, idx: number) => {
-              const isConnected = node.source === "gateway" && node.status?.includes("connected") && !node.status?.includes("disconnected");
-              const isOffline = node.source === "database";
+            {allNodes.map((node: any, idx: number) => {
+              const isConnected = node.status === "connected";
+              const isOffline = node.status !== "connected";
               const truncatedId = (node.id || "").length > 12 ? `${node.id.slice(0, 12)}...` : (node.id || "");
               return (
                 <div

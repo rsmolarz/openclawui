@@ -292,7 +292,7 @@ export default function SettingsDashboard() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Devices</p>
                 <p className="text-lg font-bold" data-testid="text-device-counts">
-                  {liveStatusQuery.isLoading ? "..." : `${liveStatusQuery.data?.pairedCount ?? 0} paired`}
+                  {liveStatusQuery.isLoading ? "..." : `${(liveStatusQuery.data as any)?.totalTracked ?? liveStatusQuery.data?.pairedCount ?? 0} tracked (${liveStatusQuery.data?.pairedCount ?? 0} online)`}
                 </p>
               </div>
             </div>
