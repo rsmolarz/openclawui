@@ -2290,6 +2290,13 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     return best || { state: "disconnected", phone: null, error: null, runtime: "home-bot", hostname: null, lastReport: null };
   }
 
+  (async () => {
+    try {
+      const { setHomeBotStatusRef } = await import("./code-guardian");
+      setHomeBotStatusRef(() => getResolvedHomeBotStatus());
+    } catch {}
+  })();
+
   app.post("/api/whatsapp/home-bot-status", validateApiKey as any, (req: Request, res: Response) => {
     const { state, phone, error, hostname } = req.body;
     const host = hostname || "unknown";
@@ -3688,6 +3695,71 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       }
       await storage.deleteAiConversation(convId);
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/guardian/fix-whatsapp", requireAuth, async (req, res) => {
+    try {
+      const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+      const instances = await storage.getInstances();
+      const defaultInstance = instances.find(i => i.isDefault);
+      if (!defaultInstance) return res.status(400).json({ error: "No default instance" });
+      const vps = await storage.getVpsConnection(defaultInstance.id);
+      if (!vps) return res.status(400).json({ error: "No VPS connection" });
+      const sshConfig = buildSSHConfigFromVps(vps);
+
+      const stopResult = await executeRawSSHCommand(
+        "systemctl stop openclaw-whatsapp 2>/dev/null; systemctl disable openclaw-whatsapp 2>/dev/null; pkill -f 'openclaw-whatsapp' 2>/dev/null; sleep 1; echo DONE",
+        sshConfig, 0, 15000
+      );
+
+      await storage.createGuardianLog({
+        type: "fix",
+        severity: "info",
+        message: "VPS WhatsApp bot stopped and disabled via quick-fix",
+        details: stopResult.output || "VPS bot stopped",
+        status: "fixed",
+        source: "vps-bot-conflict",
+      });
+
+      res.json({ success: true, message: "VPS WhatsApp bot stopped and disabled. Home-bot should stabilize." });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/guardian/whatsapp-health", requireAuth, async (_req, res) => {
+    try {
+      const homeBotStatus = getResolvedHomeBotStatus();
+      const lastReportAge = homeBotStatus.lastReport ? Date.now() - homeBotStatus.lastReport.getTime() : null;
+
+      let vpsBotActive = false;
+      try {
+        const { executeRawSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+        const instances = await storage.getInstances();
+        const defaultInstance = instances.find(i => i.isDefault);
+        if (defaultInstance) {
+          const vps = await storage.getVpsConnection(defaultInstance.id);
+          if (vps) {
+            const sshConfig = buildSSHConfigFromVps(vps);
+            const r = await executeRawSSHCommand("systemctl is-active openclaw-whatsapp 2>/dev/null", sshConfig, 0, 10000);
+            vpsBotActive = r.success && r.output.trim() === "active";
+          }
+        }
+      } catch {}
+
+      res.json({
+        homeBotState: homeBotStatus.state,
+        homeBotPhone: homeBotStatus.phone,
+        homeBotHostname: homeBotStatus.hostname,
+        homeBotError: homeBotStatus.error,
+        homeBotLastReportAge: lastReportAge ? Math.round(lastReportAge / 1000) : null,
+        homeBotOnline: lastReportAge !== null && lastReportAge < 120000 && homeBotStatus.state === "connected",
+        vpsBotActive,
+        hasConflict: vpsBotActive && lastReportAge !== null && lastReportAge < 120000,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

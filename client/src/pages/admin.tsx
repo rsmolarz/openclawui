@@ -26,6 +26,10 @@ import {
   Wifi,
   HardDrive,
   Server,
+  MessageSquare,
+  Unplug,
+  ShieldAlert,
+  Phone,
 } from "lucide-react";
 import type { GuardianLog, FeatureProposal } from "@shared/schema";
 
@@ -88,6 +92,186 @@ function proposalStatusBadge(status: string) {
   }
 }
 
+interface WhatsAppHealth {
+  homeBotState: string;
+  homeBotPhone: string | null;
+  homeBotHostname: string | null;
+  homeBotError: string | null;
+  homeBotLastReportAge: number | null;
+  homeBotOnline: boolean;
+  vpsBotActive: boolean;
+  hasConflict: boolean;
+}
+
+function WhatsAppHealthPanel() {
+  const { toast } = useToast();
+
+  const { data: health, isLoading } = useQuery<WhatsAppHealth>({
+    queryKey: ["/api/admin/guardian/whatsapp-health"],
+    refetchInterval: 15000,
+  });
+
+  const fixMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/guardian/fix-whatsapp"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/guardian/whatsapp-health"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/guardian/logs"] });
+      toast({ title: "VPS bot stopped", description: "The conflicting VPS WhatsApp bot has been stopped and disabled." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Fix failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading || !health) {
+    return (
+      <Card data-testid="card-whatsapp-health">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const stateColor = health.homeBotOnline
+    ? "text-green-600 dark:text-green-400"
+    : health.homeBotState === "connecting" || health.homeBotState === "reconnecting"
+    ? "text-amber-600 dark:text-amber-400"
+    : "text-red-600 dark:text-red-400";
+
+  const stateBg = health.homeBotOnline
+    ? "bg-green-100 dark:bg-green-900"
+    : health.homeBotState === "connecting" || health.homeBotState === "reconnecting"
+    ? "bg-amber-100 dark:bg-amber-900"
+    : "bg-red-100 dark:bg-red-900";
+
+  return (
+    <Card data-testid="card-whatsapp-health">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" />
+          WhatsApp Connection Health
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Home Bot</p>
+            <div className="flex items-center gap-2">
+              <div className={`h-3 w-3 rounded-full ${health.homeBotOnline ? "bg-green-500" : "bg-red-500"} ${health.homeBotOnline ? "animate-pulse" : ""}`} />
+              <span className={`text-sm font-medium ${stateColor}`} data-testid="text-homebot-state">
+                {health.homeBotState === "connected" ? "Connected" : health.homeBotState || "Unknown"}
+              </span>
+            </div>
+            {health.homeBotPhone && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Phone className="h-3 w-3" />
+                <span data-testid="text-homebot-phone">+{health.homeBotPhone}</span>
+              </div>
+            )}
+            {health.homeBotHostname && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Server className="h-3 w-3" />
+                <span data-testid="text-homebot-hostname">{health.homeBotHostname}</span>
+              </div>
+            )}
+            {health.homeBotLastReportAge !== null && (
+              <p className="text-xs text-muted-foreground" data-testid="text-homebot-age">
+                Last report: {health.homeBotLastReportAge}s ago
+              </p>
+            )}
+            {health.homeBotError && (
+              <p className="text-xs text-red-500" data-testid="text-homebot-error">{health.homeBotError}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">VPS Bot (Conflict Source)</p>
+            <div className="flex items-center gap-2">
+              <div className={`h-3 w-3 rounded-full ${health.vpsBotActive ? "bg-red-500 animate-pulse" : "bg-green-500"}`} />
+              <span className={`text-sm font-medium ${health.vpsBotActive ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`} data-testid="text-vpsbot-state">
+                {health.vpsBotActive ? "Running (BAD)" : "Stopped (Good)"}
+              </span>
+            </div>
+            {health.vpsBotActive && (
+              <p className="text-xs text-red-500">
+                This VPS service is fighting with the home-bot for the same WhatsApp session.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {health.hasConflict && (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900">
+            <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800 dark:text-red-200" data-testid="text-conflict-warning">
+                Session Conflict Detected
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                The VPS bot and home-bot are both trying to connect to WhatsApp. This causes repeated disconnections.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => fixMutation.mutate()}
+              disabled={fixMutation.isPending}
+              data-testid="button-fix-whatsapp-conflict"
+            >
+              {fixMutation.isPending ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Wrench className="h-3 w-3 mr-1" />
+              )}
+              Stop VPS Bot
+            </Button>
+          </div>
+        )}
+
+        {!health.hasConflict && health.vpsBotActive && (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                VPS Bot Still Running
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                The VPS bot is active and may conflict with the home-bot. Consider stopping it.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fixMutation.mutate()}
+              disabled={fixMutation.isPending}
+              data-testid="button-stop-vps-bot"
+            >
+              {fixMutation.isPending ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Unplug className="h-3 w-3 mr-1" />
+              )}
+              Stop VPS Bot
+            </Button>
+          </div>
+        )}
+
+        {!health.vpsBotActive && health.homeBotOnline && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900">
+            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <p className="text-sm text-green-800 dark:text-green-200" data-testid="text-whatsapp-healthy">
+              WhatsApp is healthy. Home-bot is connected and no conflicting services are running.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function CodeGuardianTab() {
   const { toast } = useToast();
 
@@ -99,6 +283,7 @@ function CodeGuardianTab() {
     mutationFn: () => apiRequest("POST", "/api/admin/guardian/scan"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/guardian/logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/guardian/whatsapp-health"] });
       toast({ title: "Scan complete", description: "System scan finished. Check the log for results." });
     },
     onError: (err: Error) => {
@@ -110,6 +295,7 @@ function CodeGuardianTab() {
     mutationFn: (id: string) => apiRequest("POST", `/api/admin/guardian/fix/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/guardian/logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/guardian/whatsapp-health"] });
       toast({ title: "Fix attempted", description: "Check the log for results." });
     },
     onError: (err: Error) => {
@@ -146,6 +332,8 @@ function CodeGuardianTab() {
           {scanMutation.isPending ? "Scanning..." : "Run Scan"}
         </Button>
       </div>
+
+      <WhatsAppHealthPanel />
 
       <div className="grid grid-cols-3 gap-4">
         <Card data-testid="card-critical-count">

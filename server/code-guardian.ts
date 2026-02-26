@@ -15,6 +15,12 @@ async function logCheck(data: InsertGuardianLog) {
   return storage.createGuardianLog(data);
 }
 
+let homeBotStatusRef: (() => { state: string; phone: string | null; error: string | null; hostname: string | null; lastReport: Date | null }) | null = null;
+
+function setHomeBotStatusRef(fn: typeof homeBotStatusRef) {
+  homeBotStatusRef = fn;
+}
+
 async function scanSystem(): Promise<void> {
   let sshConfig: SSHConnectionConfig;
   try {
@@ -74,16 +80,81 @@ async function scanSystem(): Promise<void> {
     });
   }
 
-  const waResult = await executeRawSSHCommand("systemctl is-active openclaw-whatsapp", sshConfig);
-  const waActive = waResult.success && waResult.output.trim() === "active";
-  await logCheck({
-    type: "service",
-    severity: waActive ? "info" : "warning",
-    message: waActive ? "WhatsApp bot is active" : "WhatsApp bot is not active",
-    details: waResult.output || waResult.error || "",
-    status: "detected",
-    source: "whatsapp-check",
-  });
+  const vpsBotResult = await executeRawSSHCommand(
+    "systemctl is-active openclaw-whatsapp 2>/dev/null; echo '---'; systemctl is-enabled openclaw-whatsapp 2>/dev/null; echo '---'; ps aux | grep -c '[o]penclaw-whatsapp' 2>/dev/null",
+    sshConfig
+  );
+  const parts = vpsBotResult.output.split("---").map(s => s.trim());
+  const svcActive = parts[0] === "active";
+  const svcEnabled = parts[1] === "enabled";
+  const procCount = parseInt(parts[2] || "0", 10);
+  const vpsBotActive = svcActive || procCount > 0;
+  const vpsBotEnabled = svcEnabled;
+
+  if (vpsBotActive || vpsBotEnabled) {
+    await logCheck({
+      type: "service",
+      severity: "warning",
+      message: `VPS WhatsApp bot is ${vpsBotActive ? "running" : "enabled"} — conflicts with home-bot`,
+      details: `The VPS bot fights with the home-bot for the same WhatsApp session, causing repeated disconnections. It should be stopped and disabled. Status: ${vpsBotResult.output.trim()}`,
+      status: "detected",
+      source: "vps-bot-conflict",
+    });
+  } else {
+    await logCheck({
+      type: "service",
+      severity: "info",
+      message: "VPS WhatsApp bot is properly disabled (no conflict)",
+      details: vpsBotResult.output.trim(),
+      status: "detected",
+      source: "vps-bot-conflict",
+    });
+  }
+
+  if (homeBotStatusRef) {
+    const hbStatus = homeBotStatusRef();
+    const lastReportAge = hbStatus.lastReport ? Date.now() - hbStatus.lastReport.getTime() : Infinity;
+    const isRecent = lastReportAge < 120000;
+    const isConnected = isRecent && hbStatus.state === "connected";
+
+    if (isConnected) {
+      await logCheck({
+        type: "service",
+        severity: "info",
+        message: `WhatsApp home-bot connected on ${hbStatus.hostname || "unknown"} (phone: ${hbStatus.phone || "?"})`,
+        details: `State: ${hbStatus.state}, last report: ${Math.round(lastReportAge / 1000)}s ago`,
+        status: "detected",
+        source: "whatsapp-homebot",
+      });
+    } else if (isRecent && hbStatus.state !== "connected") {
+      await logCheck({
+        type: "disconnect",
+        severity: "warning",
+        message: `WhatsApp home-bot is ${hbStatus.state} on ${hbStatus.hostname || "unknown"}`,
+        details: `State: ${hbStatus.state}, error: ${hbStatus.error || "none"}, last report: ${Math.round(lastReportAge / 1000)}s ago`,
+        status: "detected",
+        source: "whatsapp-homebot",
+      });
+    } else {
+      await logCheck({
+        type: "disconnect",
+        severity: "critical",
+        message: "WhatsApp home-bot is not reporting (offline or crashed)",
+        details: `Last report was ${hbStatus.lastReport ? Math.round(lastReportAge / 1000) + "s ago" : "never"}. The home-bot process on ${hbStatus.hostname || "the host machine"} may need to be restarted.`,
+        status: "detected",
+        source: "whatsapp-homebot",
+      });
+    }
+  } else {
+    await logCheck({
+      type: "service",
+      severity: "warning",
+      message: "WhatsApp home-bot status unavailable (status ref not set)",
+      details: "Cannot determine home-bot health",
+      status: "detected",
+      source: "whatsapp-homebot",
+    });
+  }
 
   const nodesResult = await executeRawSSHCommand("openclaw nodes status 2>&1 || echo 'nodes check failed'", sshConfig);
   await logCheck({
@@ -157,6 +228,24 @@ async function attemptFix(logId: string): Promise<void> {
     return;
   }
 
+  if (log.source === "vps-bot-conflict" && log.severity !== "info") {
+    const stopResult = await executeRawSSHCommand(
+      "systemctl stop openclaw-whatsapp 2>/dev/null; systemctl disable openclaw-whatsapp 2>/dev/null; pkill -f 'openclaw-whatsapp' 2>/dev/null; sleep 1; systemctl is-active openclaw-whatsapp 2>/dev/null || echo 'stopped'",
+      sshConfig
+    );
+    if (stopResult.success && (stopResult.output.includes("inactive") || stopResult.output.includes("stopped"))) {
+      await storage.updateGuardianLog(logId, { status: "fixed", resolution: "VPS WhatsApp bot stopped and disabled. Home-bot is now the sole connection." });
+    } else {
+      await storage.updateGuardianLog(logId, { status: "failed", resolution: "Failed to stop VPS bot: " + (stopResult.output || stopResult.error) });
+    }
+    return;
+  }
+
+  if (log.source === "whatsapp-homebot" && log.severity !== "info") {
+    await storage.updateGuardianLog(logId, { status: "failed", resolution: "Home-bot runs on your local machine. Check that the process is running on " + (log.details?.match(/hostname: (\S+)/)?.[1] || "the host machine") + ". Restart it manually if needed." });
+    return;
+  }
+
   if (log.source === "whatsapp-check" && log.severity !== "info") {
     const restartResult = await executeRawSSHCommand("systemctl restart openclaw-whatsapp && sleep 3 && systemctl is-active openclaw-whatsapp", sshConfig);
     if (restartResult.success && restartResult.output.trim().includes("active")) {
@@ -183,4 +272,4 @@ async function attemptFix(logId: string): Promise<void> {
   await storage.updateGuardianLog(logId, { status: "failed", resolution: "No automatic fix available for this issue type" });
 }
 
-export { scanSystem, attemptFix };
+export { scanSystem, attemptFix, setHomeBotStatusRef };
