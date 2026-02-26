@@ -1,0 +1,14 @@
+{
+  "name": "openclaw-whatsapp-vps",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.16",
+    "qrcode": "^1.5.4"
+  }
+}

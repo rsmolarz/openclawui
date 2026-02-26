@@ -2273,21 +2273,20 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     next();
   };
 
-  const homeBotStatusByHost: Map<string, { state: string; phone: string | null; error: string | null; runtime: string; hostname: string; lastReport: Date }> = new Map();
+  const homeBotStatusByHost: Map<string, { state: string; phone: string | null; error: string | null; runtime: string; hostname: string; lastReport: Date; qrDataUrl?: string | null; pairingCode?: string | null }> = new Map();
 
-  function getResolvedHomeBotStatus(): { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null } {
+  function getResolvedHomeBotStatus(): { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null; qrDataUrl?: string | null; pairingCode?: string | null } {
     const now = Date.now();
     const staleThreshold = 120000;
-    let best: { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null } | null = null;
+    let best: { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null; qrDataUrl?: string | null; pairingCode?: string | null } | null = null;
 
     for (const [host, entry] of homeBotStatusByHost.entries()) {
       if (now - entry.lastReport.getTime() > staleThreshold) continue;
       if (!best) { best = entry; continue; }
-      if (entry.state === "connected" && best.state !== "connected") { best = entry; continue; }
-      if (entry.state === best.state && entry.lastReport.getTime() > (best.lastReport?.getTime() || 0)) { best = entry; }
+      if (entry.lastReport.getTime() > (best.lastReport?.getTime() || 0)) { best = entry; continue; }
     }
 
-    return best || { state: "disconnected", phone: null, error: null, runtime: "home-bot", hostname: null, lastReport: null };
+    return best || { state: "disconnected", phone: null, error: null, runtime: "home-bot", hostname: null, lastReport: null, qrDataUrl: null, pairingCode: null };
   }
 
   (async () => {
@@ -2298,7 +2297,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
   })();
 
   app.post("/api/whatsapp/home-bot-status", validateApiKey as any, (req: Request, res: Response) => {
-    const { state, phone, error, hostname } = req.body;
+    const { state, phone, error, hostname, qrDataUrl, pairingCode } = req.body;
     const host = hostname || "unknown";
     homeBotStatusByHost.set(host, {
       state: state || "disconnected",
@@ -2307,6 +2306,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       runtime: "home-bot",
       hostname: host,
       lastReport: new Date(),
+      qrDataUrl: qrDataUrl || null,
+      pairingCode: pairingCode || null,
     });
     res.json({ ok: true });
   });
@@ -2359,8 +2360,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       if (homeBotStatus.lastReport && (Date.now() - homeBotStatus.lastReport.getTime()) < 120000) {
         return res.json({
           state: homeBotStatus.state,
-          qrDataUrl: null,
-          pairingCode: null,
+          qrDataUrl: homeBotStatus.qrDataUrl || null,
+          pairingCode: homeBotStatus.pairingCode || null,
           phone: homeBotStatus.phone,
           error: homeBotStatus.error,
           runtime: "home-bot",
