@@ -2273,20 +2273,34 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     next();
   };
 
-  let homeBotStatus: { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null } = {
-    state: "disconnected", phone: null, error: null, runtime: "home-bot", hostname: null, lastReport: null,
-  };
+  const homeBotStatusByHost: Map<string, { state: string; phone: string | null; error: string | null; runtime: string; hostname: string; lastReport: Date }> = new Map();
+
+  function getResolvedHomeBotStatus(): { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null } {
+    const now = Date.now();
+    const staleThreshold = 120000;
+    let best: { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null } | null = null;
+
+    for (const [host, entry] of homeBotStatusByHost.entries()) {
+      if (now - entry.lastReport.getTime() > staleThreshold) continue;
+      if (!best) { best = entry; continue; }
+      if (entry.state === "connected" && best.state !== "connected") { best = entry; continue; }
+      if (entry.state === best.state && entry.lastReport.getTime() > (best.lastReport?.getTime() || 0)) { best = entry; }
+    }
+
+    return best || { state: "disconnected", phone: null, error: null, runtime: "home-bot", hostname: null, lastReport: null };
+  }
 
   app.post("/api/whatsapp/home-bot-status", validateApiKey as any, (req: Request, res: Response) => {
     const { state, phone, error, hostname } = req.body;
-    homeBotStatus = {
+    const host = hostname || "unknown";
+    homeBotStatusByHost.set(host, {
       state: state || "disconnected",
       phone: phone || null,
       error: error || null,
       runtime: "home-bot",
-      hostname: hostname || null,
+      hostname: host,
       lastReport: new Date(),
-    };
+    });
     res.json({ ok: true });
   });
 
