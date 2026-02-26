@@ -2083,7 +2083,33 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
   app.get("/api/integrations", requireAuth, async (_req, res) => {
     try {
       const all = await storage.getIntegrations();
-      res.json(all);
+
+      const enriched = await Promise.all(all.map(async (integration) => {
+        if (integration.type === "telegram") {
+          try {
+            const { getTelegramStatus } = await import("./bot/telegram");
+            const tgStatus = getTelegramStatus();
+            const liveStatus = tgStatus.state === "connected" ? "connected"
+              : tgStatus.state === "connecting" ? "connecting"
+              : tgStatus.state === "error" ? "error"
+              : tgStatus.enabled ? "disconnected" : "not_configured";
+            return { ...integration, status: liveStatus };
+          } catch { return integration; }
+        }
+        if (integration.type === "whatsapp") {
+          try {
+            const { getWhatsAppStatus } = await import("./bot/whatsapp");
+            const waStatus = getWhatsAppStatus();
+            const liveStatus = waStatus.state === "connected" ? "connected"
+              : waStatus.state === "connecting" ? "connecting"
+              : "disconnected";
+            return { ...integration, status: liveStatus };
+          } catch { return integration; }
+        }
+        return integration;
+      }));
+
+      res.json(enriched);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch integrations" });
     }

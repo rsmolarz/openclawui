@@ -496,6 +496,7 @@ export default function SettingsIntegrations() {
 
   const { data: integrationsList, isLoading } = useQuery<Integration[]>({
     queryKey: ["/api/integrations"],
+    refetchInterval: 10000,
   });
 
   const toggleMutation = useMutation({
