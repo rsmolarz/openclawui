@@ -42,6 +42,7 @@ class WhatsAppBot extends EventEmitter {
   private usePairingCode = false;
   private pairingPhone: string | null = null;
   private reconnectAttempts = 0;
+  private _sentMessageIds: Set<string> = new Set();
   private autoReconnect = true;
   private _hasDbAuth = false;
   private _clearAuthFn: (() => Promise<void>) | null = null;
@@ -468,17 +469,35 @@ class WhatsAppBot extends EventEmitter {
 
         if (messageType !== "notify" && messageType !== "append") return;
 
+        const botJid = sock.user?.id;
+        const botPhone = botJid?.split(":")[0] || botJid?.split("@")[0] || "";
+
         for (const msg of m.messages) {
           const jid = msg.key?.remoteJid;
           const fromMe = msg.key?.fromMe;
           const hasMessage = !!msg.message;
+          const msgId = msg.key?.id;
 
-          if (fromMe) continue;
-          if (!hasMessage) {
+          if (!jid || jid === "status@broadcast") continue;
+
+          if (fromMe && this._sentMessageIds?.has(msgId)) {
             continue;
           }
 
-          if (!jid || jid === "status@broadcast") continue;
+          const isGroup = jid.endsWith("@g.us");
+          const actualSender = isGroup
+            ? (msg.key?.participant || "").replace("@s.whatsapp.net", "")
+            : jid.replace("@s.whatsapp.net", "");
+
+          if (fromMe && !isGroup && actualSender !== botPhone) {
+            console.log(`[WhatsApp] Processing message from linked device ${actualSender} (botPhone=${botPhone})`);
+          } else if (fromMe) {
+            continue;
+          }
+
+          if (!hasMessage) {
+            continue;
+          }
 
           const text =
             msg.message.conversation ||
@@ -495,10 +514,7 @@ class WhatsAppBot extends EventEmitter {
             continue;
           }
 
-          const isGroup = jid.endsWith("@g.us");
-          const senderPhone = isGroup
-            ? (msg.key.participant || jid).replace("@s.whatsapp.net", "").replace("@g.us", "")
-            : jid.replace("@s.whatsapp.net", "");
+          const senderPhone = actualSender;
           const pushName = msg.pushName || undefined;
 
           console.log(`[WhatsApp] Text message from ${senderPhone} (${pushName || "unknown"}) in ${isGroup ? "group" : "DM"}: "${text.trim().substring(0, 80)}"`);
@@ -602,7 +618,14 @@ class WhatsAppBot extends EventEmitter {
   async sendMessage(jid: string, text: string): Promise<void> {
     if (!this.sock) return;
     try {
-      await this.sock.sendMessage(jid, { text });
+      const sent = await this.sock.sendMessage(jid, { text });
+      if (sent?.key?.id) {
+        this._sentMessageIds.add(sent.key.id);
+        if (this._sentMessageIds.size > 200) {
+          const entries = [...this._sentMessageIds];
+          this._sentMessageIds = new Set(entries.slice(-100));
+        }
+      }
     } catch (error) {
       console.error(`[WhatsApp] Failed to send message to ${jid}:`, error);
     }
