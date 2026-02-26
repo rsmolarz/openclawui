@@ -3711,7 +3711,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const sshConfig = buildSSHConfigFromVps(vps);
 
       const stopResult = await executeRawSSHCommand(
-        "systemctl stop openclaw-whatsapp 2>/dev/null; systemctl disable openclaw-whatsapp 2>/dev/null; pkill -f 'openclaw-whatsapp' 2>/dev/null; sleep 1; echo DONE",
+        "systemctl stop openclaw-whatsapp 2>/dev/null; systemctl disable openclaw-whatsapp 2>/dev/null; pkill -f 'openclaw-whatsapp' 2>/dev/null; pkill -f 'whatsapp-web.js' 2>/dev/null; pkill -f 'whatsapp-bot' 2>/dev/null; sleep 1; echo DONE",
         sshConfig, 0, 15000
       );
 
@@ -3744,8 +3744,16 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
           const vps = await storage.getVpsConnection(defaultInstance.id);
           if (vps) {
             const sshConfig = buildSSHConfigFromVps(vps);
-            const r = await executeRawSSHCommand("systemctl is-active openclaw-whatsapp 2>/dev/null", sshConfig, 0, 10000);
-            vpsBotActive = r.success && r.output.trim() === "active";
+            const r = await executeRawSSHCommand(
+              "systemctl is-active openclaw-whatsapp 2>/dev/null; echo '---'; ps aux | grep -c '[o]penclaw-whatsapp' 2>/dev/null; echo '---'; ps aux | grep -c '[w]hatsapp-web.js' 2>/dev/null",
+              sshConfig, 0, 10000
+            );
+            if (r.success) {
+              const parts = r.output.split("---").map(s => s.trim());
+              const svcActive = parts[0] === "active";
+              const procCount = parseInt(parts[1] || "0", 10) + parseInt(parts[2] || "0", 10);
+              vpsBotActive = svcActive || procCount > 0;
+            }
           }
         }
       } catch {}
