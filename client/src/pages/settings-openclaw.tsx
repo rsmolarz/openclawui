@@ -2020,6 +2020,43 @@ export default function SettingsOpenclaw() {
             </div>
           )}
 
+          <div className="rounded-md bg-primary/5 border border-primary/20 p-4 space-y-3" data-testid="home-bot-download-always">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <Download className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-semibold">Home Network Bot {botStatus?.state === "connected" ? "(Update Available)" : ""}</p>
+                <p className="text-xs text-muted-foreground">
+                  {botStatus?.state === "connected"
+                    ? "Download the latest bot version. Your API key and phone number are pre-configured."
+                    : "WhatsApp requires a residential IP. Download and run this on a home computer."}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => window.open("/api/whatsapp/home-bot-download", "_blank")}
+                data-testid="button-download-home-bot-top"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Download Bot Package
+              </Button>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
+              <p className="text-xs font-medium">Setup (on your home computer):</p>
+              <ol className="text-xs text-muted-foreground list-decimal list-inside space-y-0.5">
+                <li>Unzip the downloaded file</li>
+                <li>Open a terminal in the folder and run <code className="bg-muted px-1 rounded">npm install</code></li>
+                <li>Run <code className="bg-muted px-1 rounded">npm start</code></li>
+                <li>Enter the pairing code shown in the terminal into WhatsApp on your phone</li>
+                <li>(Optional) Run <code className="bg-muted px-1 rounded">node install-service.js</code> to auto-start on boot</li>
+              </ol>
+            </div>
+          </div>
+
           {botStatus?.error && botStatus?.state !== "connecting" && (
             <div className="rounded-md bg-destructive/10 border-2 border-destructive/30 p-4 space-y-3" data-testid="whatsapp-error-banner">
               <div className="flex items-center gap-3">
