@@ -130,6 +130,63 @@ export async function registerRoutes(
 ): Promise<Server> {
   const isProductionRuntime = process.env.NODE_ENV === "production";
 
+  app.get("/api/public/home-bot/:file", async (req, res) => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const allowed = ["package.json", "config.json", "openclaw-whatsapp.js", "install-service.js"];
+    const file = req.params.file;
+    if (!allowed.includes(file)) return res.status(404).send("Not found");
+
+    const botDir = path.default.join(process.cwd(), "home-bot");
+    const filePath = path.default.join(botDir, file);
+    if (!fs.existsSync(filePath)) return res.status(404).send("Not found");
+
+    if (file === "config.json") {
+      try {
+        const keys = await storage.getApiKeys();
+        const activeKey = keys.find((k: any) => k.active && k.permissions === "admin");
+        const openclawConfig = await storage.getOpenclawConfig(
+          (await storage.getInstances()).find((i: any) => i.isDefault)?.id || ""
+        );
+        const phone = openclawConfig?.whatsappPhone?.replace(/[^0-9]/g, "") || "";
+        return res.json({
+          dashboardUrl: "https://claw-settings.replit.app",
+          apiKey: activeKey?.key || "YOUR_API_KEY_HERE",
+          phoneNumber: phone,
+          botName: "OpenClaw AI",
+          usePairingCode: true,
+          autoRestart: true,
+        });
+      } catch { /* fall through to static file */ }
+    }
+
+    res.sendFile(filePath);
+  });
+
+  app.get("/api/public/home-bot-setup", async (_req, res) => {
+    const keys = await storage.getApiKeys();
+    const activeKey = keys.find((k: any) => k.active && k.permissions === "admin");
+    const apiKey = activeKey?.key || "YOUR_API_KEY_HERE";
+    const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || "claw-settings.replit.app"}`;
+
+    res.setHeader("Content-Type", "text/plain");
+    res.send(`# OpenClaw WhatsApp Bot - Quick Setup
+# Run these commands in PowerShell on your home computer:
+
+mkdir C:\\openclaw-bot -Force
+cd C:\\openclaw-bot
+Invoke-WebRequest ${baseUrl}/api/public/home-bot/package.json -OutFile package.json
+Invoke-WebRequest ${baseUrl}/api/public/home-bot/config.json -OutFile config.json
+Invoke-WebRequest ${baseUrl}/api/public/home-bot/openclaw-whatsapp.js -OutFile openclaw-whatsapp.js
+Invoke-WebRequest ${baseUrl}/api/public/home-bot/install-service.js -OutFile install-service.js
+npm install
+npm start
+
+# A pairing code will appear. Enter it in WhatsApp:
+# Settings > Linked Devices > Link a Device > Link with phone number
+`);
+  });
+
   app.get("/api/auth/me", async (req, res) => {
     console.log("Auth check - SID:", req.sessionID, "userId:", req.session.userId, "cookie:", !!req.headers.cookie);
     if (!req.session.userId) {
