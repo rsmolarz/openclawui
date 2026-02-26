@@ -1029,6 +1029,7 @@ export default function SettingsMachines() {
       location: "",
       status: "pending",
       displayName: "",
+      remotePcAlias: "",
     },
   });
 
@@ -1048,6 +1049,7 @@ export default function SettingsMachines() {
         location: "",
         status: "pending",
         displayName: "",
+        remotePcAlias: "",
       });
     },
     onError: () => {
