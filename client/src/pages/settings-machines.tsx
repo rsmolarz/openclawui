@@ -860,6 +860,34 @@ export default function SettingsMachines() {
     queryKey: ["/api/machines"],
   });
 
+  const { data: liveStatusData } = useQuery<any>({
+    queryKey: ["/api/nodes/live-status-machines", selectedInstanceId],
+    queryFn: async () => {
+      const resp = await fetch(`/api/nodes/live-status?instanceId=${selectedInstanceId || ""}`, { credentials: "include" });
+      if (!resp.ok) return null;
+      return resp.json();
+    },
+    enabled: !!selectedInstanceId,
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+
+  const liveConnectedNames = new Set<string>();
+  if (liveStatusData?.nodes) {
+    for (const n of liveStatusData.nodes) {
+      if (n.status === "connected") {
+        if (n.name) liveConnectedNames.add(n.name.toLowerCase());
+        if (n.id) liveConnectedNames.add(n.id.toLowerCase());
+      }
+    }
+  }
+
+  const machinesWithLiveStatus = (machines || []).map((m) => {
+    const mIds = [m.hostname, m.name, m.displayName, m.ipAddress].filter(Boolean).map((s) => s!.toLowerCase());
+    const isLiveConnected = mIds.some((mid) => liveConnectedNames.has(mid));
+    return isLiveConnected ? { ...m, status: "connected" } : m;
+  });
+
   const { data: gwConfig } = useQuery<{ gatewayToken?: string; gatewayPort?: number }>({
     queryKey: ["/api/openclaw/config", selectedInstanceId],
     enabled: !!selectedInstanceId,
@@ -1597,11 +1625,11 @@ export default function SettingsMachines() {
         </CardContent>
       </Card>
 
-      {machines && machines.length > 0 ? (
+      {machinesWithLiveStatus && machinesWithLiveStatus.length > 0 ? (
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tracked Nodes</h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            {machines.map((machine) => (
+            {machinesWithLiveStatus.map((machine) => (
               <NodeCard
                 key={machine.id}
                 machine={machine}

@@ -2039,25 +2039,55 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
           };
         });
 
-      const gatewayOnlyNodes = nodes.filter((n: any) => {
+      const gatewayOnlyRaw = nodes.filter((n: any) => {
         const nIds = [n.name, n.id].filter(Boolean).map((s: string) => s.toLowerCase());
         return !allMachines.some((m: any) => {
           const mIds = [m.hostname, m.name, m.displayName, m.ipAddress].filter(Boolean).map((s: string) => s.toLowerCase());
           return mIds.some((mid: string) => nIds.includes(mid));
         });
-      }).map((n: any) => ({
-        id: n.id,
-        name: n.name,
-        hostname: n.name,
-        ip: n.ip || "",
-        os: n.platform || "",
-        status: "connected",
-        caps: n.caps || "",
-        version: n.version || "",
-        platform: n.platform || "",
-        lastSeen: null,
-        source: "gateway",
-      }));
+      });
+
+      const gatewayOnlyNodes = [];
+      for (const n of gatewayOnlyRaw) {
+        try {
+          const created = await storage.createMachine({
+            name: n.name,
+            hostname: n.name,
+            ipAddress: n.ip || null,
+            os: n.platform === "darwin" ? "macos" : n.platform || "linux",
+            displayName: n.name,
+            status: "connected",
+          });
+          console.log(`[live-status] Auto-created machine for gateway node: ${n.name} (${created.id})`);
+          gatewayOnlyNodes.push({
+            id: created.id,
+            name: created.displayName || n.name,
+            hostname: n.name,
+            ip: n.ip || "",
+            os: created.os || n.platform || "",
+            status: "connected",
+            caps: n.caps || "",
+            version: n.version || "",
+            platform: n.platform || "",
+            lastSeen: new Date().toISOString(),
+            source: "gateway",
+          });
+        } catch {
+          gatewayOnlyNodes.push({
+            id: n.id,
+            name: n.name,
+            hostname: n.name,
+            ip: n.ip || "",
+            os: n.platform || "",
+            status: "connected",
+            caps: n.caps || "",
+            version: n.version || "",
+            platform: n.platform || "",
+            lastSeen: null,
+            source: "gateway",
+          });
+        }
+      }
 
       const allNodes = [...trackedMachines, ...gatewayOnlyNodes];
 
@@ -2072,7 +2102,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         gatewayProcess: gatewayRunning,
         source: usedCli ? "cli" : "file",
         allNodes,
-        totalTracked: allMachines.filter((m: any) => m.os !== "WhatsApp").length,
+        totalTracked: allNodes.length,
       });
     } catch (error: any) {
       res.status(500).json({ gateway: "error", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message });
