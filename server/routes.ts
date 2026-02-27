@@ -898,65 +898,77 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       const token = config?.gatewayToken || instance.apiKey;
       if (!token) return res.status(400).json({ error: "No gateway token configured. Set it in OpenClaw Config or set an API key on the instance." });
 
-      // Try known gateway API endpoints for fetching sessions/nodes
-      const endpoints = ["/api/sessions", "/api/nodes", "/api/v1/sessions", "/api/v1/nodes"];
       let gatewayNodes: any[] = [];
-      let successEndpoint = "";
+      let syncMethod = "";
 
-      for (const ep of endpoints) {
+      const vpsConn = await storage.getVpsConnection(instanceId);
+      if (vpsConn?.vpsIp) {
+        const sshConfig = { host: vpsConn.vpsIp, port: vpsConn.vpsPort || 22, username: vpsConn.sshUser || "root" };
         try {
-          const url = new URL(ep, instance.serverUrl);
-          url.searchParams.set("token", token);
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
-          const resp = await fetch(url.toString(), { signal: controller.signal });
-          clearTimeout(timeout);
-          if (resp.ok) {
-            const data = await resp.json();
-            // Handle both array and object { sessions: [...] } or { nodes: [...] } responses
-            if (Array.isArray(data)) {
-              gatewayNodes = data;
-            } else if (data.sessions) {
-              gatewayNodes = Array.isArray(data.sessions) ? data.sessions : [];
-            } else if (data.nodes) {
-              gatewayNodes = Array.isArray(data.nodes) ? data.nodes : [];
-            } else if (data.peers) {
-              gatewayNodes = Array.isArray(data.peers) ? data.peers : [];
-            } else if (data.data && Array.isArray(data.data)) {
-              gatewayNodes = data.data;
-            }
-            successEndpoint = ep;
-            break;
+          const nodeResult = await executeSSHCommand("list-nodes", sshConfig);
+          if (nodeResult.success && nodeResult.output) {
+            try {
+              const parsed = JSON.parse(nodeResult.output.trim());
+              if (Array.isArray(parsed)) {
+                gatewayNodes = parsed;
+                syncMethod = "ssh-cli";
+              } else if (parsed && typeof parsed === "object") {
+                gatewayNodes = Object.values(parsed);
+                syncMethod = "ssh-cli";
+              }
+            } catch {}
           }
-        } catch {
-          continue;
+        } catch {}
+      }
+
+      if (!syncMethod) {
+        const endpoints = ["/api/sessions", "/api/nodes", "/api/v1/sessions", "/api/v1/nodes"];
+        for (const ep of endpoints) {
+          try {
+            const url = new URL(ep, instance.serverUrl);
+            url.searchParams.set("token", token);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+            const resp = await fetch(url.toString(), { signal: controller.signal });
+            clearTimeout(timeout);
+            if (resp.ok) {
+              const data = await resp.json();
+              if (Array.isArray(data)) gatewayNodes = data;
+              else if (data.sessions) gatewayNodes = Array.isArray(data.sessions) ? data.sessions : [];
+              else if (data.nodes) gatewayNodes = Array.isArray(data.nodes) ? data.nodes : [];
+              else if (data.peers) gatewayNodes = Array.isArray(data.peers) ? data.peers : [];
+              else if (data.data && Array.isArray(data.data)) gatewayNodes = data.data;
+              syncMethod = ep;
+              break;
+            }
+          } catch { continue; }
         }
       }
 
-      if (!successEndpoint) {
+      if (!syncMethod) {
         return res.status(502).json({
-          error: "Could not reach the gateway server. This usually means the server is behind a firewall or only accessible via Tailscale/VPN. You can add nodes manually instead using the Add Node button.",
-          tried: endpoints,
+          error: "Could not reach the gateway server via SSH or HTTP API. You can add nodes manually using the Add Node button.",
         });
       }
 
-      // Sync gateway nodes into our machines table
       const existingMachines = await storage.getMachines();
       let created = 0;
       let updated = 0;
 
       for (const gNode of gatewayNodes) {
         const nodeName = gNode.name || gNode.displayName || gNode.hostname || gNode.id || "Unknown Node";
-        const nodeId = gNode.id || gNode.nodeId || gNode.peer_id || "";
         const status = (gNode.connected || gNode.status === "connected" || gNode.online) ? "connected" : "disconnected";
-        const hostname = gNode.hostname || gNode.host || "";
+        const hostname = gNode.hostname || gNode.host || gNode.name || "";
         const ipAddress = gNode.ip || gNode.ipAddress || gNode.address || "";
         const os = gNode.os || gNode.platform || "";
-        const capabilities = Array.isArray(gNode.capabilities) ? gNode.capabilities.join(", ") : (gNode.capabilities || "");
+        const capabilities = Array.isArray(gNode.caps) ? gNode.caps.join(", ") : (Array.isArray(gNode.capabilities) ? gNode.capabilities.join(", ") : "");
 
-        // Match by hostname or name
         const existing = existingMachines.find(
-          (m) => (m.hostname && m.hostname === hostname) || (m.name && m.name === nodeName) || (m.displayName && m.displayName === nodeName)
+          (m) => {
+            const mIds = [m.hostname, m.name, m.displayName, m.ipAddress].filter(Boolean).map((s) => s!.toLowerCase());
+            const nIds = [hostname, nodeName, gNode.id].filter(Boolean).map((s: string) => s.toLowerCase());
+            return mIds.some((mid) => nIds.includes(mid));
+          }
         );
 
         if (existing) {
@@ -965,7 +977,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
             ...(hostname && { hostname }),
             ...(ipAddress && { ipAddress }),
             ...(os && { os }),
-            ...(capabilities && { location: capabilities }),
+            lastSeen: new Date(),
           });
           updated++;
         } else {
@@ -976,7 +988,6 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
             ipAddress,
             os,
             status,
-            location: capabilities || undefined,
           });
           created++;
         }
@@ -984,7 +995,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
       res.json({
         success: true,
-        endpoint: successEndpoint,
+        endpoint: syncMethod,
         total: gatewayNodes.length,
         created,
         updated,
