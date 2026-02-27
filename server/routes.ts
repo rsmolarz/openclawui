@@ -531,6 +531,37 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
     }
   });
 
+  app.post("/api/machines/dedup", requireAuth, async (_req, res) => {
+    try {
+      const allMachines = await storage.getMachines();
+      const hostnameMap = new Map<string, any[]>();
+      for (const m of allMachines) {
+        const key = (m.hostname || "").toLowerCase();
+        if (!key) continue;
+        if (!hostnameMap.has(key)) hostnameMap.set(key, []);
+        hostnameMap.get(key)!.push(m);
+      }
+      let removed = 0;
+      for (const [hostname, dupes] of hostnameMap) {
+        if (dupes.length <= 1) continue;
+        const best = dupes.sort((a: any, b: any) => {
+          if (a.displayName && a.displayName !== a.hostname && (!b.displayName || b.displayName === b.hostname)) return -1;
+          if (b.displayName && b.displayName !== b.hostname && (!a.displayName || a.displayName === a.hostname)) return 1;
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        })[0];
+        for (const d of dupes) {
+          if (d.id === best.id) continue;
+          await storage.deleteMachine(d.id);
+          removed++;
+          console.log(`[dedup] Removed duplicate machine: ${d.displayName || d.name} (${d.id}) - kept ${best.displayName || best.name} (${best.id})`);
+        }
+      }
+      res.json({ success: true, removed, remaining: allMachines.length - removed });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to deduplicate machines", details: error.message });
+    }
+  });
+
   // Gateway proxy: test if gateway is reachable
   app.get("/api/gateway/probe", requireAuth, async (req, res) => {
     try {
@@ -2050,29 +2081,62 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const gatewayOnlyNodes = [];
       for (const n of gatewayOnlyRaw) {
         try {
-          const created = await storage.createMachine({
-            name: n.name,
-            hostname: n.name,
-            ipAddress: n.ip || null,
-            os: n.platform === "darwin" ? "macos" : n.platform || "linux",
-            displayName: n.name,
-            status: "connected",
+          const unmatchedMachine = allMachines.find((m: any) => {
+            if (m.os === "WhatsApp") return false;
+            const alreadyMatched = trackedMachines.some((t: any) => t.id === m.id && t.source === "gateway");
+            if (alreadyMatched) return false;
+            const osPlatform = n.platform === "darwin" ? "macos" : n.platform;
+            if (m.os && osPlatform && m.os.toLowerCase() === osPlatform.toLowerCase()) return true;
+            if (!m.hostname && !m.ipAddress) return true;
+            return false;
           });
-          console.log(`[live-status] Auto-created machine for gateway node: ${n.name} (${created.id})`);
-          gatewayOnlyNodes.push({
-            id: created.id,
-            name: created.displayName || n.name,
-            hostname: n.name,
-            ip: n.ip || "",
-            os: created.os || n.platform || "",
-            status: "connected",
-            caps: n.caps || "",
-            version: n.version || "",
-            platform: n.platform || "",
-            lastSeen: new Date().toISOString(),
-            source: "gateway",
-          });
-        } catch {
+
+          if (unmatchedMachine) {
+            await storage.updateMachine(unmatchedMachine.id, {
+              hostname: n.name,
+              status: "connected",
+              lastSeen: new Date(),
+              os: unmatchedMachine.os || (n.platform === "darwin" ? "macos" : n.platform) || undefined,
+            });
+            console.log(`[live-status] Linked gateway node ${n.name} to existing machine: ${unmatchedMachine.displayName || unmatchedMachine.name} (${unmatchedMachine.id})`);
+            const idx = trackedMachines.findIndex((t: any) => t.id === unmatchedMachine.id);
+            if (idx >= 0) {
+              trackedMachines[idx] = {
+                ...trackedMachines[idx],
+                hostname: n.name,
+                status: "connected",
+                caps: n.caps || "",
+                version: n.version || "",
+                platform: n.platform || "",
+                source: "gateway",
+              };
+            }
+          } else {
+            const created = await storage.createMachine({
+              name: n.name,
+              hostname: n.name,
+              ipAddress: n.ip || null,
+              os: n.platform === "darwin" ? "macos" : n.platform || "linux",
+              displayName: n.name,
+              status: "connected",
+            });
+            console.log(`[live-status] Auto-created machine for gateway node: ${n.name} (${created.id})`);
+            gatewayOnlyNodes.push({
+              id: created.id,
+              name: created.displayName || n.name,
+              hostname: n.name,
+              ip: n.ip || "",
+              os: created.os || n.platform || "",
+              status: "connected",
+              caps: n.caps || "",
+              version: n.version || "",
+              platform: n.platform || "",
+              lastSeen: new Date().toISOString(),
+              source: "gateway",
+            });
+          }
+        } catch (e: any) {
+          console.error(`[live-status] Error syncing gateway node ${n.name}:`, e.message);
           gatewayOnlyNodes.push({
             id: n.id,
             name: n.name,
