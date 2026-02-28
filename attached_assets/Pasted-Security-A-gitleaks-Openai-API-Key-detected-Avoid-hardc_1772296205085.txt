@@ -1,0 +1,29 @@
+Security
+A gitleaks Openai API Key detected. Avoid hardcoding credentials directly in connection strings as this creates security risks. Instead, use environment variables to store and access credentials at runtime. If you need the actual credential values to make this work properly, ask me to provide them through Replit's secret system.
+A gitleaks Openai API Key detected. Avoid hardcoding credentials directly in connection strings as this creates security risks. Instead, use environment variables to store and access credentials at runtime. If you need the actual credential values to make this work properly, ask me to provide them through Replit's secret system.
+server/routes.ts
+    { key: "ANTHROPIC_API_KEY", label: "Anthropic", description: "Claude AI models for chat and code generation", prefix: "sk-ant-", skills: ["anthropic", "nano-banana-pro"] },
+Security
+Insecure WebSocket Detected. WebSocket Secure (wss) should be used for all WebSocket connections.
+Insecure WebSocket Detected. WebSocket Secure (wss) should be used for all WebSocket connections.
+server/seed.ts
+    websocketUrl: `ws://${CORRECT_VPS_IP}:45002`,
+Security
+Insecure WebSocket Detected. WebSocket Secure (wss) should be used for all WebSocket connections.
+Insecure WebSocket Detected. WebSocket Secure (wss) should be used for all WebSocket connections.
+server/seed.ts
+      websocketUrl: "ws://72.60.167.64:18789",
+Security
+Insecure WebSocket Detected. WebSocket Secure (wss) should be used for all WebSocket connections.
+Insecure WebSocket Detected. WebSocket Secure (wss) should be used for all WebSocket connections.
+server/seed.ts
+      websocketUrl: "ws://72.60.167.64:18789",
+Privacy
+Auth Token and Phone Number exposed to Files Files
+Auth Token and Phone Number exposed to Files Files
+Associated Compliance Framework
+GDPR-A5-32, CCPA, NIST-800-53
+Remediation Strategy:
+Verify that shared data aligns with the sensitive data types defined in your privacy notice and data processing agreement. Adjust or restrict sharing as necessary to maintain compliance and minimize privacy risks.
+home-bot/openclaw-whatsapp.js
+writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2))

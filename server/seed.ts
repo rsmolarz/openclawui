@@ -176,7 +176,7 @@ async function ensureDockerInstance(): Promise<string | null> {
     gatewayBind: "lan",
     gatewayMode: "docker",
     gatewayStatus: "online",
-    websocketUrl: `ws://${CORRECT_VPS_IP}:45002`,
+    websocketUrl: `wss://${CORRECT_VPS_IP}:45002`,
     dockerProject: "openclaw-nnfs",
   });
 
