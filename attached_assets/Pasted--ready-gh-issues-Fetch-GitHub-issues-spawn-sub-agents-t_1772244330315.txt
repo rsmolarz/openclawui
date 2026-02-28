@@ -1,0 +1,40 @@
+│ ✓ ready   │ 📦 gh-issues      │ Fetch GitHub issues, spawn sub-agents to implement fixes and      │ openclaw-bundled │
+│ ✓ ready   │ 🐙 github         │ GitHub operations via `gh` CLI: issues, PRs, CI runs, code        │ openclaw-bundled │
+│ ✓ ready   │ 📦 healthcheck    │ Host security hardening and risk-tolerance configuration for      │ openclaw-bundled │
+│ ✓ ready   │ 📦 mcporter       │ Use the mcporter CLI to list, configure, auth, and call MCP       │ openclaw-bundled │
+│ ✓ ready   │ 🧿 oracle         │ Best practices for using the oracle CLI (prompt + file bundling,  │ openclaw-bundled │
+│ ✓ ready   │ 📦 skill-creator  │ Create or update AgentSkills. Use when designing, structuring,    │ openclaw-bundled │
+│ ✓ ready   │ 🧾 summarize      │ Summarize or extract text/transcripts from URLs, podcasts, and    │ openclaw-bundled │
+│ ✓ ready   │ 🧵 tmux           │ Remote-control tmux sessions for interactive CLIs by sending      │ openclaw-bundled │
+│ ✓ ready   │ 🎞️ video-frames  │ Extract frames or short clips from videos using ffmpeg.           │ openclaw-bundled │
+│ ✓ ready   │ 🌤️ weather       │ Get current weather and forecasts via wttr.in or Open-Meteo. Use  │ openclaw-bundled │
+rsmol@Mac-mini-7828 ~ % openclaw config get agents.defaults.workspace 2>&1
+ls -la ~/.openclaw/workspace/skills/ 2>/dev/null || echo "no workspace skills dir"
+ls -la ~/skills/ | head -10
+
+🦞 OpenClaw 2026.2.24 (df9a474)
+   Shell yeah—I'm here to pinch the toil and leave you the glory.
+
+Config path not found: agents.defaults.workspace
+no workspace skills dir
+total 0
+drwxr-xr-x  33 rsmol  staff  1056 Feb 27 21:58 .
+drwxr-x---@ 40 rsmol  staff  1280 Feb 27 21:54 ..
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 apple-notes
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 apple-reminders
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 bear-notes
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:54 blogwatcher
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:54 blucli
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 bluebubbles
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:56 camsnap
+rsmol@Mac-mini-7828 ~ % openclaw skills install --all 2>&1 | tail -20
+error: unknown option '--all'
+rsmol@Mac-mini-7828 ~ % mkdir -p ~/.openclaw/workspace
+ln -s ~/skills ~/.openclaw/workspace/skills
+openclaw skills list | head -5
+Skills (43/51 ready)
+┌───────────┬──────────────────┬─────────────────────────────────────────────────────────────────┬────────────────────┐
+│ Status    │ Skill            │ Description                                                     │ Source             │
+├───────────┼──────────────────┼─────────────────────────────────────────────────────────────────┼────────────────────┤
+│ ✓ ready   │ 🔐 1password      │ Set up and use 1Password CLI (op). Use when installing the      │ openclaw-bundled   │
+rsmol@Mac-mini-7828 ~ % 
