@@ -675,7 +675,7 @@ function LiveGatewayBanner({ instanceId }: { instanceId: string | null }) {
   );
 }
 
-function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
+function GatewayNodesLive({ instanceId, machines }: { instanceId: string | null; machines?: Machine[] }) {
   const { toast } = useToast();
 
   const { data: liveStatus, isLoading, isFetching, refetch } = useQuery<LiveStatusData>({
@@ -690,7 +690,26 @@ function GatewayNodesLive({ instanceId }: { instanceId: string | null }) {
     staleTime: 15000,
   });
 
-  const allNodes: any[] = (liveStatus as any)?.allNodes ?? [];
+  const rawAllNodes: any[] = (liveStatus as any)?.allNodes ?? [];
+  const existingNames = new Set(rawAllNodes.map((n: any) => (n.name || n.hostname || "").toLowerCase()));
+  const trackedFill = (machines || [])
+    .filter(m => m.status === "connected")
+    .filter(m => {
+      const name = (m.displayName || m.hostname || m.name || "").toLowerCase();
+      return !existingNames.has(name);
+    })
+    .map(m => ({
+      id: m.id,
+      name: m.displayName || m.hostname || m.name,
+      hostname: m.hostname || m.name,
+      ip: m.ipAddress || "",
+      os: m.os || "",
+      status: "connected",
+      platform: m.os || "",
+      lastSeen: m.lastSeen,
+      source: "database",
+    }));
+  const allNodes = [...rawAllNodes, ...trackedFill];
   const gatewayConnectedCount = allNodes.filter((n: any) => n.source === "gateway" || n.status === "connected").length;
   const offlineCount = allNodes.filter((n: any) => n.status !== "connected").length;
   const hasNodes = allNodes.length > 0;
@@ -1096,7 +1115,27 @@ export default function SettingsMachines() {
     refetchInterval: 60000,
   });
 
-  const pairedNodes = pairedData?.paired ?? [];
+  const rawPairedNodes = pairedData?.paired ?? [];
+  const trackedAsPaired = (machines || [])
+    .filter(m => m.status === "connected")
+    .map(m => ({
+      id: m.id,
+      hostname: m.hostname || m.name,
+      displayName: m.displayName || m.hostname || m.name,
+      name: m.displayName || m.hostname || m.name,
+      clientId: m.id,
+      ip: m.ipAddress || "",
+      os: m.os || "",
+      platform: m.os || "",
+      status: "paired" as const,
+      connected: true,
+    }));
+  const pairedNameSet = new Set(rawPairedNodes.map((n: any) => (n.displayName || n.hostname || n.name || "").toLowerCase()));
+  const mergedTracked = trackedAsPaired.filter(t => {
+    const name = (t.displayName || t.hostname || t.name || "").toLowerCase();
+    return !pairedNameSet.has(name);
+  });
+  const pairedNodes = [...rawPairedNodes, ...mergedTracked];
 
   const runSSHNodeCommand = async (action: string) => {
     setSSHNodeRunning(true);
@@ -1487,7 +1526,7 @@ export default function SettingsMachines() {
 
       <QuickStartGuide instanceId={selectedInstanceId} />
 
-      <GatewayNodesLive instanceId={selectedInstanceId} />
+      <GatewayNodesLive instanceId={selectedInstanceId} machines={machines} />
 
       {pendingNodes.length > 0 && (
         <Card data-testid="card-pending-nodes">
