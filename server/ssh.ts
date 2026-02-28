@@ -101,6 +101,20 @@ echo "=== DONE ===" ; echo "---SKILLS---" ; openclaw skills list 2>&1 | head -5`
   "set-env-key": "echo 'Use set-api-keys instead'",
   "check-skill-status": "openclaw skills list 2>&1",
   "clawhub-auth-status": "clawhub whoami 2>&1; echo '---TOKEN-SEARCH---'; find / -maxdepth 5 -name '*.json' -path '*clawhub*' 2>/dev/null; find / -maxdepth 5 -name 'token*' -path '*clawhub*' 2>/dev/null; find /root -name '.clawhub*' -o -name 'clawhub*' 2>/dev/null | head -20; echo '---XDG---'; echo \"XDG_CONFIG_HOME=$XDG_CONFIG_HOME\"; echo \"HOME=$HOME\"; ls -la /root/.config/clawhub/ 2>/dev/null || echo 'No /root/.config/clawhub/'; ls -la /root/.clawhub/ 2>/dev/null || echo 'No /root/.clawhub/'; echo '---NPM-LOC---'; npm root -g 2>/dev/null; ls -la $(npm root -g)/clawhub/ 2>/dev/null | head -5",
+  "check-mac-skills": `TOKEN=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d['gateway']['auth']['token'])") && \
+echo "--- Node pairing status ---" && \
+openclaw gateway call node.list --url ws://127.0.0.1:18789 --token "$TOKEN" --json --timeout 15000 2>&1 | python3 -c "
+import json,sys
+data = json.loads(sys.stdin.read())
+for n in data.get('nodes',[]):
+    p = n.get('platform','?')
+    name = n.get('displayName','?')
+    paired = n.get('paired', False)
+    conn = n.get('connected', False)
+    print(f'{name} ({p}) - paired: {paired}, connected: {conn}')
+" 2>&1 && \
+echo "--- Trying invoke with describe ---" && \
+openclaw nodes describe --node mac-mini-7828 --url ws://127.0.0.1:18789 --token "$TOKEN" --json --timeout 15000 2>&1 | head -40`,
   "add-replit-origin": `python3 -c "
 import json
 f='/root/.openclaw/openclaw.json'
