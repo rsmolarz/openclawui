@@ -140,8 +140,8 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
     ]);
     const enabledSkills = skills.filter(s => s.enabled);
     if (enabledSkills.length > 0) {
-      const skillList = enabledSkills.map(s => `- ${s.name}: ${s.description || s.category}`).join("\n");
-      skillsContext = `\n\nYou have the following skills/capabilities available:\n${skillList}\nWhen a user asks you to do something covered by one of these skills, you MUST confirm you can help and describe what you can do. These skills are installed and active — do not deny having them. Always refer to them by name when relevant.`;
+      const skillList = enabledSkills.map(s => `- **${s.name}**: ${s.description || s.category}`).join("\n");
+      skillsContext = `\n\nYOU HAVE THE FOLLOWING SKILLS INSTALLED AND ACTIVE — these are YOUR capabilities, not external services:\n${skillList}\n\nCRITICAL RULES FOR SKILLS:\n1. You MUST acknowledge these skills by name when a user asks about them.\n2. NEVER say "I don't have access to" or "I'm not familiar with" any skill listed above.\n3. When a user asks you to do something covered by a skill, confirm you have that skill and explain what it can do.\n4. If a user asks "can you see skill X?" and X is in the list above, answer YES and describe it.\n5. These skills run on your connected nodes — you coordinate their execution.\n6. You are not a generic chatbot. You are OpenClaw with these specific installed capabilities.`;
     }
     const connectedNodes = machines.filter(m => m.status === "connected");
     if (connectedNodes.length > 0) {
@@ -153,7 +153,7 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
   }
 
   const platformLabel = platform || "messaging";
-  const systemPrompt = `You are OpenClaw, a helpful AI assistant available via ${platformLabel}. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are an AI gateway powered by OpenClaw.${senderName ? ` The user's name is ${senderName}.` : ""}${skillsContext}${nodesContext}`;
+  const systemPrompt = `You are OpenClaw, a powerful AI assistant and agent coordinator available via ${platformLabel}. You orchestrate tasks across connected devices and skills. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are OpenClaw — an AI-powered agent that manages skills, nodes, and automation. You are NOT a generic chatbot.${senderName ? ` The user's name is ${senderName}.` : ""}${skillsContext}${nodesContext}`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
