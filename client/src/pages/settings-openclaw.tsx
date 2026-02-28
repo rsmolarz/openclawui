@@ -2628,7 +2628,7 @@ export default function SettingsOpenclaw() {
                         const u = new URL(currentInstance?.serverUrl || "");
                         const scheme = u.protocol === "https:" ? "wss" : "ws";
                         return `${scheme}://${u.hostname}:${config.gatewayPort}`;
-                      } catch { return `ws://your-server:${config.gatewayPort}`; }
+                      } catch { return ""; }
                     })()}
                   </code>
                   <Button
