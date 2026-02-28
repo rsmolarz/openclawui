@@ -7,7 +7,7 @@ import { Boom } from "@hapi/boom";
 import * as QRCode from "qrcode";
 import { randomBytes } from "crypto";
 import { storage } from "../storage";
-import { chat } from "./openrouter";
+import { chat, generateImage } from "./openrouter";
 import { EventEmitter } from "events";
 import { useDbAuthState, hasDbAuthState, clearAllDbAuthState } from "./db-auth-state";
 import { createWhatsAppTunnelAgent, SSHTunnelAgent } from "./ssh-tunnel-agent";
@@ -589,17 +589,31 @@ class WhatsAppBot extends EventEmitter {
           const timeoutMs = 90000;
           const response = await Promise.race([
             chat(text, pushName || session.displayName || undefined),
-            new Promise<string>((_, reject) =>
+            new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error("AI response timed out after 90s")), timeoutMs)
             ),
           ]);
           const elapsed = Date.now() - startTime;
-          console.log(`[WhatsApp] AI response generated in ${elapsed}ms (${response.length} chars) for ${phone}`);
+          console.log(`[WhatsApp] AI response generated in ${elapsed}ms (${response.text.length} chars) for ${phone}`);
 
-          if (response && response.trim()) {
-            await this.sendMessage(jid, response);
+          if (response.text && response.text.trim()) {
+            await this.sendMessage(jid, response.text);
             console.log(`[WhatsApp] Reply sent to ${phone}`);
-          } else {
+          }
+
+          if (response.imagePrompt) {
+            console.log(`[WhatsApp] Image generation requested for ${phone}: "${response.imagePrompt.substring(0, 80)}"`);
+            await this.sendTyping(jid);
+            const imageBuffer = await generateImage(response.imagePrompt);
+            if (imageBuffer) {
+              await this.sendImage(jid, imageBuffer, response.imagePrompt.substring(0, 100));
+              console.log(`[WhatsApp] Image sent to ${phone}`);
+            } else {
+              await this.sendMessage(jid, "Sorry, I wasn't able to generate that image right now. The image generation service may be unavailable.");
+            }
+          }
+
+          if (!response.text?.trim() && !response.imagePrompt) {
             console.error(`[WhatsApp] Empty response from AI for ${phone}`);
             await this.sendMessage(jid, "I couldn't generate a response. Please try again.");
           }
@@ -628,6 +642,26 @@ class WhatsAppBot extends EventEmitter {
       }
     } catch (error) {
       console.error(`[WhatsApp] Failed to send message to ${jid}:`, error);
+    }
+  }
+
+  async sendImage(jid: string, imageBuffer: Buffer, caption?: string): Promise<void> {
+    if (!this.sock) return;
+    try {
+      const sent = await this.sock.sendMessage(jid, {
+        image: imageBuffer,
+        caption: caption || undefined,
+        mimetype: "image/png",
+      });
+      if (sent?.key?.id) {
+        this._sentMessageIds.add(sent.key.id);
+        if (this._sentMessageIds.size > 200) {
+          const entries = [...this._sentMessageIds];
+          this._sentMessageIds = new Set(entries.slice(-100));
+        }
+      }
+    } catch (error) {
+      console.error(`[WhatsApp] Failed to send image to ${jid}:`, error);
     }
   }
 

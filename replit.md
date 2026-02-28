@@ -40,3 +40,12 @@ The application employs a client-server architecture.
 - **Networking**: Tailscale
 - **UI Component Library**: Shadcn UI
 - **Data Fetching/State Management**: TanStack Query
+- **Image Generation**: OpenAI DALL-E 3 / Google Gemini (via Nano Banana Pro skill)
+
+## Nano Banana Pro (Image Generation)
+The WhatsApp and Telegram bots support AI image generation via the "Nano Banana Pro" skill. The implementation works as follows:
+- **`server/bot/openrouter.ts`**: Contains `generateImage()` function (tries OpenAI DALL-E 3 first, falls back to Gemini). The `chat()` function returns a `ChatResponse` object with `text` and optional `imagePrompt` fields. The system prompt instructs the LLM to output `[GENERATE_IMAGE: prompt]` tags when the user requests visual content.
+- **`server/bot/whatsapp.ts`**: Has `sendImage()` method that sends image buffers via Baileys. The `handleMessage()` flow detects `imagePrompt` in the chat response and generates/sends images.
+- **`server/bot/telegram.ts`**: Uses Telegram's `sendPhoto` API to deliver generated images.
+- **`server/routes.ts`**: The home-bot API endpoint returns `imageBase64` and `imagePrompt` fields for remote bot image delivery.
+- **Requires**: `OPENAI_API_KEY` or `GEMINI_API_KEY` environment variable to be set.

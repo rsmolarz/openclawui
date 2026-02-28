@@ -3468,9 +3468,21 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
       if (session.status === "approved") {
         await storage.updateWhatsappSessionLastMessage(phone);
-        const { chat } = await import("./bot/openrouter");
+        const { chat, generateImage } = await import("./bot/openrouter");
         const response = await chat(text, pushName || session.displayName || undefined, "WhatsApp");
-        return res.json({ reply: response || "I couldn't generate a response.", approved: true });
+        let imageBase64: string | null = null;
+        if (response.imagePrompt) {
+          const imageBuffer = await generateImage(response.imagePrompt);
+          if (imageBuffer) {
+            imageBase64 = imageBuffer.toString("base64");
+          }
+        }
+        return res.json({
+          reply: response.text || "I couldn't generate a response.",
+          approved: true,
+          imageBase64,
+          imagePrompt: response.imagePrompt || null,
+        });
       }
 
       res.json({ reply: "Unknown session status.", approved: false });

@@ -1,4 +1,4 @@
-import { chat } from "./openrouter";
+import { chat, generateImage } from "./openrouter";
 import { storage } from "../storage";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
@@ -126,8 +126,31 @@ async function handleMessage(update: TelegramUpdate): Promise<void> {
 
   try {
     const reply = await chat(text, senderName, "Telegram");
-    await sendMessage(chatId, reply);
-    console.log(`[Telegram] Reply sent to ${senderName} (${reply.length} chars)`);
+    if (reply.text && reply.text.trim()) {
+      await sendMessage(chatId, reply.text);
+    }
+    if (reply.imagePrompt) {
+      try {
+        await telegramRequest("sendChatAction", { chat_id: chatId, action: "upload_photo" });
+      } catch {}
+      const imageBuffer = await generateImage(reply.imagePrompt);
+      if (imageBuffer) {
+        const formData = new FormData();
+        formData.append("chat_id", String(chatId));
+        formData.append("photo", new Blob([imageBuffer], { type: "image/png" }), "image.png");
+        if (reply.imagePrompt.length <= 200) {
+          formData.append("caption", reply.imagePrompt);
+        }
+        await fetch(`${TELEGRAM_API}${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          method: "POST",
+          body: formData,
+        });
+        console.log(`[Telegram] Image sent to ${senderName}`);
+      } else {
+        await sendMessage(chatId, "Sorry, I wasn't able to generate that image right now.");
+      }
+    }
+    console.log(`[Telegram] Reply sent to ${senderName} (${reply.text.length} chars)`);
   } catch (err: any) {
     console.error(`[Telegram] Error processing message:`, err.message);
     await sendMessage(chatId, "Sorry, I'm having trouble processing your request. Please try again.");
