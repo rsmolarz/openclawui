@@ -2819,7 +2819,8 @@ export default function SettingsOpenclaw() {
                   onClick={() => {
                     try {
                       const u = new URL(currentInstance.serverUrl!);
-                      const wsUrl = `ws://${u.hostname}:${formValues.gatewayPort}`;
+                      const wsProtocol = u.protocol === "https:" ? "wss" : "ws";
+                      const wsUrl = `${wsProtocol}://${u.hostname}:${formValues.gatewayPort}`;
                       setFormValues((p) => ({ ...p, websocketUrl: wsUrl }));
                       toast({ title: "Auto-filled", description: `WebSocket URL set to ${wsUrl}` });
                     } catch {
