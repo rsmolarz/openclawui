@@ -141,7 +141,7 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
     const enabledSkills = skills.filter(s => s.enabled);
     if (enabledSkills.length > 0) {
       const skillList = enabledSkills.map(s => `- ${s.name}: ${s.description || s.category}`).join("\n");
-      skillsContext = `\n\nYou have the following skills/capabilities available:\n${skillList}\nWhen a user asks you to do something covered by one of these skills, confirm you can help and describe what you can do. If a skill is listed, you have access to it.`;
+      skillsContext = `\n\nYou have the following skills/capabilities available:\n${skillList}\nWhen a user asks you to do something covered by one of these skills, you MUST confirm you can help and describe what you can do. These skills are installed and active — do not deny having them. Always refer to them by name when relevant.`;
     }
     const connectedNodes = machines.filter(m => m.status === "connected");
     if (connectedNodes.length > 0) {

@@ -3761,6 +3761,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     { skillId: "currency-exchange", name: "Currency Exchange", description: "Real-time currency conversion rates and historical exchange data for 170+ currencies.", category: "research", version: "1.0.0", icon: "CreditCard" },
     { skillId: "stock-market", name: "Stock Market", description: "Real-time stock prices, company financials, market news, and technical analysis indicators.", category: "research", version: "1.0.0", icon: "BarChart3" },
     { skillId: "crypto-tracker", name: "Crypto Tracker", description: "Track cryptocurrency prices, portfolio values, DeFi metrics, and blockchain analytics.", category: "research", version: "1.0.0", icon: "CreditCard" },
+    { skillId: "nano-banana-pro", name: "Nano Banana Pro", description: "AI image generation and editing via multimodal LLMs (Gemini, OpenAI, etc.)", category: "ai", version: "1.0.0", icon: "Paintbrush" },
   ];
 
   app.get("/api/skills", requireAuth, async (_req, res) => {
@@ -3826,8 +3827,10 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const installedIds = new Set(installed.map(s => s.skillId));
       let dbInstalled = 0;
 
+      const installedMap = new Map(installed.map(s => [s.skillId, s]));
       for (const skill of SKILLS_CATALOG) {
-        if (!installedIds.has(skill.skillId)) {
+        const existing = installedMap.get(skill.skillId);
+        if (!existing) {
           await storage.createSkill({
             skillId: skill.skillId,
             name: skill.name,
@@ -3838,6 +3841,12 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
             status: "installed",
           });
           dbInstalled++;
+        } else if (existing.description !== skill.description || existing.name !== skill.name || existing.category !== skill.category) {
+          await storage.updateSkill(String(existing.id), {
+            name: skill.name,
+            description: skill.description,
+            category: skill.category,
+          });
         }
       }
 
@@ -5730,7 +5739,7 @@ def api_call(method: str, path: str, data: dict = None, headers: dict = None):
           { name: "gifgrep", description: "GIF search and sharing integration", category: "media", author: "openclaw" },
           { name: "imsg", description: "iMessage integration for Apple messaging", category: "messaging", author: "openclaw" },
           { name: "nano-pdf", description: "PDF generation and processing utilities", category: "utilities", author: "openclaw" },
-          { name: "nano-banana-pro", description: "Banana Pro hardware integration", category: "hardware", author: "openclaw" },
+          { name: "nano-banana-pro", description: "AI image generation and editing via multimodal LLMs (Gemini, OpenAI, etc.)", category: "ai", author: "openclaw" },
           { name: "peekaboo", description: "Screen peek and screenshot capture utility", category: "utilities", author: "openclaw" },
           { name: "sag", description: "Smart Agent Gateway for multi-agent orchestration", category: "ai", author: "openclaw" },
           { name: "model-usage", description: "LLM model usage tracking and analytics", category: "ai", author: "openclaw" },
