@@ -101,6 +101,24 @@ echo "=== DONE ===" ; echo "---SKILLS---" ; openclaw skills list 2>&1 | head -5`
   "set-env-key": "echo 'Use set-api-keys instead'",
   "check-skill-status": "openclaw skills list 2>&1",
   "clawhub-auth-status": "clawhub whoami 2>&1; echo '---TOKEN-SEARCH---'; find / -maxdepth 5 -name '*.json' -path '*clawhub*' 2>/dev/null; find / -maxdepth 5 -name 'token*' -path '*clawhub*' 2>/dev/null; find /root -name '.clawhub*' -o -name 'clawhub*' 2>/dev/null | head -20; echo '---XDG---'; echo \"XDG_CONFIG_HOME=$XDG_CONFIG_HOME\"; echo \"HOME=$HOME\"; ls -la /root/.config/clawhub/ 2>/dev/null || echo 'No /root/.config/clawhub/'; ls -la /root/.clawhub/ 2>/dev/null || echo 'No /root/.clawhub/'; echo '---NPM-LOC---'; npm root -g 2>/dev/null; ls -la $(npm root -g)/clawhub/ 2>/dev/null | head -5",
+  "install-himalaya-bin": `cd /tmp && \
+curl -sLo himalaya.tgz "https://github.com/pimalaya/himalaya/releases/download/v1.2.0/himalaya-v1.2.0-x86_64-linux.tgz" -H "Accept: application/octet-stream" --max-redirs 5 2>&1 && \
+file himalaya.tgz && head -c 20 himalaya.tgz | xxd | head -2 && \
+if file himalaya.tgz | grep -q gzip; then tar xzf himalaya.tgz && mv himalaya /usr/local/bin/ && chmod +x /usr/local/bin/himalaya && himalaya --version; \
+else echo "Not gzip - trying cargo install"; pip install himalaya 2>/dev/null || cargo install himalaya 2>/dev/null || echo "Could not install himalaya"; fi`,
+  "check-skill-bins": `echo "--- Checking required skill binaries ---" && \
+for cmd in goplaces himalaya memo remindctl grizzly things imsg peekaboo camsnap gifgrep wacli openhue ordercli songsee nano-pdf blu eightctl blogwatcher sonoscli sag obsidian-cli xurl rg jq whisper ffmpeg gh tmux op gemini oracle mcporter summarize openclaw clawhub; do \
+  P=$(which $cmd 2>/dev/null) && echo "✓ $cmd -> $P" || echo "✗ $cmd not found"; \
+done`,
+  "install-clawhub-skills": `echo "=== Installing ClawHub skills on VPS ===" && \
+clawhub whoami 2>&1 && \
+for skill in apple-notes apple-reminders bear-notes things-mac bluebubbles camsnap gifgrep imsg nano-pdf nano-banana-pro peekaboo sag discord gog model-usage notion obsidian openai-image-gen openai-whisper openai-whisper-api session-logs slack spotify-player trello blogwatcher blucli sonoscli eightctl openhue ordercli songsee; do \
+  echo "Installing $skill..."; clawhub install $skill 2>&1 | tail -1; \
+done && \
+echo "--- Linking workspace skills ---" && \
+mkdir -p /root/.openclaw/workspace && \
+if [ ! -L /root/.openclaw/workspace/skills ] && [ -d /root/skills ]; then ln -sf /root/skills /root/.openclaw/workspace/skills; echo "Linked"; elif [ -L /root/.openclaw/workspace/skills ]; then echo "Already linked"; else echo "No ~/skills dir found"; fi && \
+echo "=== DONE ===" && openclaw skills list 2>&1 | head -5`,
   "check-mac-skills": `TOKEN=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d['gateway']['auth']['token'])") && \
 echo "--- Trying to pair Mac Mini node ---" && \
 MAC_ID=$(openclaw gateway call node.list --url ws://127.0.0.1:18789 --token "$TOKEN" --json --timeout 15000 2>/dev/null | python3 -c "
