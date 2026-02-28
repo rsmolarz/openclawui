@@ -1768,22 +1768,34 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
       const vpsConn = await storage.getVpsConnection(instanceId);
       if (vpsConn?.vpsIp) {
-        const sshConfig = { host: vpsConn.vpsIp, port: vpsConn.vpsPort || 22, username: vpsConn.sshUser || "root" };
+        const { buildSSHConfigFromVps } = await import("./ssh");
+        const sshConfig = buildSSHConfigFromVps(vpsConn);
+
         try {
-          const nodeResult = await executeSSHCommand("list-nodes", sshConfig);
-          if (nodeResult.success && nodeResult.output) {
-            try {
-              const parsed = JSON.parse(nodeResult.output.trim());
-              if (Array.isArray(parsed)) {
-                gatewayNodes = parsed;
-                syncMethod = "ssh-cli";
-              } else if (parsed && typeof parsed === "object") {
-                gatewayNodes = Object.values(parsed);
-                syncMethod = "ssh-cli";
-              }
-            } catch {}
+          const cached = await getCachedNodeList(sshConfig);
+          if (cached && cached.nodes.length > 0) {
+            gatewayNodes = cached.nodes;
+            syncMethod = "gateway-call-node-list";
           }
         } catch {}
+
+        if (!syncMethod) {
+          try {
+            const nodeResult = await executeSSHCommand("list-nodes", sshConfig);
+            if (nodeResult.success && nodeResult.output) {
+              try {
+                const parsed = JSON.parse(nodeResult.output.trim());
+                if (Array.isArray(parsed)) {
+                  gatewayNodes = parsed;
+                  syncMethod = "ssh-cli";
+                } else if (parsed && typeof parsed === "object") {
+                  gatewayNodes = Object.values(parsed);
+                  syncMethod = "ssh-cli";
+                }
+              } catch {}
+            }
+          } catch {}
+        }
       }
 
       if (!syncMethod) {
