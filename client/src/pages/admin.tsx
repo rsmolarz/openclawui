@@ -30,6 +30,8 @@ import {
   Unplug,
   ShieldAlert,
   Phone,
+  Code,
+  ArrowUpCircle,
 } from "lucide-react";
 import type { GuardianLog, FeatureProposal } from "@shared/schema";
 
@@ -643,6 +645,165 @@ function FeatureProposalsTab() {
   );
 }
 
+interface CodeUpgrade {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  priority: string;
+  diff: string;
+  status: string;
+  createdAt: string;
+}
+
+function CodeUpgradeTab() {
+  const { toast } = useToast();
+
+  const { data: upgrades = [], isLoading } = useQuery<CodeUpgrade[]>({
+    queryKey: ["/api/admin/code-upgrades"],
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/code-upgrades/generate"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/code-upgrades"] });
+      toast({ title: "Analysis complete", description: "Code upgrade suggestions generated." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiRequest("PATCH", `/api/admin/code-upgrades/${id}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/code-upgrades"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/code-upgrades/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/code-upgrades"] });
+      toast({ title: "Upgrade deleted" });
+    },
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold flex items-center gap-2" data-testid="text-upgrades-title">
+            <Code className="h-5 w-5" />
+            Code Upgrade Agent
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            AI-powered code analysis suggesting improvements, refactors, and optimizations.
+          </p>
+        </div>
+        <Button
+          onClick={() => generateMutation.mutate()}
+          disabled={generateMutation.isPending}
+          data-testid="button-analyze-code"
+        >
+          {generateMutation.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <ArrowUpCircle className="h-4 w-4 mr-2" />
+          )}
+          {generateMutation.isPending ? "Analyzing..." : "Analyze Code"}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : upgrades.length === 0 ? (
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center text-muted-foreground" data-testid="text-no-upgrades">
+              <Code className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p>No code upgrades yet. Click "Analyze Code" to get AI-powered improvement suggestions.</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {upgrades.map((upgrade) => (
+            <Card key={upgrade.id} data-testid={`card-upgrade-${upgrade.id}`}>
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1 flex-1">
+                    <CardTitle className="text-base flex items-center gap-2" data-testid={`text-upgrade-title-${upgrade.id}`}>
+                      {upgrade.title}
+                      {priorityBadge(upgrade.priority)}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">{upgrade.category}</Badge>
+                      {proposalStatusBadge(upgrade.status)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {upgrade.status === "proposed" && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateMutation.mutate({ id: upgrade.id, status: "approved" })}
+                          disabled={updateMutation.isPending}
+                          data-testid={`button-approve-upgrade-${upgrade.id}`}
+                        >
+                          <ThumbsUp className="h-3 w-3 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateMutation.mutate({ id: upgrade.id, status: "rejected" })}
+                          disabled={updateMutation.isPending}
+                          data-testid={`button-reject-upgrade-${upgrade.id}`}
+                        >
+                          <ThumbsDown className="h-3 w-3 mr-1" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate(upgrade.id)}
+                      disabled={deleteMutation.isPending}
+                      data-testid={`button-delete-upgrade-${upgrade.id}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm" data-testid={`text-upgrade-desc-${upgrade.id}`}>{upgrade.description}</p>
+                {upgrade.diff && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Changes</p>
+                    <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto whitespace-pre-wrap font-mono" data-testid={`text-upgrade-diff-${upgrade.id}`}>
+                      {upgrade.diff}
+                    </pre>
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground pt-2 border-t">
+                  Created {new Date(upgrade.createdAt).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("guardian");
 
@@ -663,6 +824,10 @@ export default function AdminPage() {
             <Sparkles className="h-4 w-4 mr-2" />
             Feature Proposals
           </TabsTrigger>
+          <TabsTrigger value="upgrades" data-testid="tab-upgrades">
+            <Code className="h-4 w-4 mr-2" />
+            Code Upgrade
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="guardian" className="mt-6">
@@ -671,6 +836,10 @@ export default function AdminPage() {
 
         <TabsContent value="features" className="mt-6">
           <FeatureProposalsTab />
+        </TabsContent>
+
+        <TabsContent value="upgrades" className="mt-6">
+          <CodeUpgradeTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -328,3 +328,44 @@ export type GuardianLog = typeof guardianLogs.$inferSelect;
 export type InsertGuardianLog = z.infer<typeof insertGuardianLogSchema>;
 export type FeatureProposal = typeof featureProposals.$inferSelect;
 export type InsertFeatureProposal = z.infer<typeof insertFeatureProposalSchema>;
+
+export const automationJobs = pgTable("automation_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  schedule: text("schedule").notNull(),
+  command: text("command").notNull(),
+  template: text("template"),
+  enabled: boolean("enabled").notNull().default(true),
+  lastRun: timestamp("last_run"),
+  nextRun: timestamp("next_run"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const automationRuns = pgTable("automation_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  output: text("output"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const metricsEvents = pgTable("metrics_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type").notNull(),
+  category: text("category").notNull(),
+  value: real("value"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAutomationJobSchema = createInsertSchema(automationJobs).omit({ id: true, lastRun: true, nextRun: true, createdAt: true });
+export const insertAutomationRunSchema = createInsertSchema(automationRuns).omit({ id: true, startedAt: true, completedAt: true });
+export const insertMetricsEventSchema = createInsertSchema(metricsEvents).omit({ id: true, createdAt: true });
+
+export type AutomationJob = typeof automationJobs.$inferSelect;
+export type InsertAutomationJob = z.infer<typeof insertAutomationJobSchema>;
+export type AutomationRun = typeof automationRuns.$inferSelect;
+export type InsertAutomationRun = z.infer<typeof insertAutomationRunSchema>;
+export type MetricsEvent = typeof metricsEvents.$inferSelect;
+export type InsertMetricsEvent = z.infer<typeof insertMetricsEventSchema>;

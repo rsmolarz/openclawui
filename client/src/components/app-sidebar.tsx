@@ -18,6 +18,11 @@ import {
   Terminal,
   Bot,
   Shield,
+  Monitor,
+  Clock,
+  FolderOpen,
+  BarChart3,
+  Store,
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,6 +46,7 @@ const navItems = [
   { title: "Commands", url: "/commands", icon: Terminal },
   { title: "AI Task Runner", url: "/ai-tasks", icon: Bot },
   { title: "Admin", url: "/admin", icon: Shield },
+  { title: "Marketplace", url: "/marketplace", icon: Store },
 ];
 
 const settingsItems = [
@@ -54,6 +60,10 @@ const settingsItems = [
 const infraItems = [
   { title: "Instances", url: "/settings/instances", icon: Layers },
   { title: "Dashboard", url: "/settings/dashboard", icon: LayoutDashboard },
+  { title: "System Monitor", url: "/system-monitor", icon: Monitor },
+  { title: "Metrics", url: "/metrics", icon: BarChart3 },
+  { title: "Automation", url: "/automation", icon: Clock },
+  { title: "File Manager", url: "/files", icon: FolderOpen },
   { title: "VPS Monitoring", url: "/vps-monitor", icon: Activity },
   { title: "VPS Connection", url: "/settings/vps", icon: Server },
   { title: "OpenClaw Config", url: "/settings/openclaw", icon: Cog },

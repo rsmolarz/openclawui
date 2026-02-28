@@ -113,6 +113,8 @@ echo "--- Restarting gateway ---" && \
 openclaw gateway restart 2>&1; \
 echo "=== Skills after plugin enable ===" && \
 openclaw skills list 2>&1 | head -5`,
+  "plugins-list": `openclaw plugins list --json 2>/dev/null || openclaw plugins list 2>&1`,
+  "plugins-installed": `openclaw plugins list --installed --json 2>/dev/null || openclaw plugins list --installed 2>&1 || echo '[]'`,
   "check-skill-bins": `echo "--- Checking required skill binaries ---" && \
 for cmd in goplaces himalaya memo remindctl grizzly things imsg peekaboo camsnap gifgrep wacli openhue ordercli songsee nano-pdf blu eightctl blogwatcher sonoscli sag obsidian-cli xurl rg jq whisper ffmpeg gh tmux op gemini oracle mcporter summarize openclaw clawhub; do \
   P=$(which $cmd 2>/dev/null) && echo "✓ $cmd -> $P" || echo "✗ $cmd not found"; \
@@ -357,6 +359,29 @@ export async function executeRawSSHCommand(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const result = await executeSSHOnce(command, "raw", sshConfig, cmdTimeoutMs);
+    if (result.success || attempt === retries) return result;
+    if (result.error?.includes("timed out") || result.error?.includes("connection failed")) {
+      await new Promise(r => setTimeout(r, 3000));
+      continue;
+    }
+    return result;
+  }
+
+  return { success: false, output: "", error: "SSH failed after retries" };
+}
+
+export async function executeSSHRawCommand(
+  command: string,
+  config?: SSHConnectionConfig,
+  retries = 1
+): Promise<SSHResult> {
+  const sshConfig = config || getDefaultConfig();
+  if (!sshConfig) {
+    return { success: false, output: "", error: "No SSH credentials configured. Add a VPS connection or set VPS_ROOT_PASSWORD secret." };
+  }
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const result = await executeSSHOnce(command, "raw", sshConfig);
     if (result.success || attempt === retries) return result;
     if (result.error?.includes("timed out") || result.error?.includes("connection failed")) {
       await new Promise(r => setTimeout(r, 3000));

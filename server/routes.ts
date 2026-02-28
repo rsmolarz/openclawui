@@ -3453,6 +3453,21 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     { key: "SPOTIFY_CLIENT_SECRET", label: "Spotify Secret", description: "Spotify API auth", prefix: "", skills: ["spotify-player"] },
     { key: "GOOGLE_PLACES_API_KEY", label: "Google Places", description: "Place search and details via goplaces", prefix: "AIza", skills: ["goplaces"] },
     { key: "X_BEARER_TOKEN", label: "X (Twitter)", description: "X/Twitter API access via xurl", prefix: "", skills: ["xurl"] },
+    { key: "ANTHROPIC_API_KEY", label: "Anthropic", description: "Claude AI models for chat and code generation", prefix: "sk-ant-", skills: ["anthropic", "nano-banana-pro"] },
+    { key: "PERPLEXITY_API_KEY", label: "Perplexity", description: "Perplexity AI search-augmented models", prefix: "pplx-", skills: ["perplexity"] },
+    { key: "GROQ_API_KEY", label: "Groq", description: "Ultra-fast LLM inference with Groq hardware", prefix: "gsk_", skills: ["groq", "nano-banana-pro"] },
+    { key: "HUGGINGFACE_API_KEY", label: "HuggingFace", description: "Access to open-source ML models and inference API", prefix: "hf_", skills: ["huggingface"] },
+    { key: "PINECONE_API_KEY", label: "Pinecone", description: "Vector database for embeddings and semantic search", prefix: "", skills: ["pinecone"] },
+    { key: "SUPABASE_API_KEY", label: "Supabase", description: "Backend-as-a-service with Postgres, auth, and storage", prefix: "eyJ", skills: ["supabase"] },
+    { key: "AIRTABLE_API_KEY", label: "Airtable", description: "Spreadsheet-database hybrid for structured data", prefix: "pat", skills: ["airtable"] },
+    { key: "ZAPIER_API_KEY", label: "Zapier", description: "Workflow automation and app integrations", prefix: "", skills: ["zapier"] },
+    { key: "LINEAR_API_KEY", label: "Linear", description: "Issue tracking and project management", prefix: "lin_api_", skills: ["linear"] },
+    { key: "AWS_ACCESS_KEY_ID", label: "AWS Access Key", description: "AWS services access key ID", prefix: "AKIA", skills: ["aws"] },
+    { key: "AWS_SECRET_ACCESS_KEY", label: "AWS Secret Key", description: "AWS services secret access key", prefix: "", skills: ["aws"] },
+    { key: "CLOUDFLARE_API_TOKEN", label: "Cloudflare", description: "DNS, CDN, Workers, and edge computing", prefix: "", skills: ["cloudflare"] },
+    { key: "RESEND_API_KEY", label: "Resend", description: "Transactional email delivery API", prefix: "re_", skills: ["resend"] },
+    { key: "TWILIO_ACCOUNT_SID", label: "Twilio Account SID", description: "Twilio account identifier for SMS and voice", prefix: "AC", skills: ["twilio"] },
+    { key: "TWILIO_AUTH_TOKEN", label: "Twilio Auth Token", description: "Twilio authentication token for API access", prefix: "", skills: ["twilio"] },
   ];
 
   app.get("/api/ssh/skill-keys", requireAuth, async (req, res) => {
@@ -3574,6 +3589,22 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         NOTION_API_KEY: process.env.NOTION_API_KEY,
         GEMINI_API_KEY: process.env.GEMINI_API_KEY,
         ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+        PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+        GROQ_API_KEY: process.env.GROQ_API_KEY,
+        HUGGINGFACE_TOKEN: process.env.HUGGINGFACE_TOKEN,
+        PINECONE_API_KEY: process.env.PINECONE_API_KEY,
+        SUPABASE_KEY: process.env.SUPABASE_KEY,
+        AIRTABLE_API_KEY: process.env.AIRTABLE_API_KEY,
+        ZAPIER_API_KEY: process.env.ZAPIER_API_KEY,
+        LINEAR_API_KEY: process.env.LINEAR_API_KEY,
+        AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+        CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
+        RESEND_API_KEY: process.env.RESEND_API_KEY,
+        TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+        TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+        TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
       };
 
       const lines: string[] = [];
@@ -4438,6 +4469,102 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     }
   });
 
+  app.get("/api/files/list", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dirPath = (req.query.path as string) || "/root";
+      const safePath = dirPath.replace(/\.\./g, "").replace(/[;&|`$]/g, "");
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig();
+      if (!sshConfig) return res.status(500).json({ error: "No SSH connection configured" });
+      const result = await executeRawSSHCommand(
+        `ls -la --time-style=long-iso ${JSON.stringify(safePath)} 2>/dev/null | tail -n +2`,
+        sshConfig
+      );
+      if (!result.success) return res.status(500).json({ error: result.error || "Failed to list directory" });
+      const entries: Array<{ name: string; type: string; size: number; modified: string; permissions: string }> = [];
+      const lines = result.output.split("\n").filter((l: string) => l.trim());
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 8) continue;
+        const permissions = parts[0];
+        const size = parseInt(parts[4], 10) || 0;
+        const date = parts[5];
+        const time = parts[6];
+        const name = parts.slice(7).join(" ").replace(/ -> .*$/, "");
+        if (name === "." || name === "..") continue;
+        let type = "file";
+        if (permissions.startsWith("d")) type = "directory";
+        else if (permissions.startsWith("l")) type = "symlink";
+        else if (!permissions.startsWith("-")) type = "other";
+        entries.push({ name, type, size, modified: `${date} ${time}`, permissions });
+      }
+      entries.sort((a, b) => {
+        if (a.type === "directory" && b.type !== "directory") return -1;
+        if (a.type !== "directory" && b.type === "directory") return 1;
+        return a.name.localeCompare(b.name);
+      });
+      res.json({ path: safePath, entries });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to list directory" });
+    }
+  });
+
+  app.get("/api/files/read", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const filePath = (req.query.path as string);
+      if (!filePath) return res.status(400).json({ error: "Path is required" });
+      const safePath = filePath.replace(/\.\./g, "").replace(/[;&|`$]/g, "");
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig();
+      if (!sshConfig) return res.status(500).json({ error: "No SSH connection configured" });
+      const sizeCheck = await executeRawSSHCommand(
+        `stat --printf='%s' ${JSON.stringify(safePath)} 2>/dev/null || echo 'NOT_FOUND'`,
+        sshConfig
+      );
+      if (sizeCheck.output.includes("NOT_FOUND")) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      const fileSize = parseInt(sizeCheck.output.trim(), 10);
+      if (fileSize > 1024 * 1024) {
+        return res.status(400).json({ error: "File too large to edit (>1MB)" });
+      }
+      const result = await executeRawSSHCommand(
+        `cat ${JSON.stringify(safePath)}`,
+        sshConfig,
+        1,
+        30000
+      );
+      if (!result.success) return res.status(500).json({ error: result.error || "Failed to read file" });
+      res.json({ path: safePath, content: result.output });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to read file" });
+    }
+  });
+
+  app.post("/api/files/write", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { path: filePath, content } = req.body;
+      if (!filePath || typeof content !== "string") {
+        return res.status(400).json({ error: "Path and content are required" });
+      }
+      const safePath = filePath.replace(/\.\./g, "").replace(/[;&|`$]/g, "");
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig();
+      if (!sshConfig) return res.status(500).json({ error: "No SSH connection configured" });
+      const b64 = Buffer.from(content, "utf8").toString("base64");
+      const result = await executeRawSSHCommand(
+        `echo '${b64}' | base64 -d > ${JSON.stringify(safePath)}`,
+        sshConfig,
+        1,
+        30000
+      );
+      if (!result.success) return res.status(500).json({ error: result.error || "Failed to write file" });
+      res.json({ success: true, path: safePath });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to write file" });
+    }
+  });
+
   app.get("/api/webhooks/github/info", requireAuth, async (_req: Request, res: Response) => {
     const baseUrl = process.env.REPL_SLUG
       ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co`
@@ -4456,6 +4583,478 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     });
   });
 
+  app.get("/api/marketplace/plugins", requireAuth, async (req, res) => {
+    try {
+      const { executeSSHCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+      const instanceId = await resolveInstanceId(req);
+      let sshConfig;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) sshConfig = buildSSHConfigFromVps(vps);
+      }
+      if (!sshConfig) sshConfig = getSSHConfig() || undefined;
+
+      const listResult = await executeSSHCommand("plugins-list", sshConfig);
+      const installedResult = await executeSSHCommand("plugins-installed", sshConfig);
+
+      let plugins: any[] = [];
+      let installed: string[] = [];
+
+      try {
+        const parsed = JSON.parse(listResult.output || "[]");
+        if (Array.isArray(parsed)) plugins = parsed;
+      } catch {}
+
+      try {
+        const parsed = JSON.parse(installedResult.output || "[]");
+        if (Array.isArray(parsed)) installed = parsed.map((p: any) => typeof p === "string" ? p : p.name || p.id || "");
+      } catch {
+        const lines = (installedResult.output || "").split("\n").filter((l: string) => l.trim());
+        installed = lines;
+      }
+
+      if (plugins.length === 0) {
+        plugins = [
+          { name: "whatsapp", description: "WhatsApp messaging integration for sending and receiving messages", category: "messaging", author: "openclaw" },
+          { name: "discord", description: "Discord bot integration for server management and messaging", category: "messaging", author: "openclaw" },
+          { name: "voice-call", description: "Voice call capabilities with speech-to-text and text-to-speech", category: "communication", author: "openclaw" },
+          { name: "slack", description: "Slack workspace integration for team messaging and notifications", category: "messaging", author: "openclaw" },
+          { name: "telegram", description: "Telegram bot integration for messaging and group management", category: "messaging", author: "openclaw" },
+          { name: "notion", description: "Notion workspace integration for notes, databases, and wikis", category: "productivity", author: "openclaw" },
+          { name: "trello", description: "Trello board integration for project and task management", category: "productivity", author: "openclaw" },
+          { name: "obsidian", description: "Obsidian vault integration for knowledge management", category: "productivity", author: "openclaw" },
+          { name: "spotify-player", description: "Spotify playback control and music search", category: "media", author: "openclaw" },
+          { name: "openai-whisper", description: "OpenAI Whisper speech-to-text transcription", category: "ai", author: "openclaw" },
+          { name: "openai-whisper-api", description: "OpenAI Whisper API for cloud-based transcription", category: "ai", author: "openclaw" },
+          { name: "openai-image-gen", description: "OpenAI DALL-E image generation from text prompts", category: "ai", author: "openclaw" },
+          { name: "apple-notes", description: "Apple Notes integration for reading and creating notes", category: "productivity", author: "openclaw" },
+          { name: "apple-reminders", description: "Apple Reminders integration for task management", category: "productivity", author: "openclaw" },
+          { name: "bear-notes", description: "Bear notes app integration for markdown notes", category: "productivity", author: "openclaw" },
+          { name: "things-mac", description: "Things 3 task manager integration for macOS", category: "productivity", author: "openclaw" },
+          { name: "bluebubbles", description: "BlueBubbles iMessage integration for messaging", category: "messaging", author: "openclaw" },
+          { name: "camsnap", description: "Camera snapshot capture from connected devices", category: "media", author: "openclaw" },
+          { name: "gifgrep", description: "GIF search and sharing integration", category: "media", author: "openclaw" },
+          { name: "imsg", description: "iMessage integration for Apple messaging", category: "messaging", author: "openclaw" },
+          { name: "nano-pdf", description: "PDF generation and processing utilities", category: "utilities", author: "openclaw" },
+          { name: "nano-banana-pro", description: "Banana Pro hardware integration", category: "hardware", author: "openclaw" },
+          { name: "peekaboo", description: "Screen peek and screenshot capture utility", category: "utilities", author: "openclaw" },
+          { name: "sag", description: "Smart Agent Gateway for multi-agent orchestration", category: "ai", author: "openclaw" },
+          { name: "model-usage", description: "LLM model usage tracking and analytics", category: "ai", author: "openclaw" },
+          { name: "session-logs", description: "Session logging and history tracking", category: "utilities", author: "openclaw" },
+          { name: "blogwatcher", description: "Blog and RSS feed monitoring with notifications", category: "utilities", author: "openclaw" },
+          { name: "blucli", description: "Bluetooth device control and management CLI", category: "hardware", author: "openclaw" },
+          { name: "sonoscli", description: "Sonos speaker control and playback management", category: "media", author: "openclaw" },
+          { name: "eightctl", description: "Eight Sleep smart mattress control", category: "hardware", author: "openclaw" },
+          { name: "openhue", description: "Philips Hue smart lighting control", category: "hardware", author: "openclaw" },
+          { name: "ordercli", description: "Order management and tracking integration", category: "utilities", author: "openclaw" },
+          { name: "songsee", description: "Song identification and lyrics lookup", category: "media", author: "openclaw" },
+          { name: "gog", description: "GOG gaming platform integration", category: "media", author: "openclaw" },
+        ];
+      }
+
+      const pluginsWithStatus = plugins.map((p: any) => {
+        const pluginName = typeof p === "string" ? p : (p.name || p.id || "");
+        return {
+          name: pluginName,
+          description: typeof p === "object" ? (p.description || "") : "",
+          category: typeof p === "object" ? (p.category || "general") : "general",
+          author: typeof p === "object" ? (p.author || "openclaw") : "openclaw",
+          installed: installed.some((i: string) => i.toLowerCase().includes(pluginName.toLowerCase())),
+        };
+      });
+
+      res.json({ plugins: pluginsWithStatus, sshConnected: listResult.success || installedResult.success });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch plugins" });
+    }
+  });
+
+  app.post("/api/marketplace/plugins/:name/install", requireAuth, async (req, res) => {
+    try {
+      const { executeSSHCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+      const pluginName = String(req.params.name).replace(/[^a-zA-Z0-9_\-]/g, "");
+      const instanceId = await resolveInstanceId(req);
+      let sshConfig;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) sshConfig = buildSSHConfigFromVps(vps);
+      }
+      if (!sshConfig) sshConfig = getSSHConfig() || undefined;
+
+      const { executeSSHRawCommand } = await import("./ssh");
+      const result = await executeSSHRawCommand(
+        `openclaw plugins install ${pluginName} 2>&1 && openclaw plugins enable ${pluginName} 2>&1 && echo "INSTALL_SUCCESS"`,
+        sshConfig
+      );
+
+      res.json({
+        success: result.success && (result.output || "").includes("INSTALL_SUCCESS"),
+        output: result.output,
+        error: result.error,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to install plugin" });
+    }
+  });
+
+  app.post("/api/marketplace/plugins/:name/uninstall", requireAuth, async (req, res) => {
+    try {
+      const pluginName = String(req.params.name).replace(/[^a-zA-Z0-9_\-]/g, "");
+      const instanceId = await resolveInstanceId(req);
+      let sshConfig;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) {
+          const { buildSSHConfigFromVps } = await import("./ssh");
+          sshConfig = buildSSHConfigFromVps(vps);
+        }
+      }
+      if (!sshConfig) {
+        const { getSSHConfig } = await import("./ssh");
+        sshConfig = getSSHConfig() || undefined;
+      }
+
+      const { executeSSHRawCommand } = await import("./ssh");
+      const result = await executeSSHRawCommand(
+        `openclaw plugins disable ${pluginName} 2>&1 && echo "UNINSTALL_SUCCESS"`,
+        sshConfig
+      );
+
+      res.json({
+        success: result.success && (result.output || "").includes("UNINSTALL_SUCCESS"),
+        output: result.output,
+        error: result.error,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to uninstall plugin" });
+    }
+  });
+
+  app.get("/api/system-stats", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance" });
+      const instance = await storage.getInstance(instanceId);
+      const vps = instance ? await storage.getVpsConfig(instanceId) : null;
+
+      const { executeSSHRawCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+      const sshConfig = vps?.vpsIp
+        ? buildSSHConfigFromVps({ vpsIp: vps.vpsIp, vpsPort: vps.vpsPort || 22, sshUser: vps.sshUser || "root", sshKeyPath: vps.sshKeyPath })
+        : getSSHConfig();
+
+      if (!sshConfig) return res.status(400).json({ error: "No SSH credentials configured" });
+
+      const cmd = `echo '===CPU===' && top -bn1 | head -5 && echo '===MEM===' && free -m && echo '===DISK===' && df -h / && echo '===UPTIME===' && uptime && echo '===LOAD===' && cat /proc/loadavg && echo '===NET===' && cat /proc/net/dev | grep -E 'eth0|ens|enp' | head -1`;
+      const result = await executeSSHRawCommand(cmd, sshConfig);
+
+      if (!result.success) {
+        return res.json({ success: false, error: result.error });
+      }
+
+      const output = result.output || "";
+      const sections: Record<string, string> = {};
+      let currentSection = "";
+      for (const line of output.split("\n")) {
+        if (line.startsWith("===") && line.endsWith("===")) {
+          currentSection = line.replace(/===/g, "").trim();
+          sections[currentSection] = "";
+        } else if (currentSection) {
+          sections[currentSection] += line + "\n";
+        }
+      }
+
+      let cpuUsage = 0;
+      const cpuMatch = (sections["CPU"] || "").match(/(\d+[\.,]\d+)\s*id/);
+      if (cpuMatch) {
+        cpuUsage = Math.round(100 - parseFloat(cpuMatch[1].replace(",", ".")));
+      }
+
+      let memTotal = 0, memUsed = 0, memFree = 0;
+      const memLines = (sections["MEM"] || "").split("\n");
+      for (const ml of memLines) {
+        const memMatch = ml.match(/Mem:\s+(\d+)\s+(\d+)\s+(\d+)/);
+        if (memMatch) {
+          memTotal = parseInt(memMatch[1]);
+          memUsed = parseInt(memMatch[2]);
+          memFree = parseInt(memMatch[3]);
+        }
+      }
+
+      let diskTotal = "", diskUsed = "", diskAvail = "", diskUsePercent = 0;
+      const diskLines = (sections["DISK"] || "").split("\n");
+      for (const dl of diskLines) {
+        const diskMatch = dl.match(/\S+\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)%/);
+        if (diskMatch) {
+          diskTotal = diskMatch[1];
+          diskUsed = diskMatch[2];
+          diskAvail = diskMatch[3];
+          diskUsePercent = parseInt(diskMatch[4]);
+        }
+      }
+
+      let loadAvg = [0, 0, 0];
+      const loadMatch = (sections["LOAD"] || "").match(/([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+      if (loadMatch) {
+        loadAvg = [parseFloat(loadMatch[1]), parseFloat(loadMatch[2]), parseFloat(loadMatch[3])];
+      }
+
+      let uptimeStr = (sections["UPTIME"] || "").trim();
+
+      let netRx = 0, netTx = 0;
+      const netMatch = (sections["NET"] || "").match(/:\s*(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/);
+      if (netMatch) {
+        netRx = parseInt(netMatch[1]);
+        netTx = parseInt(netMatch[2]);
+      }
+
+      res.json({
+        success: true,
+        timestamp: Date.now(),
+        cpu: { usage: cpuUsage },
+        memory: { total: memTotal, used: memUsed, free: memFree, percent: memTotal > 0 ? Math.round((memUsed / memTotal) * 100) : 0 },
+        disk: { total: diskTotal, used: diskUsed, available: diskAvail, percent: diskUsePercent },
+        load: loadAvg,
+        uptime: uptimeStr,
+        network: { rxBytes: netRx, txBytes: netTx },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch system stats" });
+    }
+  });
+
+  app.get("/api/gateway-logs", requireAuth, async (req, res) => {
+    try {
+      const instanceId = await resolveInstanceId(req);
+      if (!instanceId) return res.status(400).json({ error: "No instance" });
+      const instance = await storage.getInstance(instanceId);
+      const vps = instance ? await storage.getVpsConfig(instanceId) : null;
+
+      const { executeSSHRawCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+      const sshConfig = vps?.vpsIp
+        ? buildSSHConfigFromVps({ vpsIp: vps.vpsIp, vpsPort: vps.vpsPort || 22, sshUser: vps.sshUser || "root", sshKeyPath: vps.sshKeyPath })
+        : getSSHConfig();
+
+      if (!sshConfig) return res.status(400).json({ error: "No SSH credentials configured" });
+
+      const lines = parseInt(req.query.lines as string) || 50;
+      const cmd = `tail -${Math.min(lines, 200)} /tmp/oc.log 2>/dev/null || tail -${Math.min(lines, 200)} /tmp/openclaw.log 2>/dev/null || journalctl -u openclaw --no-pager -n ${Math.min(lines, 200)} 2>/dev/null || echo 'No gateway logs found'`;
+      const result = await executeSSHRawCommand(cmd, sshConfig);
+
+      res.json({
+        success: result.success,
+        logs: result.output || "",
+        error: result.error,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch gateway logs" });
+    }
+  });
+
+  app.get("/api/automation/jobs", requireAuth, async (_req, res) => {
+    try {
+      const jobs = await storage.getAutomationJobs();
+      res.json(jobs);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch automation jobs" });
+    }
+  });
+
+  app.get("/api/automation/jobs/:id", requireAuth, async (req, res) => {
+    try {
+      const job = await storage.getAutomationJob(req.params.id);
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      res.json(job);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch job" });
+    }
+  });
+
+  app.post("/api/automation/jobs", requireAuth, async (req, res) => {
+    try {
+      const { insertAutomationJobSchema } = await import("@shared/schema");
+      const parsed = insertAutomationJobSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+      const { getNextRun } = await import("./automation");
+      const nextRun = getNextRun(parsed.data.schedule);
+      const job = await storage.createAutomationJob(parsed.data);
+      await storage.updateAutomationJob(job.id, { nextRun });
+      const updated = await storage.getAutomationJob(job.id);
+      res.status(201).json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to create automation job" });
+    }
+  });
+
+  app.patch("/api/automation/jobs/:id", requireAuth, async (req, res) => {
+    try {
+      const { insertAutomationJobSchema } = await import("@shared/schema");
+      const updateSchema = insertAutomationJobSchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+      const updateData: any = { ...parsed.data };
+      if (parsed.data.schedule) {
+        const { getNextRun } = await import("./automation");
+        updateData.nextRun = getNextRun(parsed.data.schedule);
+      }
+      const updated = await storage.updateAutomationJob(req.params.id, updateData);
+      if (!updated) return res.status(404).json({ error: "Job not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update job" });
+    }
+  });
+
+  app.delete("/api/automation/jobs/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteAutomationJob(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete job" });
+    }
+  });
+
+  app.post("/api/automation/jobs/:id/run", requireAuth, async (req, res) => {
+    try {
+      const job = await storage.getAutomationJob(req.params.id);
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      const { executeJob } = await import("./automation");
+      executeJob(job).catch(err => console.error("[Automation] Manual run failed:", err.message));
+      res.json({ success: true, message: "Job execution started" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to run job" });
+    }
+  });
+
+  app.get("/api/automation/jobs/:id/runs", requireAuth, async (req, res) => {
+    try {
+      const runs = await storage.getAutomationRuns(req.params.id);
+      res.json(runs);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch runs" });
+    }
+  });
+
+  app.get("/api/metrics", requireAuth, async (req, res) => {
+    try {
+      const category = req.query.category as string | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 1000;
+      const events = await storage.getMetricsEvents(category, limit);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch metrics events" });
+    }
+  });
+
+  app.get("/api/metrics/summary", requireAuth, async (_req, res) => {
+    try {
+      const events = await storage.getMetricsEvents(undefined, 5000);
+      const totalMessages = events.filter((e) => e.category === "whatsapp").length;
+      const totalApiCalls = events.filter((e) => e.category === "api_call").length;
+      const uptimeEvents = events.filter((e) => e.category === "node_uptime");
+      const avgUptime =
+        uptimeEvents.length > 0
+          ? uptimeEvents.reduce((sum, e) => sum + (e.value ?? 0), 0) / uptimeEvents.length
+          : 0;
+      const guardianIssues = events.filter(
+        (e) => e.category === "guardian" && e.type === "issue_detected"
+      ).length;
+      res.json({ totalMessages, totalApiCalls, avgUptime, guardianIssues });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch metrics summary" });
+    }
+  });
+
+  app.post("/api/metrics", requireAuth, async (req, res) => {
+    try {
+      const { type, category, value, metadata } = req.body;
+      if (!type || !category) {
+        return res.status(400).json({ error: "type and category are required" });
+      }
+      const event = await storage.createMetricsEvent({ type, category, value, metadata });
+      res.status(201).json(event);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to create metrics event" });
+    }
+  });
+
+  const codeUpgrades: Array<{
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    priority: string;
+    diff: string;
+    status: string;
+    createdAt: string;
+  }> = [];
+
+  app.get("/api/admin/code-upgrades", requireAuth, async (_req, res) => {
+    res.json(codeUpgrades);
+  });
+
+  app.post("/api/admin/code-upgrades/generate", requireAuth, async (_req, res) => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) return res.status(400).json({ error: "OPENAI_API_KEY not configured" });
+
+      const { default: OpenAI } = await import("openai");
+      const openai = new OpenAI({ apiKey });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a code upgrade agent for the OpenClaw Dashboard (Express + React + TypeScript). 
+Suggest 3 practical code improvements. Return JSON array with objects having: title, description, category (one of: performance, security, refactor, feature, cleanup), priority (high/medium/low), diff (suggested code change as a unified diff or pseudocode).`
+          },
+          {
+            role: "user",
+            content: "Analyze the OpenClaw Dashboard codebase and suggest 3 code upgrades. Focus on: error handling improvements, security hardening, performance optimizations, or code cleanup opportunities."
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) return res.status(500).json({ error: "No response from AI" });
+
+      const parsed = JSON.parse(content);
+      const suggestions = Array.isArray(parsed) ? parsed : parsed.suggestions || parsed.upgrades || [];
+
+      for (const s of suggestions) {
+        codeUpgrades.push({
+          id: crypto.randomUUID(),
+          title: s.title || "Untitled",
+          description: s.description || "",
+          category: s.category || "refactor",
+          priority: s.priority || "medium",
+          diff: s.diff || "",
+          status: "proposed",
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      res.json({ success: true, count: suggestions.length });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/admin/code-upgrades/:id", requireAuth, async (req, res) => {
+    const upgrade = codeUpgrades.find(u => u.id === req.params.id);
+    if (!upgrade) return res.status(404).json({ error: "Not found" });
+    if (req.body.status) upgrade.status = req.body.status;
+    res.json(upgrade);
+  });
+
+  app.delete("/api/admin/code-upgrades/:id", requireAuth, async (req, res) => {
+    const idx = codeUpgrades.findIndex(u => u.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Not found" });
+    codeUpgrades.splice(idx, 1);
+    res.json({ success: true });
+  });
+
   setTimeout(async () => {
     try {
       if (process.env.TELEGRAM_BOT_TOKEN) {
@@ -4464,6 +5063,18 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       }
     } catch (err: any) {
       console.error("[Startup] Telegram auto-start failed:", err.message);
+    }
+    try {
+      const { startAutomationScheduler } = await import("./automation");
+      startAutomationScheduler();
+    } catch (err: any) {
+      console.error("[Startup] Automation scheduler failed:", err.message);
+    }
+    try {
+      const { startAutoScan } = await import("./code-guardian");
+      startAutoScan();
+    } catch (err: any) {
+      console.error("[Startup] Guardian auto-scan failed:", err.message);
     }
   }, 3000);
 

@@ -30,6 +30,11 @@ import VpsMonitoring from "@/pages/vps-monitoring";
 import OpenClawCommands from "@/pages/openclaw-commands";
 import AiTaskRunner from "@/pages/ai-task-runner";
 import AdminPage from "@/pages/admin";
+import SystemMonitor from "@/pages/system-monitor";
+import Automation from "@/pages/automation";
+import FileManager from "@/pages/file-manager";
+import Metrics from "@/pages/metrics";
+import Marketplace from "@/pages/marketplace";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -53,6 +58,11 @@ function Router() {
       <Route path="/commands" component={OpenClawCommands} />
       <Route path="/ai-tasks" component={AiTaskRunner} />
       <Route path="/admin" component={AdminPage} />
+      <Route path="/system-monitor" component={SystemMonitor} />
+      <Route path="/automation" component={Automation} />
+      <Route path="/files" component={FileManager} />
+      <Route path="/metrics" component={Metrics} />
+      <Route path="/marketplace" component={Marketplace} />
       <Route component={NotFound} />
     </Switch>
   );

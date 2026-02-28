@@ -19,9 +19,13 @@ import {
   type AiMessage, type InsertAiMessage,
   type GuardianLog, type InsertGuardianLog,
   type FeatureProposal, type InsertFeatureProposal,
+  type AutomationJob, type InsertAutomationJob,
+  type AutomationRun, type InsertAutomationRun,
+  type MetricsEvent, type InsertMetricsEvent,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
+  automationJobs, automationRuns, metricsEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -132,6 +136,20 @@ export interface IStorage {
   createFeatureProposal(data: InsertFeatureProposal): Promise<FeatureProposal>;
   updateFeatureProposal(id: string, data: Partial<InsertFeatureProposal>): Promise<FeatureProposal | undefined>;
   deleteFeatureProposal(id: string): Promise<void>;
+
+  getAutomationJobs(): Promise<AutomationJob[]>;
+  getAutomationJob(id: string): Promise<AutomationJob | undefined>;
+  createAutomationJob(data: InsertAutomationJob): Promise<AutomationJob>;
+  updateAutomationJob(id: string, data: Partial<InsertAutomationJob> & { lastRun?: Date; nextRun?: Date }): Promise<AutomationJob | undefined>;
+  deleteAutomationJob(id: string): Promise<void>;
+
+  getAutomationRuns(jobId: string): Promise<AutomationRun[]>;
+  getAutomationRun(id: string): Promise<AutomationRun | undefined>;
+  createAutomationRun(data: InsertAutomationRun): Promise<AutomationRun>;
+  updateAutomationRun(id: string, data: Partial<InsertAutomationRun> & { completedAt?: Date }): Promise<AutomationRun | undefined>;
+
+  getMetricsEvents(category?: string, limit?: number): Promise<MetricsEvent[]>;
+  createMetricsEvent(data: InsertMetricsEvent): Promise<MetricsEvent>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -687,6 +705,61 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFeatureProposal(id: string): Promise<void> {
     await db.delete(featureProposals).where(eq(featureProposals.id, id));
+  }
+
+  async getAutomationJobs(): Promise<AutomationJob[]> {
+    return db.select().from(automationJobs).orderBy(desc(automationJobs.createdAt));
+  }
+
+  async getAutomationJob(id: string): Promise<AutomationJob | undefined> {
+    const [job] = await db.select().from(automationJobs).where(eq(automationJobs.id, id));
+    return job;
+  }
+
+  async createAutomationJob(data: InsertAutomationJob): Promise<AutomationJob> {
+    const [job] = await db.insert(automationJobs).values(data).returning();
+    return job;
+  }
+
+  async updateAutomationJob(id: string, data: Partial<InsertAutomationJob> & { lastRun?: Date; nextRun?: Date }): Promise<AutomationJob | undefined> {
+    const [job] = await db.update(automationJobs).set(data).where(eq(automationJobs.id, id)).returning();
+    return job;
+  }
+
+  async deleteAutomationJob(id: string): Promise<void> {
+    await db.delete(automationRuns).where(eq(automationRuns.jobId, id));
+    await db.delete(automationJobs).where(eq(automationJobs.id, id));
+  }
+
+  async getAutomationRuns(jobId: string): Promise<AutomationRun[]> {
+    return db.select().from(automationRuns).where(eq(automationRuns.jobId, jobId)).orderBy(desc(automationRuns.startedAt));
+  }
+
+  async getAutomationRun(id: string): Promise<AutomationRun | undefined> {
+    const [run] = await db.select().from(automationRuns).where(eq(automationRuns.id, id));
+    return run;
+  }
+
+  async createAutomationRun(data: InsertAutomationRun): Promise<AutomationRun> {
+    const [run] = await db.insert(automationRuns).values(data).returning();
+    return run;
+  }
+
+  async updateAutomationRun(id: string, data: Partial<InsertAutomationRun> & { completedAt?: Date }): Promise<AutomationRun | undefined> {
+    const [run] = await db.update(automationRuns).set(data).where(eq(automationRuns.id, id)).returning();
+    return run;
+  }
+
+  async getMetricsEvents(category?: string, limit = 500): Promise<MetricsEvent[]> {
+    if (category) {
+      return db.select().from(metricsEvents).where(eq(metricsEvents.category, category)).orderBy(desc(metricsEvents.createdAt)).limit(limit);
+    }
+    return db.select().from(metricsEvents).orderBy(desc(metricsEvents.createdAt)).limit(limit);
+  }
+
+  async createMetricsEvent(data: InsertMetricsEvent): Promise<MetricsEvent> {
+    const [event] = await db.insert(metricsEvents).values(data).returning();
+    return event;
   }
 }
 

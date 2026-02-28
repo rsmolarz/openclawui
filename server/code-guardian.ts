@@ -16,12 +16,44 @@ async function logCheck(data: InsertGuardianLog) {
 }
 
 let homeBotStatusRef: (() => { state: string; phone: string | null; error: string | null; hostname: string | null; lastReport: Date | null }) | null = null;
+let autoScanInterval: NodeJS.Timeout | null = null;
+let scanInProgress = false;
 
 function setHomeBotStatusRef(fn: typeof homeBotStatusRef) {
   homeBotStatusRef = fn;
 }
 
+function startAutoScan(intervalMs = 15 * 60 * 1000) {
+  if (autoScanInterval) clearInterval(autoScanInterval);
+  autoScanInterval = setInterval(async () => {
+    try {
+      await scanSystem();
+    } catch (err) {
+      console.error("[Guardian] Auto-scan error:", err);
+    }
+  }, intervalMs);
+  console.log(`[Guardian] Auto-scan started (every ${intervalMs / 60000} min)`);
+}
+
+function stopAutoScan() {
+  if (autoScanInterval) {
+    clearInterval(autoScanInterval);
+    autoScanInterval = null;
+  }
+}
+
 async function scanSystem(): Promise<void> {
+  if (scanInProgress) return;
+  scanInProgress = true;
+
+  try {
+    await runScan();
+  } finally {
+    scanInProgress = false;
+  }
+}
+
+async function runScan(): Promise<void> {
   let sshConfig: SSHConnectionConfig;
   try {
     sshConfig = await getSSHConfig();
@@ -96,7 +128,7 @@ async function scanSystem(): Promise<void> {
       type: "service",
       severity: "warning",
       message: `VPS WhatsApp bot is ${vpsBotActive ? "running" : "enabled"} — conflicts with home-bot`,
-      details: `The VPS bot fights with the home-bot for the same WhatsApp session, causing repeated disconnections. It should be stopped and disabled. Status: ${vpsBotResult.output.trim()}`,
+      details: `The VPS bot fights with the home-bot for the same WhatsApp session, causing repeated disconnections. Status: ${vpsBotResult.output.trim()}`,
       status: "detected",
       source: "vps-bot-conflict",
     });
@@ -140,20 +172,11 @@ async function scanSystem(): Promise<void> {
         type: "disconnect",
         severity: "critical",
         message: "WhatsApp home-bot is not reporting (offline or crashed)",
-        details: `Last report was ${hbStatus.lastReport ? Math.round(lastReportAge / 1000) + "s ago" : "never"}. The home-bot process on ${hbStatus.hostname || "the host machine"} may need to be restarted.`,
+        details: `Last report was ${hbStatus.lastReport ? Math.round(lastReportAge / 1000) + "s ago" : "never"}.`,
         status: "detected",
         source: "whatsapp-homebot",
       });
     }
-  } else {
-    await logCheck({
-      type: "service",
-      severity: "warning",
-      message: "WhatsApp home-bot status unavailable (status ref not set)",
-      details: "Cannot determine home-bot health",
-      status: "detected",
-      source: "whatsapp-homebot",
-    });
   }
 
   const nodesResult = await executeRawSSHCommand("openclaw nodes status 2>&1 || echo 'nodes check failed'", sshConfig);
@@ -186,9 +209,9 @@ async function scanSystem(): Promise<void> {
   if (memResult.success) {
     const memLine = memResult.output.split("\n").find(l => l.startsWith("Mem:"));
     if (memLine) {
-      const parts = memLine.split(/\s+/);
-      const total = parseInt(parts[1], 10);
-      const used = parseInt(parts[2], 10);
+      const mParts = memLine.split(/\s+/);
+      const total = parseInt(mParts[1], 10);
+      const used = parseInt(mParts[2], 10);
       const pct = total > 0 ? Math.round((used / total) * 100) : 0;
       await logCheck({
         type: "resource",
@@ -200,12 +223,100 @@ async function scanSystem(): Promise<void> {
       });
     }
   }
+
+  const dockerResult = await executeRawSSHCommand(
+    "docker ps --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}' 2>/dev/null || echo 'NO_DOCKER'",
+    sshConfig
+  );
+  if (dockerResult.success && !dockerResult.output.includes("NO_DOCKER")) {
+    const containerLines = dockerResult.output.trim().split("\n").filter(l => l.trim());
+    const unhealthy = containerLines.filter(l => l.toLowerCase().includes("unhealthy") || l.toLowerCase().includes("exited"));
+    if (unhealthy.length > 0) {
+      await logCheck({
+        type: "service",
+        severity: "warning",
+        message: `${unhealthy.length} Docker container(s) unhealthy or exited`,
+        details: unhealthy.join("\n"),
+        status: "detected",
+        source: "docker-check",
+      });
+    } else {
+      await logCheck({
+        type: "service",
+        severity: "info",
+        message: `${containerLines.length} Docker container(s) running normally`,
+        details: dockerResult.output.substring(0, 500),
+        status: "detected",
+        source: "docker-check",
+      });
+    }
+  }
+
+  const envCheckResult = await executeRawSSHCommand(
+    "for k in OPENAI_API_KEY GITHUB_TOKEN GEMINI_API_KEY NOTION_API_KEY ELEVENLABS_API_KEY ANTHROPIC_API_KEY; do if [ -z \"$(grep -s $k /etc/openclaw-env /root/.bashrc 2>/dev/null | head -1)\" ]; then echo \"MISSING:$k\"; fi; done",
+    sshConfig
+  );
+  if (envCheckResult.success) {
+    const missingKeys = envCheckResult.output.split("\n").filter(l => l.startsWith("MISSING:")).map(l => l.replace("MISSING:", ""));
+    if (missingKeys.length > 0) {
+      await logCheck({
+        type: "error",
+        severity: "warning",
+        message: `${missingKeys.length} API key(s) not configured on VPS: ${missingKeys.join(", ")}`,
+        details: `These keys are missing from /etc/openclaw-env and /root/.bashrc. Use "Sync from Replit" to push them.`,
+        status: "detected",
+        source: "api-keys-check",
+      });
+    } else {
+      await logCheck({
+        type: "service",
+        severity: "info",
+        message: "All core API keys are configured on VPS",
+        details: "Checked: OPENAI, GITHUB, GEMINI, NOTION, ELEVENLABS, ANTHROPIC",
+        status: "detected",
+        source: "api-keys-check",
+      });
+    }
+  }
+
+  try {
+    const instances = await storage.getInstances();
+    const defaultInstance = instances.find(i => i.isDefault);
+    if (defaultInstance) {
+      const integrations = await storage.getIntegrations();
+      const webhookIntegrations = integrations.filter(i => i.enabled && i.config && typeof i.config === "object");
+      for (const integration of webhookIntegrations.slice(0, 5)) {
+        const config = integration.config as Record<string, any>;
+        const webhookUrl = config.webhookUrl || config.url;
+        if (webhookUrl && typeof webhookUrl === "string" && webhookUrl.startsWith("http")) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            const resp = await fetch(webhookUrl, { method: "HEAD", signal: controller.signal }).catch(() => null);
+            clearTimeout(timeout);
+            if (!resp || !resp.ok) {
+              await logCheck({
+                type: "service",
+                severity: "warning",
+                message: `Webhook unreachable: ${integration.name} (${webhookUrl.substring(0, 60)})`,
+                details: `HTTP status: ${resp?.status || "timeout/error"}`,
+                status: "detected",
+                source: "webhook-check",
+              });
+            }
+          } catch {}
+        }
+      }
+    }
+  } catch {}
 }
 
 async function attemptFix(logId: string): Promise<void> {
   const logs = await storage.getGuardianLogs();
   const log = logs.find(l => l.id === logId);
   if (!log) throw new Error("Guardian log not found");
+
+  await storage.updateGuardianLog(logId, { status: "fixing" });
 
   let sshConfig: SSHConnectionConfig;
   try {
@@ -234,7 +345,7 @@ async function attemptFix(logId: string): Promise<void> {
       sshConfig
     );
     if (stopResult.success && (stopResult.output.includes("inactive") || stopResult.output.includes("stopped"))) {
-      await storage.updateGuardianLog(logId, { status: "fixed", resolution: "VPS WhatsApp bot stopped and disabled. Home-bot is now the sole connection." });
+      await storage.updateGuardianLog(logId, { status: "fixed", resolution: "VPS WhatsApp bot stopped and disabled." });
     } else {
       await storage.updateGuardianLog(logId, { status: "failed", resolution: "Failed to stop VPS bot: " + (stopResult.output || stopResult.error) });
     }
@@ -242,16 +353,49 @@ async function attemptFix(logId: string): Promise<void> {
   }
 
   if (log.source === "whatsapp-homebot" && log.severity !== "info") {
-    await storage.updateGuardianLog(logId, { status: "failed", resolution: "Home-bot runs on your local machine. Check that the process is running on " + (log.details?.match(/hostname: (\S+)/)?.[1] || "the host machine") + ". Restart it manually if needed." });
+    await storage.updateGuardianLog(logId, { status: "failed", resolution: "Home-bot runs on your local machine. Restart it manually." });
     return;
   }
 
-  if (log.source === "whatsapp-check" && log.severity !== "info") {
-    const restartResult = await executeRawSSHCommand("systemctl restart openclaw-whatsapp && sleep 3 && systemctl is-active openclaw-whatsapp", sshConfig);
-    if (restartResult.success && restartResult.output.trim().includes("active")) {
-      await storage.updateGuardianLog(logId, { status: "fixed", resolution: "WhatsApp bot restarted successfully" });
+  if (log.source === "docker-check" && log.severity !== "info") {
+    const restartResult = await executeRawSSHCommand(
+      "docker ps -q --filter 'status=exited' | xargs -r docker restart 2>&1; echo 'Done'; docker ps --format '{{.Names}} {{.Status}}' 2>&1",
+      sshConfig
+    );
+    if (restartResult.success) {
+      await storage.updateGuardianLog(logId, { status: "fixed", resolution: "Exited containers restarted. " + restartResult.output.substring(0, 200) });
     } else {
-      await storage.updateGuardianLog(logId, { status: "failed", resolution: "WhatsApp bot restart failed: " + (restartResult.output || restartResult.error) });
+      await storage.updateGuardianLog(logId, { status: "failed", resolution: "Docker restart failed: " + (restartResult.output || restartResult.error) });
+    }
+    return;
+  }
+
+  if (log.source === "api-keys-check" && log.severity !== "info") {
+    try {
+      const keys: Record<string, string | undefined> = {
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        GITHUB_TOKEN: process.env.OPENCLAW_GITHUB_TOKEN || process.env.GITHUB_TOKEN,
+        NOTION_API_KEY: process.env.NOTION_API_KEY,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      };
+      const lines: string[] = [];
+      for (const [k, v] of Object.entries(keys)) {
+        if (v) lines.push(`grep -q "^${k}=" /etc/openclaw-env 2>/dev/null || echo '${k}="${v.replace(/'/g, "'\\''")}"' >> /etc/openclaw-env; grep -q "^export ${k}=" /root/.bashrc || echo 'export ${k}="${v.replace(/'/g, "'\\''")}"' >> /root/.bashrc`);
+      }
+      if (lines.length > 0) {
+        const syncResult = await executeRawSSHCommand(lines.join(" && ") + " && echo 'synced'", sshConfig);
+        if (syncResult.success && syncResult.output.includes("synced")) {
+          await storage.updateGuardianLog(logId, { status: "fixed", resolution: "API keys synced from Replit to VPS" });
+        } else {
+          await storage.updateGuardianLog(logId, { status: "failed", resolution: "Sync failed: " + (syncResult.output || syncResult.error) });
+        }
+      } else {
+        await storage.updateGuardianLog(logId, { status: "failed", resolution: "No API keys available in Replit secrets to sync" });
+      }
+    } catch (e: any) {
+      await storage.updateGuardianLog(logId, { status: "failed", resolution: "Sync error: " + e.message });
     }
     return;
   }
@@ -272,4 +416,4 @@ async function attemptFix(logId: string): Promise<void> {
   await storage.updateGuardianLog(logId, { status: "failed", resolution: "No automatic fix available for this issue type" });
 }
 
-export { scanSystem, attemptFix, setHomeBotStatusRef };
+export { scanSystem, attemptFix, setHomeBotStatusRef, startAutoScan, stopAutoScan };
