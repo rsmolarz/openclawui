@@ -2790,10 +2790,10 @@ export default function SettingsOpenclaw() {
                   if (currentInstance?.serverUrl) {
                     try {
                       const u = new URL(currentInstance.serverUrl);
-                      return `ws://${u.hostname}:${formValues.gatewayPort}`;
+                      return `wss://${u.hostname}:${formValues.gatewayPort}`;
                     } catch {}
                   }
-                  return "ws://your-server-ip:18789";
+                  return "wss://your-server-ip:18789";
                 })()}
                 data-testid="input-websocket-url"
               />
