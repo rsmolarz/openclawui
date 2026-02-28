@@ -90,6 +90,7 @@ crontab -l | grep openclaw`,
   "check-env-keys": "env | grep -iE 'OPENAI|GITHUB|NOTION|GEMINI|GOOGLE|ELEVENLABS|TRELLO|DISCORD|SLACK' 2>/dev/null; echo '---BASHRC---'; grep -iE 'export.*(OPENAI|GITHUB|NOTION|GEMINI|GOOGLE|ELEVENLABS|TRELLO)' /root/.bashrc /root/.profile /root/.env 2>/dev/null; echo '---OPENCLAW-ENV---'; cat /root/.openclaw/openclaw.json 2>/dev/null | grep -iE 'apiKey|api_key|token' | head -20",
   "set-env-key": "echo 'Use set-api-keys instead'",
   "check-skill-status": "openclaw skills list 2>&1",
+  "clawhub-auth-status": "clawhub whoami 2>&1; echo '---TOKEN---'; cat ~/.clawhub/token 2>/dev/null || cat ~/.config/clawhub/token 2>/dev/null || echo 'No token file found'; echo '---HELP---'; clawhub login --help 2>&1 | head -10; echo '---ENV---'; env | grep -i clawhub 2>/dev/null || echo 'No clawhub env vars'",
   "add-replit-origin": `python3 -c "
 import json
 f='/root/.openclaw/openclaw.json'
