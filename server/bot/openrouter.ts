@@ -235,14 +235,11 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
     console.error("[OpenClaw] Failed to load skills/nodes context:", err.message);
   }
 
-  let imageGenContext = "";
   const hasImageGen = !!(OPENAI_API_KEY || GEMINI_API_KEY);
-  if (hasImageGen) {
-    imageGenContext = `\n\nIMAGE GENERATION (Nano Banana Pro):\nYou CAN generate images! When the user asks you to create, generate, draw, or design an image, logo, illustration, or any visual content, you MUST respond with the special tag [GENERATE_IMAGE: detailed prompt here] somewhere in your message. Write a detailed, descriptive prompt inside the tag that will produce the best image. For example:\n- User: "make me a logo for my app" → Your response should include [GENERATE_IMAGE: A modern, clean logo for...]\n- User: "draw a cat" → Your response should include [GENERATE_IMAGE: A cute cat...]\nAlways include a brief text message along with the tag to let the user know you're generating their image. NEVER say you cannot generate images — you absolutely can via Nano Banana Pro.`;
-  }
+  const imageGenContext = hasImageGen ? `\n\n## YOUR #1 PRIORITY RULE — IMAGE GENERATION:\nYou have a built-in image generation capability called "Nano Banana Pro". You MUST use it.\nWhen the user asks you to create, make, generate, draw, design, or produce ANY image, logo, picture, illustration, icon, graphic, artwork, or visual content:\n1. You MUST include the tag [GENERATE_IMAGE: your detailed prompt] in your response. This is MANDATORY.\n2. Write a rich, detailed prompt inside the tag describing exactly what the image should look like.\n3. Add a short friendly message to the user saying you're generating it.\n4. DO NOT offer text descriptions, concepts, or ideas instead of generating. DO NOT say "I can't generate images" or "I'll describe it for you". You CAN and MUST generate images.\n5. DO NOT suggest hiring a designer or using another tool. YOU generate the image directly.\n\nExamples of CORRECT responses:\nUser: "make a logo for my medical app" → "I'll generate that for you now! [GENERATE_IMAGE: A professional, modern medical app logo featuring a stylized caduceus intertwined with a digital circuit pattern, clean minimalist design, blue and white color scheme, suitable for a healthcare technology company]"\nUser: "draw a sunset" → "Creating that for you! [GENERATE_IMAGE: A breathtaking sunset over the ocean with vibrant orange, pink and purple clouds reflected on calm water, photorealistic style]"` : "";
 
   const platformLabel = platform || "messaging";
-  const systemPrompt = `You are OpenClaw, a powerful AI assistant and agent coordinator available via ${platformLabel}. You orchestrate tasks across connected devices and skills. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are OpenClaw — an AI-powered agent that manages skills, nodes, and automation. You are NOT a generic chatbot.${senderName ? ` The user's name is ${senderName}.` : ""}${skillsContext}${nodesContext}${imageGenContext}`;
+  const systemPrompt = `You are OpenClaw, a powerful AI assistant and agent coordinator available via ${platformLabel}.${imageGenContext}\n\nYou orchestrate tasks across connected devices and skills. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are OpenClaw — an AI-powered agent that manages skills, nodes, and automation. You are NOT a generic chatbot.${senderName ? ` The user's name is ${senderName}.` : ""}${skillsContext}${nodesContext}`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -269,7 +266,7 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
       console.log(`[OpenClaw] Trying ${provider.name} for ${senderName || "unknown"} via ${platformLabel}`);
       const result = await provider.fn();
       console.log(`[OpenClaw] ${provider.name} succeeded (${result.length} chars)`);
-      return parseImageResponse(result);
+      return parseImageResponse(result, userMessage);
     } catch (err: any) {
       console.error(`[OpenClaw] ${provider.name} failed:`, err.message);
     }
@@ -278,12 +275,49 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
   return { text: "I'm having trouble processing your request right now. Please try again in a moment." };
 }
 
-function parseImageResponse(response: string): ChatResponse {
+function parseImageResponse(response: string, userMessage?: string): ChatResponse {
   const imageMatch = response.match(/\[GENERATE_IMAGE:\s*([\s\S]*?)\]/);
   if (imageMatch) {
     const imagePrompt = imageMatch[1].trim();
     const text = response.replace(/\[GENERATE_IMAGE:\s*[\s\S]*?\]/g, "").trim();
     return { text: text || "Generating your image now...", imagePrompt };
   }
+
+  if (userMessage && isImageRequest(userMessage) && !response.includes("[GENERATE_IMAGE:")) {
+    const fallbackPrompt = extractImagePromptFromContext(userMessage, response);
+    if (fallbackPrompt) {
+      console.log(`[NanoBanana] Fallback: LLM didn't use tag, generating image from user request: "${fallbackPrompt.substring(0, 80)}"`);
+      return { text: response + "\n\n_Generating image via Nano Banana Pro..._", imagePrompt: fallbackPrompt };
+    }
+  }
+
   return { text: response };
+}
+
+function isImageRequest(message: string): boolean {
+  const lower = message.toLowerCase();
+  const imageKeywords = [
+    /\b(make|create|generate|draw|design|produce|build)\b.{0,30}\b(image|logo|picture|illustration|icon|graphic|art|artwork|photo|banner|poster|avatar|thumbnail|wallpaper)\b/,
+    /\b(image|logo|picture|illustration|icon|graphic|art|artwork|photo|banner|poster|avatar|thumbnail|wallpaper)\b.{0,30}\b(for|of|with|using|via)\b/,
+    /\bcan you (make|create|generate|draw|design)\b/,
+    /\b(nano banana|nanobanana)\b/i,
+    /\b(draw|sketch|paint|render|illustrate)\b.{0,20}\b(me |a |an |the )/,
+  ];
+  return imageKeywords.some(pattern => pattern.test(lower));
+}
+
+function extractImagePromptFromContext(userMessage: string, llmResponse: string): string | null {
+  const descriptivePatterns = [
+    /(?:logo|image|picture|icon|graphic|illustration|art|banner|poster).*?(?:for|of|with|featuring)\s+(.+)/i,
+    /(?:make|create|generate|draw|design|produce)\s+(?:a |an |the )?(.+?)(?:\.|$)/i,
+  ];
+
+  for (const pattern of descriptivePatterns) {
+    const match = userMessage.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return userMessage;
 }
