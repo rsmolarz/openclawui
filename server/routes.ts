@@ -2904,12 +2904,94 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         return res.status(409).json({ error: "Skill already installed" });
       }
       const skill = await storage.createSkill(data);
+
+      try {
+        const { executeRawSSHCommand: rawSSH } = await import("./ssh");
+        const instances = await storage.getInstances();
+        const inst = instances[0];
+        if (inst) {
+          const vpsConn = await storage.getVpsConnection(String(inst.id));
+          if (vpsConn?.vpsIp) {
+            const sshConfig = { host: vpsConn.vpsIp, port: vpsConn.vpsPort || 22, username: vpsConn.sshUser || "root" };
+            await rawSSH(`openclaw skills install ${data.skillId} 2>&1 || echo 'skill registered'`, sshConfig);
+            console.log(`[skills] Installed ${data.skillId} on VPS via SSH`);
+          }
+        }
+      } catch (e: any) {
+        console.error(`[skills] VPS install for ${data.skillId} failed:`, e.message);
+      }
+
       res.json(skill);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
       res.status(500).json({ error: "Failed to install skill" });
+    }
+  });
+
+  app.post("/api/skills/install-all", requireAuth, async (_req, res) => {
+    try {
+      const installed = await storage.getSkills();
+      const installedIds = new Set(installed.map(s => s.skillId));
+      let dbInstalled = 0;
+
+      for (const skill of SKILLS_CATALOG) {
+        if (!installedIds.has(skill.skillId)) {
+          await storage.createSkill({
+            skillId: skill.skillId,
+            name: skill.name,
+            description: skill.description,
+            category: skill.category,
+            version: skill.version,
+            enabled: true,
+            status: "installed",
+          });
+          dbInstalled++;
+        }
+      }
+
+      let vpsResult = "";
+      try {
+        const { executeRawSSHCommand: rawSSH, executeSSHCommand: sshCmd } = await import("./ssh");
+        const instances = await storage.getInstances();
+        const inst = instances[0];
+        if (inst) {
+          const vpsConn = await storage.getVpsConnection(String(inst.id));
+          if (vpsConn?.vpsIp) {
+            const sshConfig = { host: vpsConn.vpsIp, port: vpsConn.vpsPort || 22, username: vpsConn.sshUser || "root" };
+            const skillIds = SKILLS_CATALOG.map(s => s.skillId).join(" ");
+            const result = await rawSSH(
+              `for skill in ${skillIds}; do openclaw skills install "$skill" 2>/dev/null; done; echo '---SYNC---'; openclaw skills list 2>&1 | head -100`,
+              sshConfig
+            );
+            vpsResult = result.output || "";
+            console.log(`[skills] Bulk installed ${SKILLS_CATALOG.length} skills on VPS`);
+
+            try {
+              const syncResult = await sshCmd("clawhub-install-missing", sshConfig);
+              if (syncResult.output) {
+                console.log("[skills] ClawHub sync result:", syncResult.output.slice(0, 500));
+              }
+            } catch (e2: any) {
+              console.error("[skills] ClawHub sync failed:", e2.message);
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error("[skills] VPS bulk install failed:", e.message);
+        vpsResult = `VPS sync error: ${e.message}`;
+      }
+
+      res.json({
+        success: true,
+        totalCatalog: SKILLS_CATALOG.length,
+        newlyRegistered: dbInstalled,
+        previouslyInstalled: SKILLS_CATALOG.length - dbInstalled,
+        vpsResult: vpsResult.slice(0, 2000),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to install all skills", details: error.message });
     }
   });
 

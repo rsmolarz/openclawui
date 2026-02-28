@@ -134,6 +134,24 @@ export default function SettingsSkills() {
     },
   });
 
+  const installAllMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await apiRequest("POST", "/api/skills/install-all");
+      return resp.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/skills"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/skills/catalog"] });
+      toast({
+        title: "All skills installed",
+        description: `${data.newlyRegistered} new skills installed, ${data.previouslyInstalled} already present. VPS sync triggered.`,
+      });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to install all skills.", variant: "destructive" });
+    },
+  });
+
   const filterItems = <T extends { name: string; category: string; description?: string | null }>(items: T[]): T[] => {
     return items.filter(item => {
       const matchesSearch = !searchQuery ||
@@ -161,11 +179,27 @@ export default function SettingsSkills() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold" data-testid="text-skills-title">Skills</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage the capabilities available to your OpenClaw agent
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold" data-testid="text-skills-title">Skills</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage the capabilities available to your OpenClaw agent
+          </p>
+        </div>
+        {availableSkills.length > 0 && (
+          <Button
+            onClick={() => installAllMutation.mutate()}
+            disabled={installAllMutation.isPending}
+            data-testid="button-install-all-skills"
+          >
+            {installAllMutation.isPending ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {installAllMutation.isPending ? "Installing..." : `Install All (${availableSkills.length})`}
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
