@@ -432,6 +432,137 @@ interface LiveStatusData {
   source?: string;
 }
 
+function AgentInstallDialog() {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"windows" | "linux" | "mac">("windows");
+
+  const { data: apiKeys } = useQuery<Array<{ key: string; permissions: string; active: boolean }>>({
+    queryKey: ["/api/api-keys"],
+    enabled: open,
+  });
+
+  const adminKey = apiKeys?.find(k => k.permissions === "admin" && k.active)?.key;
+  const keyPlaceholder = adminKey || "YOUR_API_KEY";
+  const baseUrl = window.location.origin;
+
+  const copyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied", description: "Command copied to clipboard." });
+  };
+
+  const bashOneLiner = `OPENCLAW_API_KEY="${keyPlaceholder}" OPENCLAW_URL="${baseUrl}/api/node/heartbeat" node -e "const https=require('https'),os=require('os');const u=process.env.OPENCLAW_URL,k=process.env.OPENCLAW_API_KEY;function g(){const i=os.networkInterfaces();for(const n of Object.keys(i))for(const f of i[n])if(f.family==='IPv4'&&!f.internal)return f.address;return''}function h(){const d=JSON.stringify({hostname:os.hostname(),displayName:os.hostname(),os:os.platform(),ipAddress:g()});const r=https.request(u,{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':k,'Content-Length':Buffer.byteLength(d)}},r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>console.log(new Date().toLocaleTimeString(),r.statusCode===200?'OK':'FAIL',b))});r.on('error',e=>console.error(e.message));r.write(d);r.end()}h();setInterval(h,30000)"`;
+
+  const psOneLiner = `$env:OPENCLAW_API_KEY="${keyPlaceholder}"; $env:OPENCLAW_URL="${baseUrl}/api/node/heartbeat"; node -e "const https=require('https'),os=require('os');const u=process.env.OPENCLAW_URL,k=process.env.OPENCLAW_API_KEY;function g(){const i=os.networkInterfaces();for(const n of Object.keys(i))for(const f of i[n])if(f.family==='IPv4'&&!f.internal)return f.address;return''}function h(){const d=JSON.stringify({hostname:os.hostname(),displayName:os.hostname(),os:os.platform(),ipAddress:g()});const r=https.request(u,{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':k,'Content-Length':Buffer.byteLength(d)}},r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>console.log(new Date().toLocaleTimeString(),r.statusCode===200?'OK':'FAIL',b))});r.on('error',e=>console.error(e.message));r.write(d);r.end()}h();setInterval(h,30000)"`;
+
+  const nodeCmd = tab === "windows" ? psOneLiner : bashOneLiner;
+
+  const agentFileCmd = tab === "windows"
+    ? `curl -o openclaw-agent.js "${baseUrl}/api/node/agent-script"\n$env:OPENCLAW_API_KEY="${keyPlaceholder}"; node openclaw-agent.js`
+    : `curl -o openclaw-agent.js "${baseUrl}/api/node/agent-script"\nOPENCLAW_API_KEY="${keyPlaceholder}" node openclaw-agent.js`;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-install-agent">
+          <Zap className="h-4 w-4 mr-2" />
+          Install Agent
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Install Node Agent
+          </DialogTitle>
+          <DialogDescription>
+            Run the agent on any machine to bring it online. It sends a heartbeat every 30 seconds.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            {(["windows", "linux", "mac"] as const).map(t => (
+              <Button
+                key={t}
+                size="sm"
+                variant={tab === t ? "default" : "outline"}
+                onClick={() => setTab(t)}
+                data-testid={`button-tab-${t}`}
+              >
+                {t === "windows" ? "Windows" : t === "linux" ? "Linux" : "macOS"}
+              </Button>
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Option 1: One-liner (just paste and run)</p>
+              <p className="text-xs text-muted-foreground">
+                {tab === "windows"
+                  ? "Open PowerShell or Command Prompt and paste this:"
+                  : "Open a terminal and paste this:"}
+              </p>
+              <div className="rounded-md bg-muted/50 p-3 flex items-start justify-between gap-2">
+                <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid="text-oneliner-cmd">{nodeCmd}</pre>
+                <Button size="icon" variant="ghost" onClick={() => copyText(nodeCmd)} className="shrink-0" data-testid="button-copy-oneliner">
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Option 2: Download agent script</p>
+              <p className="text-xs text-muted-foreground">
+                Downloads and runs the agent file. Better for running as a service.
+              </p>
+              <div className="rounded-md bg-muted/50 p-3 flex items-start justify-between gap-2">
+                <pre className="text-xs font-mono break-all whitespace-pre-wrap m-0" data-testid="text-agent-file-cmd">{agentFileCmd}</pre>
+                <Button size="icon" variant="ghost" onClick={() => copyText(agentFileCmd)} className="shrink-0" data-testid="button-copy-agent-file">
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            {tab === "windows" && (
+              <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-2.5 flex items-start gap-2">
+                <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-medium text-blue-700 dark:text-blue-400">Run as Windows Service</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    To run at startup, use Task Scheduler: create a task that runs <code>node openclaw-agent.js</code> on login.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {(tab === "linux" || tab === "mac") && (
+              <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-2.5 flex items-start gap-2">
+                <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-medium text-blue-700 dark:text-blue-400">Run as Service</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Add to crontab: <code>@reboot OPENCLAW_API_KEY="..." node /path/to/openclaw-agent.js</code>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-md bg-green-500/10 border border-green-500/20 p-2.5 flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-medium text-green-700 dark:text-green-400">Requirements</p>
+                <p className="text-muted-foreground mt-0.5">
+                  Node.js must be installed on the machine. No other dependencies needed.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LiveGatewayBanner({ instanceId }: { instanceId: string | null }) {
   const { toast } = useToast();
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
@@ -1249,6 +1380,7 @@ export default function SettingsMachines() {
                 : "Gateway not directly reachable — sync may still work if the server is accessible."}
             </TooltipContent>
           </Tooltip>
+          <AgentInstallDialog />
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-node">

@@ -3498,6 +3498,132 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     next();
   };
 
+  app.post("/api/node/heartbeat", validateApiKey as any, async (req: Request, res: Response) => {
+    try {
+      const { hostname, displayName, os, ipAddress, remotePcAlias } = req.body;
+      if (!hostname) {
+        return res.status(400).json({ error: "hostname is required" });
+      }
+
+      const machines = await storage.getMachines();
+      const existing = machines.find(m => {
+        const mIds = [m.hostname, m.name, m.displayName, m.remotePcAlias].filter(Boolean).map(s => s!.toLowerCase());
+        return mIds.includes(hostname.toLowerCase()) || (displayName && mIds.includes(displayName.toLowerCase()));
+      });
+
+      if (existing) {
+        await storage.updateMachine(existing.id, {
+          status: "connected",
+          lastSeen: new Date(),
+          ...(ipAddress && { ipAddress }),
+          ...(os && !existing.os && { os }),
+          ...(displayName && { displayName }),
+          ...(remotePcAlias && { remotePcAlias }),
+        });
+        return res.json({ ok: true, nodeId: existing.id, name: existing.displayName || existing.name });
+      } else {
+        const machine = await storage.createMachine({
+          name: displayName || hostname,
+          hostname,
+          displayName: displayName || hostname,
+          ipAddress: ipAddress || "",
+          os: os || "unknown",
+          status: "connected",
+        });
+        return res.json({ ok: true, nodeId: machine.id, name: machine.displayName || machine.name, created: true });
+      }
+    } catch (error: any) {
+      console.error("[Node Heartbeat] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/node/agent-script", async (_req: Request, res: Response) => {
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : process.env.APP_BASE_URL || "https://claw-settings.replit.app";
+    const script = `#!/usr/bin/env node
+const https = require("https");
+const http = require("http");
+const os = require("os");
+
+const API_URL = "${baseUrl}/api/node/heartbeat";
+const API_KEY = process.env.OPENCLAW_API_KEY || "PASTE_YOUR_API_KEY_HERE";
+const INTERVAL_MS = 30000;
+
+function getLocalIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) return iface.address;
+    }
+  }
+  return "";
+}
+
+function sendHeartbeat() {
+  const data = JSON.stringify({
+    hostname: os.hostname(),
+    displayName: os.hostname(),
+    os: os.platform(),
+    ipAddress: getLocalIp(),
+  });
+
+  const url = new URL(API_URL);
+  const transport = url.protocol === "https:" ? https : http;
+  const req = transport.request(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": API_KEY,
+      "Content-Length": Buffer.byteLength(data),
+    },
+  }, (res) => {
+    let body = "";
+    res.on("data", (c) => body += c);
+    res.on("end", () => {
+      const ts = new Date().toLocaleTimeString();
+      if (res.statusCode === 200) {
+        console.log(\`[\${ts}] Heartbeat OK: \${body}\`);
+      } else {
+        console.error(\`[\${ts}] Heartbeat failed (\${res.statusCode}): \${body}\`);
+      }
+    });
+  });
+  req.on("error", (e) => console.error(\`[\${new Date().toLocaleTimeString()}] Heartbeat error: \${e.message}\`));
+  req.write(data);
+  req.end();
+}
+
+console.log("OpenClaw Node Agent starting...");
+console.log("Hostname:", os.hostname());
+console.log("OS:", os.platform());
+console.log("IP:", getLocalIp());
+console.log("Reporting to:", API_URL);
+console.log("Interval: every", INTERVAL_MS / 1000, "seconds");
+console.log("");
+
+sendHeartbeat();
+setInterval(sendHeartbeat, INTERVAL_MS);
+`;
+    res.type("application/javascript").send(script);
+  });
+
+  setInterval(async () => {
+    try {
+      const machines = await storage.getMachines();
+      const staleThreshold = 120000;
+      const now = Date.now();
+      for (const m of machines) {
+        if (m.status === "connected" && m.lastSeen && (now - m.lastSeen.getTime() > staleThreshold)) {
+          if (m.os !== "WhatsApp") {
+            await storage.updateMachine(m.id, { status: "disconnected" });
+          }
+        }
+      }
+    } catch {}
+  }, 60000);
+
   const homeBotStatusByHost: Map<string, { state: string; phone: string | null; error: string | null; runtime: string; hostname: string; lastReport: Date; qrDataUrl?: string | null; pairingCode?: string | null }> = new Map();
 
   function getResolvedHomeBotStatus(): { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null; qrDataUrl?: string | null; pairingCode?: string | null } {

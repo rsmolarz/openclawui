@@ -55,3 +55,11 @@ The WhatsApp bot maintains conversation history per phone number using the `ai_c
 - **`server/routes.ts`**: The `home-bot-message` route creates a conversation per phone number (userId = `whatsapp:{phone}`), loads up to 20 recent messages as history, and saves both user and assistant messages after each exchange.
 - **`server/bot/openrouter.ts`**: The `chat()` function accepts an optional `history` parameter (array of past user/assistant messages) which is injected between the system prompt and the current user message.
 - History is capped at the last 20 message pairs to keep token usage manageable.
+
+## Node Heartbeat System
+Machines report their status via a lightweight heartbeat agent:
+- **`server/routes.ts`**: `POST /api/node/heartbeat` accepts `{hostname, displayName, os, ipAddress}` with `X-API-Key` auth. Creates or updates machine records, sets status to "connected" with `lastSeen` timestamp.
+- **Auto-offline detection**: A 60-second interval marks nodes as "disconnected" if no heartbeat received in >2 minutes (WhatsApp nodes exempt).
+- **`GET /api/node/agent-script`**: Serves the downloadable agent script.
+- **`home-bot/openclaw-agent.js`**: Standalone Node.js agent that sends heartbeats every 30 seconds. Requires `OPENCLAW_API_KEY` env var.
+- **Install Agent Dialog**: UI in `settings-machines.tsx` provides one-liner commands and download instructions for Windows/Linux/macOS.

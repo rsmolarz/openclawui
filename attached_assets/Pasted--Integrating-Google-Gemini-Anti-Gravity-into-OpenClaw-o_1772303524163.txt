@@ -1,0 +1,802 @@
+
+Integrating Google Gemini “Anti‑Gravity” into OpenClaw on Replit
+Executive summary
+This report describes an end‑to‑end, production‑lean integration of Gemini into an OpenClaw deployment hosted on Replit by using official OpenAI‑compatible endpoints from Google (Gemini Developer API and Vertex AI) and (optionally) a thin Express proxy that runs in Replit. The proxy adds centralized key management, Vertex token refresh, rate limiting, model allowlisting, and a minimal admin UI, while keeping OpenClaw’s tool/function calling behavior intact by passing through OpenAI‑format requests unchanged. 
+
+Key conclusions:
+
+OpenClaw already supports custom providers via models.providers and can target OpenAI‑compatible backends (api: "openai-completions" or "openai-responses"). 
+
+Google provides official OpenAI compatibility for:
+
+Gemini Developer API at a base URL under generativelanguage.googleapis.com/v1beta/openai/. 
+Vertex AI at an OpenAI‑compatible endpoint .../v1/projects/{project}/locations/{location}/endpoints/openapi using Google Cloud auth tokens (short‑lived), which is why a proxy with token refresh is often helpful. 
+About “Anti‑Gravity”: in OpenClaw circles, “Antigravity” typically refers to an unofficial Google web/OAuth integration (sometimes labeled google-antigravity). OpenClaw’s own testing notes flag it as unofficial and potentially risky for account health, so for a Replit‑hosted deployment the recommended path is Gemini API key or Vertex. 
+
+Architecture and request flow
+Recommended deployment pattern
+OpenClaw runs (in Replit or elsewhere) and uses a custom provider (models.providers.gemini) pointed at your Replit proxy’s /v1.
+The Replit proxy:
+authenticates OpenClaw → proxy using a shared bearer token,
+selects upstream mode (Gemini Developer API key or Vertex AI),
+forwards OpenAI‑style requests to Google’s OpenAI‑compatible endpoints,
+refreshes Vertex access tokens using ADC / service account.
+This preserves OpenClaw’s tool/function calling semantics because the payload stays in OpenAI format end‑to‑end. 
+
+OpenAI Chat Completions
+
+Mode: Developer API
+
+Mode: Vertex AI + ADC token
+
+OpenClaw Gateway + Agent
+
+Replit Express Proxy
+
+Gemini Developer API
+OpenAI-compatible endpoint
+
+Vertex AI
+OpenAI-compatible endpoint
+
+Admin UI
+toggle + health + limits
+
+
+
+Show code
+Request flow (Chat Completions)
+Google (Gemini/Vertex)
+Replit Proxy
+OpenClaw
+Google (Gemini/Vertex)
+Replit Proxy
+OpenClaw
+alt
+[Upstream = Gemini Developer API]
+[Upstream = Vertex AI]
+POST /v1/chat/completions (Authorization: Bearer PROXY_API_KEY)
+enforce allowlist + rate limit + clamp
+POST /v1beta/openai/chat/completions (Authorization: Bearer GEMINI_API_KEY)
+fetch/refresh OAuth access token (ADC/service account)
+POST /v1/.../endpoints/openapi/chat/completions (Authorization: Bearer access_token)
+OpenAI-formatted JSON / SSE stream
+pass-through response (+ optional safety headers)
+
+
+Show code
+Google’s Vertex OpenAI‑compat endpoint requires Google Cloud authentication tokens (not AI Studio keys), and Gemini Developer OpenAI‑compat uses your Gemini API key. 
+
+Replit project structure, secrets, and environment variables
+Minimal Replit project layout
+pgsql
+Copy
+openclaw-gemini-proxy/
+  package.json
+  .replit
+  replit.nix
+  .env.example
+  src/
+    index.js
+    lib/
+      settingsStore.js
+      auth.js
+      vertexAuth.js
+      upstream.js
+  public/
+    index.html
+    app.js
+    styles.css
+Replit is configured primarily via .replit and optionally replit.nix for reproducible dependencies. 
+
+Replit secrets best practice
+Use the Replit Secrets tool to store API keys and tokens as encrypted environment variables (AES‑256 at rest + TLS in transit per Replit docs). Do not hardcode secrets in source or commit .env with real values. 
+
+Required environment variables (proxy + upstream)
+Variable	Where used	Purpose
+PROXY_API_KEY	proxy	Shared bearer token for OpenClaw → proxy authentication
+ADMIN_TOKEN	proxy/UI	Admin API + UI access token
+PROXY_UPSTREAM	proxy	developer or vertex (default can be developer)
+ALLOWED_MODELS	proxy	Comma list of allowed model IDs (cost control)
+MAX_OUTPUT_TOKENS	proxy	Clamp max_tokens to control cost
+RPM_LIMIT	proxy	Requests/minute limit (local protection)
+TIMEOUT_MS	proxy	Upstream request timeout
+
+Gemini Developer API credentials (choose one):
+
+Variable	Purpose
+GEMINI_API_KEY	Gemini API key (commonly used in docs) 
+GOOGLE_API_KEY	Alternative env var supported by Google GenAI SDK 
+
+Vertex AI credentials:
+
+Variable	Purpose
+GOOGLE_CLOUD_PROJECT	GCP project id 
+GOOGLE_CLOUD_LOCATION	Region or global 
+GCP_SERVICE_ACCOUNT_JSON	Service account JSON stored in Replit Secrets; written to a temp file at runtime (recommended for Replit)
+GOOGLE_APPLICATION_CREDENTIALS	Path to service account JSON file (used by ADC search order) 
+
+Vertex access requires appropriate IAM; Google quickstarts commonly reference roles like Vertex AI User for model invocation. 
+
+Gemini model pricing & rate limits (for cost planning)
+Google publishes per‑token pricing for Gemini Developer API (example highlights shown here). As of late February 2026, the pricing page lists (among others):
+
+gemini-3-flash-preview: paid tier input and output pricing and a free tier for some usage circumstances. 
+gemini-3-pro-preview: explicitly marked deprecated with a shutdown date (March 9, 2026) on the pricing page. 
+
+Rate limits are measured in dimensions like RPM/TPM/RPD and are applied per project; exceeding any limit returns a rate limit error. Limits differ by model/tier and may be more restrictive for preview/experimental models. 
+Server implementation in Node.js (Express) for Replit
+Why proxy instead of pointing OpenClaw directly at Google?
+You can configure OpenClaw to hit Google’s OpenAI‑compatible endpoints directly (especially for Gemini Developer API). 
+
+But a Replit proxy is useful when you need:
+
+Vertex token refresh (Google Cloud auth tokens expire; the Vertex OpenAI mode uses Cloud auth) 
+centralized model allowlists, clamps, and rate limiting (cost control)
+a minimal admin UI for toggling upstream and confirming credentials are present.
+Proxy behavior
+Exposes:
+POST /v1/chat/completions (pass-through)
+POST /v1/embeddings (optional pass-through, if your OpenClaw setup also uses embeddings via OpenAI format)
+GET /v1/models (pass-through or synthetic list)
+Auth:
+requires Authorization: Bearer <PROXY_API_KEY> for /v1/*
+requires Authorization: Bearer <ADMIN_TOKEN> for /admin/*
+Upstream routing:
+Developer → https://generativelanguage.googleapis.com/v1beta/openai 
+Vertex → https://{host}/v1/projects/{project}/locations/{location}/endpoints/openapi with api_key = credentials.token semantics 
+Model normalization:
+Vertex examples use model IDs like google/gemini-2.0-flash-001; the proxy can auto‑prefix google/ if you send gemini-… from OpenClaw. 
+Full code
+package.json
+json
+Copy
+{
+  "name": "openclaw-gemini-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "google-auth-library": "^9.15.0",
+    "helmet": "^7.2.0",
+    "morgan": "^1.10.0"
+  }
+}
+.replit
+toml
+Copy
+modules = ["nodejs-20"]
+run = "npm run start"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+Replit maps an internal localPort to external port 80 for web access; deployments typically expect the app to serve traffic on the configured port and not on localhost. 
+
+replit.nix
+nix
+Copy
+{ pkgs }: {
+  deps = [
+    pkgs.nodejs-20_x
+  ];
+}
+.env.example (placeholders only — do not store real keys here)
+bash
+Copy
+# ===== Proxy auth =====
+PROXY_API_KEY="replace_me_with_long_random"
+ADMIN_TOKEN="replace_me_with_long_random"
+
+# ===== Proxy controls =====
+PROXY_UPSTREAM="developer"  # developer | vertex
+ALLOWED_MODELS="gemini-3-flash-preview,gemini-2.5-flash,gemini-2.5-flash-lite"
+MAX_OUTPUT_TOKENS="2048"
+RPM_LIMIT="30"
+TIMEOUT_MS="90000"
+
+# ===== Gemini Developer API (AI Studio) =====
+GEMINI_API_KEY="replace_me"
+# or GOOGLE_API_KEY="replace_me"
+
+# ===== Vertex AI =====
+GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
+GOOGLE_CLOUD_LOCATION="global"   # or a region like us-central1
+GCP_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"..."}'
+src/lib/auth.js
+js
+Copy
+export function requireBearer(expectedToken) {
+  return (req, res, next) => {
+    const auth = req.headers.authorization || "";
+    const m = auth.match(/^Bearer\s+(.+)$/i);
+    if (!m) return res.status(401).json({ error: { message: "Missing Bearer token" } });
+    if (m[1] !== expectedToken) return res.status(403).json({ error: { message: "Invalid token" } });
+    next();
+  };
+}
+src/lib/settingsStore.js
+js
+Copy
+import fs from "fs";
+import path from "path";
+
+const DATA_DIR = path.resolve(".data");
+const SETTINGS_PATH = path.join(DATA_DIR, "settings.json");
+
+const DEFAULTS = {
+  upstream: process.env.PROXY_UPSTREAM || "developer",
+  allowedModels: (process.env.ALLOWED_MODELS || "gemini-3-flash-preview").split(",").map(s => s.trim()).filter(Boolean),
+  maxOutputTokens: Number(process.env.MAX_OUTPUT_TOKENS || 2048),
+  rpmLimit: Number(process.env.RPM_LIMIT || 30),
+  timeoutMs: Number(process.env.TIMEOUT_MS || 90000)
+};
+
+export function loadSettings() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(SETTINGS_PATH)) {
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(DEFAULTS, null, 2));
+    return { ...DEFAULTS };
+  }
+  const raw = fs.readFileSync(SETTINGS_PATH, "utf8");
+  return { ...DEFAULTS, ...JSON.parse(raw) };
+}
+
+export function saveSettings(next) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(next, null, 2));
+}
+src/lib/vertexAuth.js
+js
+Copy
+import fs from "fs";
+import path from "path";
+
+/**
+ * In Replit, it's safer to store the JSON in Secrets and write it to disk at runtime.
+ * This file must NEVER be committed.
+ */
+export function ensureVertexCredentialsFile() {
+  const json = process.env.GCP_SERVICE_ACCOUNT_JSON;
+  if (!json) return null;
+
+  const dir = path.resolve(".secrets");
+  const file = path.join(dir, "gcp-service-account.json");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  // Write only if missing; do not log contents
+  if (!fs.existsSync(file)) fs.writeFileSync(file, json, { mode: 0o600 });
+
+  // Point ADC at this file
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = file;
+  return file;
+}
+src/lib/upstream.js
+js
+Copy
+import { GoogleAuth } from "google-auth-library";
+
+let cachedToken = null;
+let cachedExpiryMs = 0;
+
+const auth = new GoogleAuth({
+  scopes: ["https://www.googleapis.com/auth/cloud-platform"]
+});
+
+function vertexBaseUrl(project, location) {
+  // Google examples show both the global host and a region-qualified host.
+  // We'll use region-qualified host when location != "global".
+  const host = (location && location !== "global")
+    ? `https://${location}-aiplatform.googleapis.com`
+    : "https://aiplatform.googleapis.com";
+
+  return `${host}/v1/projects/${project}/locations/${location}/endpoints/openapi`;
+}
+
+export async function getUpstream(settings) {
+  const upstream = settings.upstream;
+
+  if (upstream === "developer") {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY/GOOGLE_API_KEY for developer upstream.");
+
+    return {
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      headers: { "Authorization": `Bearer ${apiKey}` }
+    };
+  }
+
+  if (upstream === "vertex") {
+    const project = process.env.GOOGLE_CLOUD_PROJECT;
+    const location = process.env.GOOGLE_CLOUD_LOCATION || "global";
+    if (!project) throw new Error("Missing GOOGLE_CLOUD_PROJECT for vertex upstream.");
+
+    const now = Date.now();
+    if (!cachedToken || now > cachedExpiryMs - 60_000) {
+      const client = await auth.getClient();
+      const tokenResp = await client.getAccessToken();
+      const token = tokenResp?.token || tokenResp;
+      if (!token) throw new Error("Failed to acquire Vertex access token.");
+
+      cachedToken = token;
+      // best-effort expiry (google-auth sets expiry_date on credentials)
+      cachedExpiryMs = client.credentials?.expiry_date || (now + 55 * 60 * 1000);
+    }
+
+    return {
+      baseUrl: vertexBaseUrl(project, location),
+      headers: { "Authorization": `Bearer ${cachedToken}` }
+    };
+  }
+
+  throw new Error(`Unknown upstream: ${upstream}`);
+}
+Vertex OpenAI‑compat requires Google Cloud authentication, and Google’s own examples show passing api_key=credentials.token and using the .../endpoints/openapi base URL. 
+
+src/index.js
+js
+Copy
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import { Readable } from "stream";
+import path from "path";
+import { fileURLToPath } from "url";
+
+import { requireBearer } from "./lib/auth.js";
+import { loadSettings, saveSettings } from "./lib/settingsStore.js";
+import { ensureVertexCredentialsFile } from "./lib/vertexAuth.js";
+import { getUpstream } from "./lib/upstream.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+ensureVertexCredentialsFile();
+
+const app = express();
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors());
+app.use(morgan("combined"));
+
+// Keep payloads bounded (cost + abuse control)
+app.use(express.json({ limit: "1mb" }));
+
+function buildLimiter(settings) {
+  return rateLimit({
+    windowMs: 60_000,
+    max: settings.rpmLimit,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+}
+
+function clampRequestBody(body, settings, upstreamName) {
+  const out = structuredClone(body || {});
+  const modelRaw = String(out.model || "");
+
+  // Basic allowlist check (strip provider prefix if present)
+  const modelId = modelRaw.includes("/") ? modelRaw.split("/").slice(-1)[0] : modelRaw;
+  if (!settings.allowedModels.includes(modelId) && !settings.allowedModels.includes(modelRaw)) {
+    const msg = `Model not allowed: ${modelRaw}. Allowed: ${settings.allowedModels.join(", ")}`;
+    const err = new Error(msg);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Clamp output tokens
+  if (typeof out.max_tokens === "number") out.max_tokens = Math.min(out.max_tokens, settings.maxOutputTokens);
+  else out.max_tokens = settings.maxOutputTokens;
+
+  // Vertex examples commonly use "google/<model>" naming
+  if (upstreamName === "vertex") {
+    if (!String(out.model || "").startsWith("google/")) out.model = `google/${modelId}`;
+  }
+
+  // Developer endpoint typically expects plain model ids; tolerate google/… incoming
+  if (upstreamName === "developer") {
+    if (String(out.model || "").startsWith("google/")) out.model = modelId;
+  }
+
+  return out;
+}
+
+async function proxyOpenAI(req, res, route) {
+  const settings = loadSettings();
+  const upstream = await getUpstream(settings);
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), settings.timeoutMs);
+
+  try {
+    const url = `${upstream.baseUrl}${route}`;
+    const upstreamName = settings.upstream;
+
+    const outgoingBody =
+      req.method === "GET" || req.method === "HEAD"
+        ? undefined
+        : JSON.stringify(clampRequestBody(req.body, settings, upstreamName));
+
+    const upstreamRes = await fetch(url, {
+      method: req.method,
+      headers: {
+        "content-type": "application/json",
+        ...upstream.headers
+      },
+      body: outgoingBody,
+      signal: controller.signal
+    });
+
+    // Pass through status + body
+    res.status(upstreamRes.status);
+
+    // Copy relevant headers (avoid hop-by-hop)
+    for (const [k, v] of upstreamRes.headers.entries()) {
+      if (["connection", "transfer-encoding", "keep-alive"].includes(k.toLowerCase())) continue;
+      res.setHeader(k, v);
+    }
+
+    if (!upstreamRes.body) return res.end();
+    Readable.fromWeb(upstreamRes.body).pipe(res);
+  } catch (e) {
+    const status = e.statusCode || (e.name === "AbortError" ? 504 : 500);
+    res.status(status).json({
+      error: {
+        message: e.name === "AbortError" ? "Upstream timeout" : (e.message || "Proxy error"),
+        type: e.name === "AbortError" ? "timeout" : "proxy_error"
+      }
+    });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// ===== Public health =====
+app.get("/health", (req, res) => {
+  const settings = loadSettings();
+  res.json({
+    ok: true,
+    upstream: settings.upstream,
+    allowedModels: settings.allowedModels,
+    maxOutputTokens: settings.maxOutputTokens
+  });
+});
+
+// ===== Admin UI =====
+const adminAuth = requireBearer(process.env.ADMIN_TOKEN || "");
+app.use("/ui", express.static(path.join(__dirname, "..", "public")));
+
+app.get("/admin/status", adminAuth, (req, res) => {
+  const settings = loadSettings();
+  res.json({
+    settings,
+    env: {
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+      hasVertexProject: Boolean(process.env.GOOGLE_CLOUD_PROJECT),
+      hasADCFile: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS),
+      hasServiceAccountJson: Boolean(process.env.GCP_SERVICE_ACCOUNT_JSON)
+    }
+  });
+});
+
+app.post("/admin/settings", adminAuth, (req, res) => {
+  const settings = loadSettings();
+  const next = { ...settings, ...req.body };
+  saveSettings(next);
+  res.json({ ok: true, settings: next });
+});
+
+// ===== OpenAI-compatible surface for OpenClaw =====
+const proxyAuth = requireBearer(process.env.PROXY_API_KEY || "");
+app.use("/v1", proxyAuth, (req, res, next) => buildLimiter(loadSettings())(req, res, next));
+
+app.post("/v1/chat/completions", (req, res) => proxyOpenAI(req, res, "/chat/completions"));
+app.post("/v1/embeddings", (req, res) => proxyOpenAI(req, res, "/embeddings"));
+app.get("/v1/models", (req, res) => proxyOpenAI(req, res, "/models"));
+
+const port = Number(process.env.PORT || 3000);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Proxy listening on :${port}`);
+});
+Minimal admin UI
+public/index.html
+html
+Copy
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OpenClaw Gemini Proxy Admin</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <h1>OpenClaw ↔ Gemini Proxy</h1>
+
+    <div class="card">
+      <label>ADMIN_TOKEN</label>
+      <input id="token" type="password" placeholder="Paste ADMIN_TOKEN" />
+      <button id="load">Load status</button>
+    </div>
+
+    <div class="card" id="status"></div>
+
+    <div class="card">
+      <h2>Update settings</h2>
+      <label>Upstream</label>
+      <select id="upstream">
+        <option value="developer">developer (Gemini API key)</option>
+        <option value="vertex">vertex (ADC / service account)</option>
+      </select>
+
+      <label>Allowed models (comma-separated)</label>
+      <input id="models" type="text" />
+
+      <label>Max output tokens</label>
+      <input id="maxTokens" type="number" />
+
+      <label>RPM limit</label>
+      <input id="rpm" type="number" />
+
+      <label>Timeout (ms)</label>
+      <input id="timeout" type="number" />
+
+      <button id="save">Save</button>
+    </div>
+
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
+public/app.js
+js
+Copy
+function authHeader() {
+  const t = document.getElementById("token").value.trim();
+  return { Authorization: `Bearer ${t}` };
+}
+
+async function loadStatus() {
+  const r = await fetch("/admin/status", { headers: authHeader() });
+  const data = await r.json();
+
+  document.getElementById("status").innerText = JSON.stringify(data, null, 2);
+
+  if (data.settings) {
+    document.getElementById("upstream").value = data.settings.upstream;
+    document.getElementById("models").value = data.settings.allowedModels.join(",");
+    document.getElementById("maxTokens").value = data.settings.maxOutputTokens;
+    document.getElementById("rpm").value = data.settings.rpmLimit;
+    document.getElementById("timeout").value = data.settings.timeoutMs;
+  }
+}
+
+async function saveSettings() {
+  const payload = {
+    upstream: document.getElementById("upstream").value,
+    allowedModels: document.getElementById("models").value.split(",").map(s => s.trim()).filter(Boolean),
+    maxOutputTokens: Number(document.getElementById("maxTokens").value),
+    rpmLimit: Number(document.getElementById("rpm").value),
+    timeoutMs: Number(document.getElementById("timeout").value)
+  };
+
+  const r = await fetch("/admin/settings", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeader() },
+    body: JSON.stringify(payload)
+  });
+
+  alert(`Saved: ${r.status}`);
+  await loadStatus();
+}
+
+document.getElementById("load").onclick = loadStatus;
+document.getElementById("save").onclick = saveSettings;
+public/styles.css
+css
+Copy
+body { font-family: system-ui, sans-serif; margin: 24px; }
+.card { border: 1px solid #ddd; padding: 16px; margin: 16px 0; border-radius: 10px; }
+input, select { width: 100%; padding: 8px; margin: 6px 0 12px; }
+button { padding: 10px 14px; cursor: pointer; }
+#status { white-space: pre; overflow-x: auto; max-height: 300px; }
+Security note: Google’s GenAI SDK docs explicitly warn against exposing API keys in client-side code and recommend server-side usage in production. 
+
+OpenClaw configuration, model tables, and end‑to‑end tests
+OpenClaw provider configuration (official schema)
+OpenClaw supports adding custom providers under models.providers with a baseUrl, apiKey, and an api mode such as openai-completions. 
+
+Below is a direct config snippet to register the Replit proxy as models.providers.gemini and then set it as the default model.
+
+openclaw.json snippet (recommended)
+js
+Copy
+{
+  agents: {
+    defaults: {
+      model: {
+        primary: "gemini/gemini-3-flash-preview",
+        fallbacks: ["google/gemini-2.5-flash"]
+      },
+      timeoutSeconds: 600
+    }
+  },
+  models: {
+    mode: "merge",
+    providers: {
+      gemini: {
+        baseUrl: "https://YOUR-REPL-NAME.replit.app/v1",
+        apiKey: "${PROXY_API_KEY}",
+        api: "openai-completions",
+        models: [
+          { id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
+          { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+          { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite" }
+        ]
+      }
+    }
+  }
+}
+OpenClaw default model selection supports primary with ordered fallbacks, and also has a timeoutSeconds default (example shown in config reference). 
+
+CLI commands to apply the same config
+OpenClaw provides openclaw config set|get|unset for non-interactive config updates. 
+
+Example commands (shell quoting may vary):
+
+bash
+Copy
+openclaw config set models.providers.gemini.baseUrl "\"https://YOUR-REPL-NAME.replit.app/v1\"" --strict-json
+openclaw config set models.providers.gemini.api "\"openai-completions\"" --strict-json
+openclaw config set models.providers.gemini.apiKey "\"${PROXY_API_KEY}\"" --strict-json
+
+openclaw config set models.providers.gemini.models \
+  '[{"id":"gemini-3-flash-preview","name":"Gemini 3 Flash Preview"},{"id":"gemini-2.5-flash","name":"Gemini 2.5 Flash"},{"id":"gemini-2.5-flash-lite","name":"Gemini 2.5 Flash-Lite"}]' \
+  --strict-json
+
+openclaw config set agents.defaults.model.primary "\"gemini/gemini-3-flash-preview\"" --strict-json
+openclaw config set agents.defaults.model.fallbacks "[\"google/gemini-2.5-flash\"]" --strict-json
+
+openclaw gateway restart
+End‑to‑end testing
+Test the proxy (health)
+bash
+Copy
+curl -s "https://YOUR-REPL-NAME.replit.app/health"
+Expected: JSON with ok: true, selected upstream, allowlist.
+
+Test OpenAI chat completions through the proxy
+bash
+Copy
+curl -s "https://YOUR-REPL-NAME.replit.app/v1/chat/completions" \
+  -H "Authorization: Bearer $PROXY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-3-flash-preview",
+    "messages": [
+      {"role":"system","content":"You are a precise assistant."},
+      {"role":"user","content":"Say hello in one sentence."}
+    ],
+    "max_tokens": 64
+  }'
+Expected: OpenAI‑style JSON with choices[0].message.content. (Your proxy passes through Google’s OpenAI compatibility responses.) 
+
+Test tool/function calling (smoke test)
+Because the integration is OpenAI‑compatible end‑to‑end, function calling works via standard tools in Chat Completions (Google documents function calling support under OpenAI‑compatible mode on Vertex). 
+
+bash
+Copy
+curl -s "https://YOUR-REPL-NAME.replit.app/v1/chat/completions" \
+  -H "Authorization: Bearer $PROXY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-3-flash-preview",
+    "messages": [{"role":"user","content":"What is 2+3? Return it via a tool call."}],
+    "tools": [{
+      "type":"function",
+      "function":{
+        "name":"return_number",
+        "description":"Return a number",
+        "parameters":{
+          "type":"object",
+          "properties":{"value":{"type":"number"}},
+          "required":["value"]
+        }
+      }
+    }],
+    "tool_choice":"auto"
+  }'
+Expected: a response that may include tool_calls (depending on model/tool-usage). OpenClaw will execute its tool loop similarly when connected through this provider.
+
+Model comparison table (capabilities, cost, latency cues)
+Latency and “best use” are qualitative (they vary by region, load, and context size); Google’s docs describe Flash models as optimized for latency/efficiency and Pro models as higher‑end reasoning. 
+
+Costs shown are Gemini Developer API list prices (per 1M tokens) for commonly used text models; always re-check before production deployment. 
+
+Model	Best for	Modalities (high-level)	Pricing (Developer API)	Latency cue
+gemini-3-flash-preview	Fast agentic workflows + coding + multimodal understanding	Vertex model card lists inputs: text/code/images/audio/video/PDF; output: text 
+Input $0.50 / Output $3.00 (paid tier shown on pricing page) 
+“Flash line” optimized for latency/efficiency 
+gemini-2.5-pro	Strong reasoning + coding	Listed as high-capability model in Vertex catalog 
+Input $1.25 (≤200k) / Output $10.00 (≤200k) 
+Typically slower than Flash due to reasoning focus (qualitative) 
+gemini-2.5-flash	Best speed/intelligence balance	Listed as lightning-fast, controllable thinking budgets 
+Input $0.30 / Output $2.50 (standard paid) 
+“Flash” line; lower latency than Pro (qualitative) 
+gemini-2.5-flash-lite	High-throughput, cost-optimized	Listed as efficiency/scale model 
+Input $0.10 / Output $0.40 (paid tier shown) 
+Often lowest latency for simple tasks (qualitative) 
+gemini-3-pro-preview	Deprecated preview	(Preview)	Marked deprecated/shutdown (Vendor pages show different dates depending on surface) 
+Not recommended
+
+Vertex note: Google’s OpenAI‑compatible Vertex examples use model IDs like google/gemini-2.0-flash-001, and also note you can use “auto‑updated” model names without the trailing version number (e.g., gemini-2.0-flash). 
+
+Security, safety/SynthID options, and troubleshooting checklist
+Security best practices for Replit-hosted OpenClaw + proxy
+Store secrets only in Replit Secrets (encrypted env vars). Replit documents that Secrets are encrypted and are intended for API keys/tokens and other sensitive strings. 
+
+Keep separate tokens:
+
+PROXY_API_KEY (model traffic)
+ADMIN_TOKEN (admin UI)
+Do not expose Gemini API keys in browser code; Google’s GenAI SDK docs explicitly caution against client-side key exposure for production. 
+
+If you deploy via Replit Deployments, note that some deployment types support only one external port and may fail if multiple external ports are exposed; plan your routing accordingly (either proxy everything through one Express server or keep other services internal). 
+
+Rate limits, error handling, and cost controls
+Google’s Gemini API rate limits are quota‑based (RPM/TPM/RPD), evaluated per project, and vary by tier/model; exceeding any limit triggers errors. 
+
+Use layered protections:
+
+Proxy RPM limiter to smooth bursts (helps avoid upstream 429s).
+Model allowlist to prevent accidental use of expensive models.
+Max output token clamp (MAX_OUTPUT_TOKENS) to cap cost per request.
+Timeouts (TIMEOUT_MS) to prevent hung sessions from consuming concurrency.
+OpenClaw also supports:
+
+default timeoutSeconds and contextTokens in agents.defaults.model settings 
+model failover (fallbacks) and provider auth rotation behavior (failover semantics documentation) 
+Optional: safety ratings + SynthID surfacing
+Safety: Gemini APIs provide safety settings and content filtering; developers can adjust safety thresholds for some categories, with additional non-adjustable blocks for core harms. 
+
+If you want to surface safety outcomes in OpenClaw:
+
+Log upstream safety metadata in the proxy (server logs).
+Add a response header like x-gemini-safety: <json> (non-breaking for most OpenAI clients).
+Add an admin endpoint /admin/last (store last N metadata blobs in memory).
+SynthID: Google DeepMind describes SynthID as watermarking for AI‑generated content (including images/audio/text/video) to help identify AI-generated media. 
+
+For image generation specifically, Gemini’s “Nano Banana” image generation docs state that generated images include a SynthID watermark. 
+
+Verification is primarily exposed through Gemini app tooling for certain media types (not a simple API call you can always embed directly inside OpenClaw today), so the practical integration in OpenClaw is generally:
+
+record that outputs are SynthID-watermarked when using those image models,
+optionally add metadata to OpenClaw logs/UI from the proxy.
+Troubleshooting checklist (short)
+401/403 from proxy
+
+Ensure OpenClaw provider apiKey matches PROXY_API_KEY and OpenClaw is sending Authorization: Bearer … to /v1/*.
+Upstream 401 on Developer mode
+
+Verify GEMINI_API_KEY (or GOOGLE_API_KEY) is set in Replit Secrets and proxy is in developer upstream. 
+Upstream 401/403 on Vertex mode
+
+Confirm GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, and service account credentials are present (ADC via GOOGLE_APPLICATION_CREDENTIALS or GCP_SERVICE_ACCOUNT_JSON). 
+Confirm IAM permissions (Vertex invocation commonly requires Vertex AI permissions; see Vertex quickstart guidance). 
+Model “not found” / 400
+
+If using Vertex OpenAI compatibility, model IDs often appear as google/<model> (proxy auto-prefixes), and some models have versioned suffixes like -001; Google notes you can use auto-updated names without the trailing version. 
+429 rate-limit errors
+
+Gemini rate limits are quota/tier dependent and preview/experimental models can have tighter limits; check quota and add proxy RPM smoothing. 
+Replit deployment not reachable
+
+Ensure your server listens on 0.0.0.0 and the correct PORT, and .replit port mapping is consistent. Replit documents [[ports]] localPort/externalPort behavior. 
