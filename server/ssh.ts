@@ -84,6 +84,14 @@ crontab -l | grep openclaw`,
   "install-gh": "export DEBIAN_FRONTEND=noninteractive && (type gh >/dev/null 2>&1 && echo 'gh already installed' && gh --version) || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main' > /etc/apt/sources.list.d/github-cli.list && apt-get update -qq 2>/dev/null && apt-get install -y -qq gh 2>&1 | tail -3 && echo '---VERIFY---' && which gh && gh --version)",
   "install-pip3": "export DEBIAN_FRONTEND=noninteractive && apt-get install -y -qq python3-pip python3-venv 2>&1 | tail -3 && echo '---VERIFY---' && which pip3 && pip3 --version",
   "install-npm-tools": "for pkg in nano-pdf summarize xurl wacli goplaces obsidian-cli gifgrep ordercli openhue himalaya songsee; do echo \"Installing $pkg...\"; npm install -g $pkg 2>&1 | tail -2; done; echo '---VERIFY---'; npm -g ls --depth=0 2>/dev/null | tail -30",
+  "install-linux-skill-tools": `echo "=== Installing Linux-compatible skill tools ===" ; \
+echo "--- 1Password CLI ---" ; (which op 2>/dev/null && echo "already installed" || (curl -sS https://downloads.1password.com/linux/keys/1password.asc 2>/dev/null | gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg 2>/dev/null && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/amd64 stable main" > /etc/apt/sources.list.d/1password.list && apt-get update -qq 2>/dev/null && apt-get install -y -qq 1password-cli 2>&1 | tail -2)) ; \
+echo "--- Gemini CLI ---" ; (which gemini 2>/dev/null && echo "already installed" || npm install -g @google/gemini-cli 2>&1 | tail -3) ; \
+echo "--- Notion CLI ---" ; pip3 install --break-system-packages notion-client 2>&1 | tail -2 ; \
+echo "--- Trello CLI ---" ; pip3 install --break-system-packages py-trello 2>&1 | tail -2 ; \
+echo "--- Slack CLI ---" ; pip3 install --break-system-packages slack-sdk 2>&1 | tail -2 ; \
+echo "--- Discord CLI ---" ; pip3 install --break-system-packages discord.py 2>&1 | tail -2 ; \
+echo "=== DONE ===" ; echo "---SKILLS---" ; openclaw skills list 2>&1 | head -5`,
   "clawhub-install-missing": "export PATH=$HOME/.local/bin:$PATH && clawhub sync --all 2>&1 | tail -30; echo '---SKILLS---'; openclaw skills list 2>&1 | grep -E '✓|✗' | head -60",
   "clawhub-login-token": "clawhub login --token $CLAWHUB_TOKEN --no-browser 2>&1; echo '---VERIFY---'; clawhub whoami 2>&1",
   "clawhub-read-config": "cat /root/.config/clawhub/config.json 2>/dev/null; echo '---WHOAMI---'; clawhub whoami 2>&1",
