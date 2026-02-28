@@ -285,7 +285,7 @@ export async function seed() {
       gatewayMode: "local",
       gatewayStatus: "online",
       gatewayToken: process.env.OPENCLAW_GATEWAY_TOKEN || null,
-      websocketUrl: "ws://72.60.167.64:18789",
+      websocketUrl: "wss://72.60.167.64:18789",
       defaultLlm: "deepseek/deepseek-chat",
       fallbackLlm: "openrouter/auto",
       whatsappEnabled: true,
