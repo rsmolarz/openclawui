@@ -113,7 +113,7 @@ async function seedIntegrations() {
 
 const CORRECT_VPS_IP = "72.60.167.64";
 const CORRECT_SERVER_URL = `http://${CORRECT_VPS_IP}:18789`;
-const CORRECT_WS_URL = `ws://${CORRECT_VPS_IP}:18789`;
+const CORRECT_WS_URL = `wss://${CORRECT_VPS_IP}:18789`;
 
 const DOCKER_INSTANCE_NAME = "Hostinger Docker (OpenClaw)";
 const DOCKER_SERVER_URL = `http://${CORRECT_VPS_IP}:45002`;
