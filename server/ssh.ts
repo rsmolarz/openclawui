@@ -102,19 +102,22 @@ echo "=== DONE ===" ; echo "---SKILLS---" ; openclaw skills list 2>&1 | head -5`
   "check-skill-status": "openclaw skills list 2>&1",
   "clawhub-auth-status": "clawhub whoami 2>&1; echo '---TOKEN-SEARCH---'; find / -maxdepth 5 -name '*.json' -path '*clawhub*' 2>/dev/null; find / -maxdepth 5 -name 'token*' -path '*clawhub*' 2>/dev/null; find /root -name '.clawhub*' -o -name 'clawhub*' 2>/dev/null | head -20; echo '---XDG---'; echo \"XDG_CONFIG_HOME=$XDG_CONFIG_HOME\"; echo \"HOME=$HOME\"; ls -la /root/.config/clawhub/ 2>/dev/null || echo 'No /root/.config/clawhub/'; ls -la /root/.clawhub/ 2>/dev/null || echo 'No /root/.clawhub/'; echo '---NPM-LOC---'; npm root -g 2>/dev/null; ls -la $(npm root -g)/clawhub/ 2>/dev/null | head -5",
   "check-mac-skills": `TOKEN=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d['gateway']['auth']['token'])") && \
-echo "--- Node pairing status ---" && \
-openclaw gateway call node.list --url ws://127.0.0.1:18789 --token "$TOKEN" --json --timeout 15000 2>&1 | python3 -c "
+echo "--- Trying to pair Mac Mini node ---" && \
+MAC_ID=$(openclaw gateway call node.list --url ws://127.0.0.1:18789 --token "$TOKEN" --json --timeout 15000 2>/dev/null | python3 -c "
 import json,sys
 data = json.loads(sys.stdin.read())
 for n in data.get('nodes',[]):
-    p = n.get('platform','?')
-    name = n.get('displayName','?')
-    paired = n.get('paired', False)
-    conn = n.get('connected', False)
-    print(f'{name} ({p}) - paired: {paired}, connected: {conn}')
-" 2>&1 && \
-echo "--- Trying invoke with describe ---" && \
-openclaw nodes describe --node mac-mini-7828 --url ws://127.0.0.1:18789 --token "$TOKEN" --json --timeout 15000 2>&1 | head -40`,
+    if n.get('platform') == 'darwin' and n.get('connected'):
+        print(n['nodeId'])
+        break
+" 2>/dev/null) && \
+echo "Mac node ID: $MAC_ID" && \
+echo "Paired status:" && \
+openclaw nodes list --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>&1 | head -30 && \
+echo "--- Attempting approve ---" && \
+openclaw devices approve "$MAC_ID" --url ws://127.0.0.1:18789 --token "$TOKEN" 2>&1 && \
+echo "--- Post-approve node list ---" && \
+openclaw nodes list --url ws://127.0.0.1:18789 --token "$TOKEN" --json 2>&1 | head -30`,
   "add-replit-origin": `python3 -c "
 import json
 f='/root/.openclaw/openclaw.json'
