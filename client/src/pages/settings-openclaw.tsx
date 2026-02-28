@@ -1525,7 +1525,9 @@ export default function SettingsOpenclaw() {
                     const wsUrl = config?.websocketUrl || (() => {
                       try {
                         const u = new URL(currentInstance.serverUrl!);
-                        return `ws://${u.hostname}:${config?.gatewayPort ?? 18789}`;
+                        const isLocal = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+                        const proto = isLocal ? "ws" : "wss";
+                        return `${proto}://${u.hostname}:${config?.gatewayPort ?? 18789}`;
                       } catch { return ""; }
                     })();
                     if (wsUrl) {
