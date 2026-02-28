@@ -2953,30 +2953,40 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
       let vpsResult = "";
       try {
-        const { executeRawSSHCommand: rawSSH, executeSSHCommand: sshCmd } = await import("./ssh");
+        const { executeRawSSHCommand: rawSSH, executeSSHCommand: sshCmd, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
         const instances = await storage.getInstances();
-        const inst = instances[0];
+        const inst = instances.find(i => i.isDefault) || instances[0];
+        let sshConfig;
         if (inst) {
           const vpsConn = await storage.getVpsConnection(String(inst.id));
-          if (vpsConn?.vpsIp) {
-            const sshConfig = { host: vpsConn.vpsIp, port: vpsConn.vpsPort || 22, username: vpsConn.sshUser || "root" };
-            const skillIds = SKILLS_CATALOG.map(s => s.skillId).join(" ");
-            const result = await rawSSH(
-              `for skill in ${skillIds}; do openclaw skills install "$skill" 2>/dev/null; done; echo '---SYNC---'; openclaw skills list 2>&1 | head -100`,
-              sshConfig
-            );
-            vpsResult = result.output || "";
-            console.log(`[skills] Bulk installed ${SKILLS_CATALOG.length} skills on VPS`);
-
-            try {
-              const syncResult = await sshCmd("clawhub-install-missing", sshConfig);
-              if (syncResult.output) {
-                console.log("[skills] ClawHub sync result:", syncResult.output.slice(0, 500));
-              }
-            } catch (e2: any) {
-              console.error("[skills] ClawHub sync failed:", e2.message);
-            }
+          if (vpsConn) {
+            sshConfig = buildSSHConfigFromVps(vpsConn);
           }
+        }
+        if (!sshConfig) {
+          sshConfig = getSSHConfig() || undefined;
+        }
+        if (sshConfig) {
+          const skillIds = SKILLS_CATALOG.map(s => s.skillId).join(" ");
+          const result = await rawSSH(
+            `for skill in ${skillIds}; do openclaw skills install "$skill" 2>/dev/null; done; echo '---SYNC---'; openclaw skills list 2>&1 | head -5`,
+            sshConfig,
+            1,
+            120000
+          );
+          vpsResult = result.output || "";
+          console.log(`[skills] Bulk installed ${SKILLS_CATALOG.length} skills on VPS`);
+
+          try {
+            const syncResult = await sshCmd("clawhub-install-missing", sshConfig);
+            if (syncResult.output) {
+              console.log("[skills] ClawHub sync result:", syncResult.output.slice(0, 500));
+            }
+          } catch (e2: any) {
+            console.error("[skills] ClawHub sync failed:", e2.message);
+          }
+        } else {
+          vpsResult = "No SSH config available";
         }
       } catch (e: any) {
         console.error("[skills] VPS bulk install failed:", e.message);
