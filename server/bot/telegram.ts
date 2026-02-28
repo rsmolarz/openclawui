@@ -90,7 +90,7 @@ async function handleMessage(update: TelegramUpdate): Promise<void> {
 
   if (text === "/start") {
     await sendMessage(chatId,
-      `👋 Welcome to *OpenClaw AI*!\n\nI'm your AI assistant powered by OpenClaw. Send me any message and I'll respond.\n\nCommands:\n/start - Show this message\n/status - Check bot status\n/help - Get help`
+      `👋 Welcome to *OpenClaw*!\n\nI'm your AI-powered agent coordinator. I manage skills, nodes, and automation across your connected devices. Send me any message and I'll help.\n\nCommands:\n/start - Show this message\n/status - Check bot status\n/help - Get help`
     );
     return;
   }
@@ -112,7 +112,7 @@ async function handleMessage(update: TelegramUpdate): Promise<void> {
       }
     } catch {}
     await sendMessage(chatId,
-      `*OpenClaw AI Help*\n\nJust send me any message and I'll respond using AI.\n\nI can help with:\n• General questions\n• Code and tech questions\n• Writing and editing\n• Analysis and research${skillsList}\n\nPowered by OpenClaw AI Gateway.`
+      `*OpenClaw Help*\n\nI'm your AI agent coordinator. I orchestrate tasks across your connected nodes and skills.\n\nI can help with:\n• Running skills on connected devices\n• General questions and analysis\n• Code and tech questions\n• Writing and editing${skillsList}\n\nSend any message to get started.`
     );
     return;
   }
