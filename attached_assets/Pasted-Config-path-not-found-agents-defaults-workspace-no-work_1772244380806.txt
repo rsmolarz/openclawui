@@ -1,0 +1,32 @@
+Config path not found: agents.defaults.workspace
+no workspace skills dir
+total 0
+drwxr-xr-x  33 rsmol  staff  1056 Feb 27 21:58 .
+drwxr-x---@ 40 rsmol  staff  1280 Feb 27 21:54 ..
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 apple-notes
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 apple-reminders
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 bear-notes
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:54 blogwatcher
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:54 blucli
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:58 bluebubbles
+drwxr-xr-x   5 rsmol  staff   160 Feb 27 21:56 camsnap
+rsmol@Mac-mini-7828 ~ % openclaw skills install --all 2>&1 | tail -20
+error: unknown option '--all'
+rsmol@Mac-mini-7828 ~ % mkdir -p ~/.openclaw/workspace
+ln -s ~/skills ~/.openclaw/workspace/skills
+openclaw skills list | head -5
+Skills (43/51 ready)
+┌───────────┬──────────────────┬─────────────────────────────────────────────────────────────────┬────────────────────┐
+│ Status    │ Skill            │ Description                                                     │ Source             │
+├───────────┼──────────────────┼─────────────────────────────────────────────────────────────────┼────────────────────┤
+│ ✓ ready   │ 🔐 1password      │ Set up and use 1Password CLI (op). Use when installing the      │ openclaw-bundled   │
+rsmol@Mac-mini-7828 ~ % openclaw skills list 2>&1 | grep '✗ missing'
+│ ✗ missing │ 🎮 discord        │ Discord ops via the message tool (channel=discord).             │ openclaw-bundled   │
+│ ✗ missing │ 📍 goplaces       │ Query Google Places API (New) via the goplaces CLI for text     │ openclaw-bundled   │
+│ ✗ missing │ 📧 himalaya       │ CLI to manage emails via IMAP/SMTP. Use `himalaya` to list,     │ openclaw-bundled   │
+│ ✗ missing │ 📜 session-logs   │ Search and analyze your own session logs (older/parent          │ openclaw-workspace │
+│ ✗ missing │ 🗣️ sherpa-onnx-  │ Local text-to-speech via sherpa-onnx (offline, no cloud)        │ openclaw-bundled   │
+│ ✗ missing │ 📞 voice-call     │ Start voice calls via the OpenClaw voice-call plugin.           │ openclaw-bundled   │
+│ ✗ missing │ 📱 wacli          │ Send WhatsApp messages to other people or search/sync WhatsApp  │ openclaw-bundled   │
+│ ✗ missing │ 𝕏 xurl           │ A CLI tool for making authenticated requests to the X           │ openclaw-bundled   │
+rsmol@Mac-mini-7828 ~ % 
