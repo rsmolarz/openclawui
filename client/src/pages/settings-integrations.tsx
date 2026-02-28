@@ -57,6 +57,10 @@ import {
   Container,
   Lock,
   Paintbrush,
+  Home,
+  Gamepad2,
+  Monitor,
+  Tv,
   type LucideIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -78,6 +82,10 @@ const iconMap: Record<string, LucideIcon> = {
   BookOpen,
   ClipboardList,
   CreditCard,
+  Home,
+  Gamepad2,
+  Monitor,
+  Tv,
   Smartphone,
   Table,
   HardDrive,
@@ -108,9 +116,11 @@ const categoryLabels: Record<string, string> = {
   security: "Security",
   payments: "Payments",
   productivity: "Productivity",
+  smart_home: "Smart Home",
+  hardware: "Hardware Control",
 };
 
-const categoryOrder = ["messaging", "ai", "development", "productivity", "payments", "storage", "monitoring", "security", "networking", "automation", "notifications", "iot"];
+const categoryOrder = ["messaging", "ai", "development", "productivity", "smart_home", "hardware", "payments", "storage", "monitoring", "security", "networking", "automation", "notifications", "iot"];
 
 const statusColors: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   connected: "default",
@@ -358,6 +368,45 @@ function getConfigFields(type: string): { key: string; label: string; sensitive?
       return [
         { key: "apiToken", label: "API Token", sensitive: true },
       ];
+    case "home-assistant":
+      return [
+        { key: "serverUrl", label: "Home Assistant URL (e.g. http://homeassistant.local:8123)" },
+        { key: "accessToken", label: "Long-Lived Access Token", sensitive: true },
+        { key: "defaultArea", label: "Default Area (optional)" },
+      ];
+    case "homebridge":
+      return [
+        { key: "serverUrl", label: "Homebridge URL" },
+        { key: "username", label: "Username" },
+        { key: "password", label: "Password", sensitive: true },
+      ];
+    case "streamdeck":
+      return [
+        { key: "webhookUrl", label: "OpenClaw Webhook URL (for Stream Deck buttons)" },
+        { key: "companionUrl", label: "Companion URL (optional)" },
+        { key: "apiPort", label: "Stream Deck API Port (default: 3000)" },
+      ];
+    case "companion":
+      return [
+        { key: "serverUrl", label: "Companion Server URL" },
+        { key: "apiPort", label: "API Port" },
+        { key: "webhookSecret", label: "Webhook Secret", sensitive: true },
+      ];
+    case "homekit":
+      return [
+        { key: "bridgePin", label: "HomeKit Bridge PIN (e.g. 031-45-154)" },
+        { key: "bridgeName", label: "Bridge Name" },
+      ];
+    case "sonos":
+      return [
+        { key: "controllerUrl", label: "Sonos Controller URL" },
+        { key: "defaultRoom", label: "Default Room" },
+      ];
+    case "philips-hue":
+      return [
+        { key: "bridgeIp", label: "Hue Bridge IP Address" },
+        { key: "apiKey", label: "API Key (Username)", sensitive: true },
+      ];
     default:
       return [];
   }
@@ -483,6 +532,13 @@ const availableIntegrations = [
   { name: "Make (Integromat)", type: "make", category: "automation", icon: "Workflow", description: "Visual workflow automation with 1000+ app connectors and scenarios." },
   { name: "MQTT", type: "mqtt", category: "iot", icon: "Radio", description: "Lightweight messaging protocol for IoT device communication." },
   { name: "Email / SMTP", type: "email", category: "notifications", icon: "Mail", description: "Send email notifications and alerts through SMTP providers." },
+  { name: "Home Assistant", type: "home-assistant", category: "smart_home", icon: "Home", description: "Full Home Assistant control — lights, switches, sensors, automations, and scenes via REST API." },
+  { name: "Homebridge", type: "homebridge", category: "smart_home", icon: "Home", description: "Homebridge integration for Apple HomeKit device control and automation." },
+  { name: "HomeKit", type: "homekit", category: "smart_home", icon: "Home", description: "Direct HomeKit bridge for controlling Apple Home devices from OpenClaw agents." },
+  { name: "Philips Hue", type: "philips-hue", category: "smart_home", icon: "Home", description: "Philips Hue smart lighting control — scenes, rooms, groups, and color management." },
+  { name: "Sonos", type: "sonos", category: "smart_home", icon: "Tv", description: "Sonos speaker control — playback, volume, grouping, and favorites management." },
+  { name: "Stream Deck", type: "streamdeck", category: "hardware", icon: "Gamepad2", description: "Elgato Stream Deck integration via webhook triggers — map buttons to OpenClaw actions." },
+  { name: "Companion", type: "companion", category: "hardware", icon: "Monitor", description: "Bitfocus Companion integration for Stream Deck, button boxes, and control surfaces." },
 ];
 
 export default function SettingsIntegrations() {

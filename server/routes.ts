@@ -124,6 +124,355 @@ async function resolveInstanceId(req: Request): Promise<string | null> {
   return defaultInstance?.id ?? null;
 }
 
+function getNodeSkillContent(skillName: string): { skillMd: string; handlerPy: string } | null {
+  const skills: Record<string, { skillMd: string; handlerPy: string }> = {
+    "system-agent": {
+      skillMd: `---
+name: system.agent
+description: Full local system control for any OS. Allows OpenClaw to read/write files, run commands, inspect system state, and control native software.
+tools:
+  - run_command
+  - read_file
+  - write_file
+  - list_directory
+  - get_process_list
+  - start_process
+  - stop_process
+---
+
+You can execute system commands, read and write files, inspect processes, and control applications locally.`,
+      handlerPy: `import subprocess
+import os
+
+def run_command(command: str):
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+    except Exception as e:
+        return {"error": str(e)}
+
+def read_file(path: str):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        return {"error": str(e)}
+
+def write_file(path: str, content: str):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"status": "success"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def list_directory(path: str):
+    try:
+        return os.listdir(path)
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_process_list():
+    try:
+        result = subprocess.run("ps aux --sort=-%mem | head -20", shell=True, capture_output=True, text=True)
+        return result.stdout
+    except Exception as e:
+        return {"error": str(e)}
+
+def start_process(command: str):
+    try:
+        subprocess.Popen(command, shell=True)
+        return {"status": "started"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def stop_process(process_name: str):
+    try:
+        subprocess.run(f"pkill -f {process_name}", shell=True)
+        return {"status": "stopped"}
+    except Exception as e:
+        return {"error": str(e)}`,
+    },
+    "windows-admin": {
+      skillMd: `---
+name: windows.admin
+description: Full Windows administrative control via PowerShell. Allows registry edits, service control, system configuration, and native software automation.
+tools:
+  - run_powershell
+  - get_services
+  - start_service
+  - stop_service
+  - get_registry_value
+  - set_registry_value
+  - list_installed_programs
+---
+
+You can fully administer Windows using PowerShell, including registry edits, services, and system configuration.`,
+      handlerPy: `import subprocess
+
+def run_powershell(command: str):
+    try:
+        result = subprocess.run(["powershell", "-Command", command], capture_output=True, text=True, timeout=30)
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_services():
+    return run_powershell("Get-Service | Select Name,Status | ConvertTo-Json")
+
+def start_service(service_name: str):
+    return run_powershell(f"Start-Service -Name '{service_name}'")
+
+def stop_service(service_name: str):
+    return run_powershell(f"Stop-Service -Name '{service_name}'")
+
+def list_installed_programs():
+    return run_powershell("Get-ItemProperty HKLM:\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\* | Select DisplayName | ConvertTo-Json")
+
+def get_registry_value(path: str, name: str):
+    return run_powershell(f"Get-ItemProperty -Path 'HKCU:\\\\{path}' -Name '{name}' | ConvertTo-Json")
+
+def set_registry_value(path: str, name: str, value: str):
+    return run_powershell(f"Set-ItemProperty -Path 'HKCU:\\\\{path}' -Name '{name}' -Value '{value}'")`,
+    },
+    "ui-automation": {
+      skillMd: `---
+name: ui.automation
+description: Full UI automation. Allows OpenClaw to click, type, open apps, and control native software visually.
+tools:
+  - click
+  - type_text
+  - move_mouse
+  - press_key
+  - open_application
+  - focus_window
+---
+
+You can control any application visually by clicking, typing, and interacting with UI elements.`,
+      handlerPy: `import pyautogui
+import subprocess
+
+def click(x: int, y: int):
+    pyautogui.click(x, y)
+    return {"status": "clicked", "x": x, "y": y}
+
+def move_mouse(x: int, y: int):
+    pyautogui.moveTo(x, y)
+    return {"status": "moved", "x": x, "y": y}
+
+def type_text(text: str):
+    pyautogui.write(text)
+    return {"status": "typed", "text": text}
+
+def press_key(key: str):
+    pyautogui.press(key)
+    return {"status": "pressed", "key": key}
+
+def open_application(path: str):
+    subprocess.Popen(path, shell=True)
+    return {"status": "opened", "path": path}
+
+def focus_window(window_title: str):
+    try:
+        import pygetwindow as gw
+        windows = gw.getWindowsWithTitle(window_title)
+        if windows:
+            windows[0].activate()
+            return {"status": "focused", "window": window_title}
+        return {"error": "window not found"}
+    except Exception as e:
+        return {"error": str(e)}`,
+    },
+    "screen-vision": {
+      skillMd: `---
+name: screen.vision
+description: Screen vision and OCR. Allows OpenClaw to see screen, detect text, and locate UI elements.
+tools:
+  - capture_screen
+  - find_text
+  - click_text
+---
+
+You can capture the screen, find text, and interact with UI elements visually.`,
+      handlerPy: `import pyautogui
+import pytesseract
+from PIL import ImageGrab
+
+def capture_screen():
+    img = ImageGrab.grab()
+    img.save("/tmp/screenshot.png")
+    return {"status": "captured", "path": "/tmp/screenshot.png"}
+
+def find_text(text: str):
+    img = ImageGrab.grab()
+    import cv2
+    import numpy as np
+    img_np = np.array(img)
+    gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
+    data = pytesseract.image_to_data(gray, output_type=pytesseract.Output.DICT)
+    for i, word in enumerate(data["text"]):
+        if text.lower() in word.lower():
+            return {"found": True, "x": data["left"][i], "y": data["top"][i]}
+    return {"found": False}
+
+def click_text(text: str):
+    result = find_text(text)
+    if result.get("found"):
+        pyautogui.click(result["x"], result["y"])
+        return {"status": "clicked", "text": text}
+    return {"error": "text not found"}`,
+    },
+    "homeassistant-agent": {
+      skillMd: `---
+name: homeassistant.agent
+description: Full Home Assistant control. Manage lights, switches, sensors, automations, and scenes.
+tools:
+  - ha_call_service
+  - ha_get_states
+  - ha_get_state
+  - ha_trigger_automation
+---
+
+You can control Home Assistant devices, read sensor states, and trigger automations.
+Requires HA_URL and HA_TOKEN environment variables.`,
+      handlerPy: `import os
+import json
+try:
+    import requests
+except ImportError:
+    import subprocess
+    subprocess.run(["pip", "install", "requests"], capture_output=True)
+    import requests
+
+HA_URL = os.environ.get("HA_URL", "http://homeassistant.local:8123")
+HA_TOKEN = os.environ.get("HA_TOKEN", "")
+
+def _headers():
+    return {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
+
+def ha_call_service(domain: str, service: str, entity_id: str = None, data: dict = None):
+    url = f"{HA_URL}/api/services/{domain}/{service}"
+    payload = data or {}
+    if entity_id:
+        payload["entity_id"] = entity_id
+    r = requests.post(url, headers=_headers(), json=payload, timeout=10)
+    return {"status": r.status_code, "response": r.text[:500]}
+
+def ha_get_states():
+    r = requests.get(f"{HA_URL}/api/states", headers=_headers(), timeout=10)
+    states = r.json()
+    return [{"entity_id": s["entity_id"], "state": s["state"]} for s in states[:50]]
+
+def ha_get_state(entity_id: str):
+    r = requests.get(f"{HA_URL}/api/states/{entity_id}", headers=_headers(), timeout=10)
+    return r.json()
+
+def ha_trigger_automation(automation_id: str):
+    return ha_call_service("automation", "trigger", automation_id)`,
+    },
+    "webhook-agent": {
+      skillMd: `---
+name: webhook.agent
+description: Webhook listener for receiving HTTP requests from Stream Deck, Companion, or external triggers.
+tools:
+  - start_listener
+  - get_recent_events
+---
+
+Receive and process incoming webhook events on a configurable port.`,
+      handlerPy: `import json
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+
+recent_events = []
+
+class WebhookHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length else ""
+        event = {"path": self.path, "body": body, "method": "POST"}
+        recent_events.append(event)
+        if len(recent_events) > 50:
+            recent_events.pop(0)
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok"}')
+
+    def log_message(self, format, *args):
+        pass
+
+def start_listener(port: int = 3000):
+    server = HTTPServer(("0.0.0.0", port), WebhookHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return {"status": "listening", "port": port}
+
+def get_recent_events():
+    return recent_events[-20:]`,
+    },
+    "keyboard-agent": {
+      skillMd: `---
+name: keyboard.agent
+description: Keyboard and hotkey control. Send keystrokes, shortcuts, and hotkey combos to native applications.
+tools:
+  - send_keys
+  - send_hotkey
+  - type_string
+---
+
+You can send keyboard commands and hotkey combinations to control native applications.`,
+      handlerPy: `import pyautogui
+import time
+
+def send_keys(key: str):
+    pyautogui.press(key)
+    return {"status": "pressed", "key": key}
+
+def send_hotkey(*keys):
+    pyautogui.hotkey(*keys)
+    return {"status": "hotkey_sent", "keys": list(keys)}
+
+def type_string(text: str, interval: float = 0.02):
+    pyautogui.write(text, interval=interval)
+    return {"status": "typed", "length": len(text)}`,
+    },
+    "process-manager": {
+      skillMd: `---
+name: process.manager
+description: Process lifecycle management. Start, stop, monitor, and list running processes.
+tools:
+  - list_processes
+  - start_process
+  - stop_process
+  - process_info
+---
+
+Monitor and control running processes on the local system.`,
+      handlerPy: `import subprocess
+import os
+
+def list_processes(sort_by: str = "mem"):
+    sort_flag = "-%mem" if sort_by == "mem" else "-%cpu"
+    result = subprocess.run(f"ps aux --sort={sort_flag} | head -25", shell=True, capture_output=True, text=True)
+    return result.stdout
+
+def start_process(command: str):
+    subprocess.Popen(command, shell=True)
+    return {"status": "started", "command": command}
+
+def stop_process(name: str):
+    result = subprocess.run(f"pkill -f '{name}'", shell=True, capture_output=True, text=True)
+    return {"status": "signal_sent", "name": name, "returncode": result.returncode}
+
+def process_info(pid: int):
+    result = subprocess.run(f"ps -p {pid} -o pid,ppid,user,%cpu,%mem,stat,start,time,command", shell=True, capture_output=True, text=True)
+    return result.stdout`,
+    },
+  };
+  return skills[skillName] || null;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -4649,6 +4998,21 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
           { name: "ordercli", description: "Order management and tracking integration", category: "utilities", author: "openclaw" },
           { name: "songsee", description: "Song identification and lyrics lookup", category: "media", author: "openclaw" },
           { name: "gog", description: "GOG gaming platform integration", category: "media", author: "openclaw" },
+          { name: "system-agent", description: "Full local system control — run commands, read/write files, inspect processes, and control applications on any node", category: "node-control", author: "openclaw" },
+          { name: "windows-admin", description: "Windows administrative control via PowerShell — registry edits, service management, system configuration", category: "node-control", author: "openclaw" },
+          { name: "ui-automation", description: "Visual UI automation — click buttons, type text, control mouse, and operate native apps without an API", category: "node-control", author: "openclaw" },
+          { name: "screen-vision", description: "Screen vision and OCR — capture screen, find text, locate UI elements, and click automatically", category: "node-control", author: "openclaw" },
+          { name: "homeassistant-agent", description: "Home Assistant full control — lights, switches, sensors, automations, scenes, and service calls via HA REST API", category: "smart-home", author: "openclaw" },
+          { name: "webhook-agent", description: "Webhook listener skill — receive HTTP requests from Stream Deck, Companion, or any external trigger", category: "node-control", author: "openclaw" },
+          { name: "api-agent", description: "Universal REST API caller — send HTTP requests to any service endpoint with auth, headers, and body", category: "node-control", author: "openclaw" },
+          { name: "streamdeck-agent", description: "Stream Deck integration — trigger OpenClaw workflows from Stream Deck buttons via webhook or Companion", category: "hardware", author: "openclaw" },
+          { name: "keyboard-agent", description: "Keyboard and hotkey control — send keystrokes, shortcuts, and hotkey combos to native applications", category: "node-control", author: "openclaw" },
+          { name: "process-manager", description: "Process lifecycle management — start, stop, monitor, and list running processes on any connected node", category: "node-control", author: "openclaw" },
+          { name: "filesystem-agent", description: "Advanced filesystem operations — watch directories, sync files, compress/extract archives, and manage permissions", category: "node-control", author: "openclaw" },
+          { name: "docker-agent", description: "Docker container management — start, stop, restart, logs, and inspect containers and images", category: "devops", author: "openclaw" },
+          { name: "ssh-agent", description: "SSH remote control — execute commands on remote machines, transfer files, and manage tunnels", category: "devops", author: "openclaw" },
+          { name: "mqtt-agent", description: "MQTT IoT device control — publish/subscribe to topics for smart home and sensor automation", category: "smart-home", author: "openclaw" },
+          { name: "companion-agent", description: "Bitfocus Companion integration — control Stream Deck buttons, pages, and actions via Companion API", category: "hardware", author: "openclaw" },
         ];
       }
 
@@ -4727,6 +5091,86 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to uninstall plugin" });
+    }
+  });
+
+  app.post("/api/marketplace/node-skills/deploy", requireAuth, async (req, res) => {
+    try {
+      const { skillName, nodeName } = req.body;
+      if (!skillName) return res.status(400).json({ error: "skillName required" });
+
+      const { executeSSHRawCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+      const instanceId = await resolveInstanceId(req);
+      let sshConfig;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) sshConfig = buildSSHConfigFromVps(vps);
+      }
+      if (!sshConfig) sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.status(400).json({ error: "No SSH connection available" });
+
+      const safeName = String(skillName).replace(/[^a-zA-Z0-9_\-\.]/g, "");
+      const targetPath = nodeName
+        ? `/home/${nodeName}/.openclaw/skills/${safeName}`
+        : `/root/.openclaw/skills/${safeName}`;
+
+      const skillContent = getNodeSkillContent(safeName);
+      if (!skillContent) {
+        const result = await executeSSHRawCommand(
+          `openclaw skills install ${safeName} 2>&1 && echo "DEPLOY_SUCCESS"`,
+          sshConfig
+        );
+        return res.json({
+          success: result.success && (result.output || "").includes("DEPLOY_SUCCESS"),
+          output: result.output,
+          method: "openclaw-cli",
+        });
+      }
+
+      const cmds = [
+        `mkdir -p "${targetPath}"`,
+        `cat > "${targetPath}/SKILL.md" << 'SKILLEOF'\n${skillContent.skillMd}\nSKILLEOF`,
+        `cat > "${targetPath}/handler.py" << 'HANDLEREOF'\n${skillContent.handlerPy}\nHANDLEREOF`,
+        `echo "DEPLOY_SUCCESS"`,
+      ];
+
+      const result = await executeSSHRawCommand(cmds.join(" && "), sshConfig);
+      res.json({
+        success: result.success && (result.output || "").includes("DEPLOY_SUCCESS"),
+        output: result.output,
+        method: "direct-deploy",
+        path: targetPath,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to deploy skill" });
+    }
+  });
+
+  app.get("/api/marketplace/node-skills/installed", requireAuth, async (req, res) => {
+    try {
+      const { executeSSHRawCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+      const instanceId = await resolveInstanceId(req);
+      let sshConfig;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) sshConfig = buildSSHConfigFromVps(vps);
+      }
+      if (!sshConfig) sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.json({ skills: [], error: "No SSH connection" });
+
+      const result = await executeSSHRawCommand(
+        `ls -1 /root/.openclaw/skills/ 2>/dev/null || echo "NO_SKILLS_DIR"`,
+        sshConfig
+      );
+
+      const skills = (result.output || "")
+        .split("\n")
+        .map((s: string) => s.trim())
+        .filter((s: string) => s && s !== "NO_SKILLS_DIR");
+
+      res.json({ skills, success: result.success });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to list node skills" });
     }
   });
 

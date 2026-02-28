@@ -21,6 +21,11 @@ import {
   Cpu,
   Package,
   Loader2,
+  Home,
+  Gamepad2,
+  Server,
+  Terminal,
+  Upload,
 } from "lucide-react";
 import { useInstance } from "@/hooks/use-instance";
 
@@ -39,7 +44,10 @@ const categoryIcons: Record<string, typeof MessageSquare> = {
   media: Music,
   ai: Brain,
   utilities: Monitor,
-  hardware: Cpu,
+  hardware: Gamepad2,
+  "node-control": Terminal,
+  "smart-home": Home,
+  devops: Server,
   general: Package,
 };
 
@@ -51,6 +59,9 @@ const categoryColors: Record<string, string> = {
   ai: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
   utilities: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
   hardware: "bg-red-500/10 text-red-700 dark:text-red-400",
+  "node-control": "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",
+  "smart-home": "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  devops: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
   general: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
 };
 
@@ -89,6 +100,20 @@ export default function Marketplace() {
     },
     onError: (err: any) => {
       toast({ title: "Uninstall failed", description: err.message || "Failed to uninstall plugin", variant: "destructive" });
+    },
+  });
+
+  const deployMutation = useMutation({
+    mutationFn: async (skillName: string) => {
+      const res = await apiRequest("POST", "/api/marketplace/node-skills/deploy", { skillName, instanceId });
+      return res.json();
+    },
+    onSuccess: (_data, skillName) => {
+      toast({ title: "Skill deployed", description: `${skillName} has been deployed to the VPS node.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/marketplace/plugins", instanceId] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Deploy failed", description: err.message || "Failed to deploy skill", variant: "destructive" });
     },
   });
 
@@ -198,6 +223,8 @@ export default function Marketplace() {
             const CategoryIcon = categoryIcons[plugin.category] || Package;
             const isInstalling = installMutation.isPending && installMutation.variables === plugin.name;
             const isUninstalling = uninstallMutation.isPending && uninstallMutation.variables === plugin.name;
+            const isDeploying = deployMutation.isPending && deployMutation.variables === plugin.name;
+            const isNodeSkill = ["node-control", "smart-home", "devops"].includes(plugin.category);
 
             return (
               <Card key={plugin.name} data-testid={`card-plugin-${plugin.name}`}>
@@ -247,6 +274,18 @@ export default function Marketplace() {
                       >
                         {isInstalling ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
                         Install
+                      </Button>
+                    )}
+                    {isNodeSkill && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => deployMutation.mutate(plugin.name)}
+                        disabled={isDeploying}
+                        data-testid={`button-deploy-${plugin.name}`}
+                      >
+                        {isDeploying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+                        Deploy to Node
                       </Button>
                     )}
                   </div>
