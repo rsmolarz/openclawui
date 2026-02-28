@@ -1044,7 +1044,7 @@ export default function SettingsMachines() {
       queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
       toast({
         title: "Synced from gateway",
-        description: `Found ${data.total} node(s): ${data.created} added, ${data.updated} updated.`,
+        description: `${data.total} total node(s): ${data.connectedCount || 0} connected, ${data.offlineCount || 0} offline. ${data.created} added, ${data.updated} updated from gateway.`,
       });
     },
     onError: (error: any) => {

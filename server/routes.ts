@@ -1765,17 +1765,25 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
       let gatewayNodes: any[] = [];
       let syncMethod = "";
+      let connectedNodeNames = new Set<string>();
 
       const vpsConn = await storage.getVpsConnection(instanceId);
+      let sshConfig: any = null;
       if (vpsConn?.vpsIp) {
         const { buildSSHConfigFromVps } = await import("./ssh");
-        const sshConfig = buildSSHConfigFromVps(vpsConn);
+        sshConfig = buildSSHConfigFromVps(vpsConn);
 
         try {
           const cached = await getCachedNodeList(sshConfig);
           if (cached && cached.nodes.length > 0) {
             gatewayNodes = cached.nodes;
             syncMethod = "gateway-call-node-list";
+            for (const n of cached.nodes) {
+              if (n.connected) {
+                const name = (n.displayName || n.name || n.hostname || "").toLowerCase();
+                if (name) connectedNodeNames.add(name);
+              }
+            }
           }
         } catch {}
 
@@ -1794,6 +1802,77 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
                 }
               } catch {}
             }
+          } catch {}
+        }
+
+        if (sshConfig && syncMethod) {
+          try {
+            const devicesResult = await executeSSHCommand("cli-devices-list", sshConfig);
+            if (devicesResult.success && devicesResult.output) {
+              try {
+                const parsed = JSON.parse(devicesResult.output.trim());
+                if (!parsed.error) {
+                  const pairedDevices = parsed.paired || [];
+                  const pendingDevices = parsed.pending || [];
+                  const allDevices = [...pairedDevices, ...pendingDevices];
+
+                  for (const dev of allDevices) {
+                    const devName = (dev.name || dev.hostname || dev.displayName || "").toLowerCase();
+                    const devId = (dev.requestId || dev.id || dev.deviceId || "").toLowerCase();
+                    const alreadyInList = gatewayNodes.some((n: any) => {
+                      const nNames = [n.name, n.displayName, n.hostname, n.nodeId, n.id]
+                        .filter(Boolean).map((s: string) => s.toLowerCase());
+                      return nNames.includes(devName) || nNames.includes(devId);
+                    });
+                    if (!alreadyInList && (devName || devId)) {
+                      gatewayNodes.push({
+                        name: dev.name || dev.hostname || dev.displayName || devId,
+                        displayName: dev.displayName || dev.name || dev.hostname || devId,
+                        hostname: dev.hostname || dev.name || "",
+                        ip: dev.ip || dev.address || dev.remoteIp || "",
+                        platform: dev.os || dev.platform || "",
+                        connected: false,
+                        status: pairedDevices.includes(dev) ? "paired" : "pending",
+                      });
+                    }
+                  }
+                }
+              } catch {}
+            }
+          } catch {}
+
+          try {
+            const [pairedResult, pendingResult] = await Promise.all([
+              executeSSHCommand("list-paired-nodes", sshConfig),
+              executeSSHCommand("list-pending-nodes", sshConfig),
+            ]);
+
+            const processFileNodes = (result: any, isPaired: boolean) => {
+              if (!result.success || !result.output) return;
+              try {
+                let parsed = JSON.parse(result.output.trim());
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) parsed = Object.values(parsed);
+                if (!Array.isArray(parsed)) return;
+                for (const entry of parsed) {
+                  const entryName = typeof entry === "string" ? entry : (entry.name || entry.hostname || entry.displayName || entry.id || "");
+                  if (!entryName) continue;
+                  const alreadyInList = gatewayNodes.some((n: any) => {
+                    const nNames = [n.name, n.displayName, n.hostname, n.nodeId, n.id]
+                      .filter(Boolean).map((s: string) => s.toLowerCase());
+                    return nNames.includes(entryName.toLowerCase());
+                  });
+                  if (!alreadyInList) {
+                    const nodeData = typeof entry === "string"
+                      ? { name: entry, hostname: entry, connected: false, status: isPaired ? "paired" : "pending" }
+                      : { ...entry, name: entry.name || entry.hostname || entry.id, connected: false, status: isPaired ? "paired" : "pending" };
+                    gatewayNodes.push(nodeData);
+                  }
+                }
+              } catch {}
+            };
+
+            processFileNodes(pairedResult, true);
+            processFileNodes(pendingResult, false);
           } catch {}
         }
       }
@@ -1838,12 +1917,11 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         const hostname = gNode.hostname || gNode.host || gNode.name || "";
         const ipAddress = gNode.ip || gNode.ipAddress || gNode.address || "";
         const os = gNode.os || gNode.platform || "";
-        const capabilities = Array.isArray(gNode.caps) ? gNode.caps.join(", ") : (Array.isArray(gNode.capabilities) ? gNode.capabilities.join(", ") : "");
 
         const existing = existingMachines.find(
           (m) => {
             const mIds = [m.hostname, m.name, m.displayName, m.ipAddress].filter(Boolean).map((s) => s!.toLowerCase());
-            const nIds = [hostname, nodeName, gNode.id].filter(Boolean).map((s: string) => s.toLowerCase());
+            const nIds = [hostname, nodeName, gNode.id, gNode.nodeId, gNode.requestId, gNode.deviceId].filter(Boolean).map((s: string) => s.toLowerCase());
             return mIds.some((mid) => nIds.includes(mid));
           }
         );
@@ -1870,15 +1948,23 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         }
       }
 
+      const allMachinesAfterSync = await storage.getMachines();
+      const nonWhatsappMachines = allMachinesAfterSync.filter((m: any) => m.os !== "WhatsApp");
+      const connectedCount = nonWhatsappMachines.filter((m: any) => m.status === "connected").length;
+      const offlineCount = nonWhatsappMachines.filter((m: any) => m.status !== "connected").length;
+
       res.json({
         success: true,
         endpoint: syncMethod,
-        total: gatewayNodes.length,
+        total: nonWhatsappMachines.length,
+        gatewayFound: gatewayNodes.length,
+        connectedCount,
+        offlineCount,
         created,
         updated,
-        nodes: gatewayNodes.map((n: any) => ({
-          name: n.name || n.displayName || n.hostname || n.id,
-          status: (n.connected || n.status === "connected" || n.online) ? "connected" : "disconnected",
+        nodes: nonWhatsappMachines.map((m: any) => ({
+          name: m.displayName || m.name || m.hostname,
+          status: m.status || "disconnected",
         })),
       });
     } catch (error: any) {
