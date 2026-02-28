@@ -503,13 +503,13 @@ export default function SettingsDashboard() {
           <div className="flex items-center gap-3 text-sm">
             <span className="text-muted-foreground min-w-28">WebSocket URL:</span>
             <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate" data-testid="text-ws-url">
-              {config?.websocketUrl || `ws://${getHost()}:${getPort()}`}
+              {config?.websocketUrl || `${(selectedInstance?.serverUrl || '').startsWith('https') ? 'wss' : 'ws'}://${getHost()}:${getPort()}`}
             </code>
             <Button
               size="icon"
               variant="ghost"
               onClick={() => {
-                const ws = config?.websocketUrl || `ws://${getHost()}:${getPort()}`;
+                const ws = config?.websocketUrl || `${(selectedInstance?.serverUrl || '').startsWith('https') ? 'wss' : 'ws'}://${getHost()}:${getPort()}`;
                 navigator.clipboard.writeText(ws);
                 toast({ title: "Copied", description: "WebSocket URL copied." });
               }}
