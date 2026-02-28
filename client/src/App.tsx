@@ -36,6 +36,7 @@ import FileManager from "@/pages/file-manager";
 import Metrics from "@/pages/metrics";
 import Marketplace from "@/pages/marketplace";
 import EmailWorkflows from "@/pages/email-workflows";
+import SettingsGeminiProxy from "@/pages/settings-gemini-proxy";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/metrics" component={Metrics} />
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/email-workflows" component={EmailWorkflows} />
+      <Route path="/settings/gemini-proxy" component={SettingsGeminiProxy} />
       <Route component={NotFound} />
     </Switch>
   );

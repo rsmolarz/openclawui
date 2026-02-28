@@ -3624,6 +3624,190 @@ setInterval(sendHeartbeat, INTERVAL_MS);
     } catch {}
   }, 60000);
 
+  // ===== Gemini Anti-Gravity Proxy =====
+  const { loadSettings: loadGeminiSettings, saveSettings: saveGeminiSettings } = await import("./gemini/settings");
+  const { getUpstream: getGeminiUpstream, clampRequestBody: clampGeminiBody } = await import("./gemini/upstream");
+  const { ensureVertexCredentialsFile } = await import("./gemini/vertex-auth");
+  const { Readable } = await import("stream");
+
+  ensureVertexCredentialsFile();
+
+  const GEMINI_PROXY_KEY = process.env.GEMINI_PROXY_API_KEY || "";
+
+  function requireGeminiProxyAuth(req: Request, res: Response, next: NextFunction) {
+    const auth = req.headers.authorization || "";
+    const match = auth.match(/^Bearer\s+(.+)$/i);
+    if (!match) return res.status(401).json({ error: { message: "Missing Bearer token" } });
+    if (!GEMINI_PROXY_KEY) return res.status(500).json({ error: { message: "Proxy API key not configured" } });
+    if (match[1] !== GEMINI_PROXY_KEY) return res.status(403).json({ error: { message: "Invalid proxy token" } });
+    next();
+  }
+
+  let geminiRpmCount = 0;
+  let geminiRpmWindowStart = Date.now();
+
+  function geminiRateLimit(req: Request, res: Response, next: NextFunction) {
+    const settings = loadGeminiSettings();
+    const now = Date.now();
+    if (now - geminiRpmWindowStart > 60_000) {
+      geminiRpmCount = 0;
+      geminiRpmWindowStart = now;
+    }
+    geminiRpmCount++;
+    if (geminiRpmCount > settings.rpmLimit) {
+      return res.status(429).json({ error: { message: "Rate limit exceeded", type: "rate_limit" } });
+    }
+    next();
+  }
+
+  async function proxyToGemini(req: Request, res: Response, route: string) {
+    const settings = loadGeminiSettings();
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), settings.timeoutMs);
+
+    try {
+      const upstream = await getGeminiUpstream(settings);
+      const url = `${upstream.baseUrl}${route}`;
+
+      const outgoingBody =
+        req.method === "GET" || req.method === "HEAD"
+          ? undefined
+          : JSON.stringify(clampGeminiBody(req.body, settings));
+
+      const upstreamRes = await fetch(url, {
+        method: req.method,
+        headers: {
+          "content-type": "application/json",
+          ...upstream.headers,
+        },
+        body: outgoingBody,
+        signal: controller.signal,
+      });
+
+      res.status(upstreamRes.status);
+
+      for (const [k, v] of upstreamRes.headers.entries()) {
+        if (["connection", "transfer-encoding", "keep-alive"].includes(k.toLowerCase())) continue;
+        res.setHeader(k, v);
+      }
+
+      if (!upstreamRes.body) return res.end();
+      Readable.fromWeb(upstreamRes.body as any).pipe(res);
+    } catch (e: any) {
+      const status = e.statusCode || (e.name === "AbortError" ? 504 : 500);
+      res.status(status).json({
+        error: {
+          message: e.name === "AbortError" ? "Upstream timeout" : (e.message || "Proxy error"),
+          type: e.name === "AbortError" ? "timeout" : "proxy_error",
+        },
+      });
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  app.get("/api/gemini-proxy/health", (_req: Request, res: Response) => {
+    const settings = loadGeminiSettings();
+    res.json({
+      ok: true,
+      upstream: settings.upstream,
+      allowedModels: settings.allowedModels,
+      maxOutputTokens: settings.maxOutputTokens,
+      rpmLimit: settings.rpmLimit,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+      hasVertexProject: Boolean(process.env.GOOGLE_CLOUD_PROJECT),
+      hasADCFile: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS),
+      hasServiceAccountJson: Boolean(process.env.GCP_SERVICE_ACCOUNT_JSON),
+    });
+  });
+
+  app.get("/api/gemini-proxy/settings", requireAuth, (_req: Request, res: Response) => {
+    const settings = loadGeminiSettings();
+    res.json({
+      settings,
+      env: {
+        hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+        hasVertexProject: Boolean(process.env.GOOGLE_CLOUD_PROJECT),
+        hasADCFile: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS),
+        hasServiceAccountJson: Boolean(process.env.GCP_SERVICE_ACCOUNT_JSON),
+        hasProxyKey: Boolean(GEMINI_PROXY_KEY),
+      },
+    });
+  });
+
+  const geminiSettingsSchema = z.object({
+    upstream: z.enum(["developer", "vertex"]).optional(),
+    allowedModels: z.array(z.string().min(1)).min(1).optional(),
+    maxOutputTokens: z.number().int().min(1).max(65536).optional(),
+    rpmLimit: z.number().int().min(1).max(10000).optional(),
+    timeoutMs: z.number().int().min(1000).max(600000).optional(),
+  });
+
+  app.post("/api/gemini-proxy/settings", requireAuth, (req: Request, res: Response) => {
+    try {
+      const parsed = geminiSettingsSchema.parse(req.body);
+      const updated = saveGeminiSettings(parsed);
+      res.json({ ok: true, settings: updated });
+    } catch (e: any) {
+      if (e.name === "ZodError") {
+        return res.status(400).json({ error: e.errors });
+      }
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/gemini-proxy/test", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const settings = loadGeminiSettings();
+      const upstream = await getGeminiUpstream(settings);
+      const testModel = settings.allowedModels[0] || "gemini-2.5-flash";
+      const body = {
+        model: settings.upstream === "vertex" ? `google/${testModel}` : testModel,
+        messages: [
+          { role: "system", content: "You are a helpful assistant." },
+          { role: "user", content: "Say hello in one sentence." },
+        ],
+        max_tokens: 64,
+      };
+
+      const url = `${upstream.baseUrl}/chat/completions`;
+      const upstreamRes = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...upstream.headers,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(settings.timeoutMs),
+      });
+
+      const data = await upstreamRes.json();
+      res.json({
+        ok: upstreamRes.ok,
+        status: upstreamRes.status,
+        model: testModel,
+        upstream: settings.upstream,
+        response: data,
+      });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/gemini-proxy/v1/chat/completions", requireGeminiProxyAuth, geminiRateLimit, (req: Request, res: Response) => {
+    proxyToGemini(req, res, "/chat/completions");
+  });
+
+  app.post("/api/gemini-proxy/v1/embeddings", requireGeminiProxyAuth, geminiRateLimit, (req: Request, res: Response) => {
+    proxyToGemini(req, res, "/embeddings");
+  });
+
+  app.get("/api/gemini-proxy/v1/models", requireGeminiProxyAuth, (req: Request, res: Response) => {
+    proxyToGemini(req, res, "/models");
+  });
+
+  console.log("[Gemini] Anti-Gravity proxy routes registered");
+
   const homeBotStatusByHost: Map<string, { state: string; phone: string | null; error: string | null; runtime: string; hostname: string; lastReport: Date; qrDataUrl?: string | null; pairingCode?: string | null }> = new Map();
 
   function getResolvedHomeBotStatus(): { state: string; phone: string | null; error: string | null; runtime: string; hostname: string | null; lastReport: Date | null; qrDataUrl?: string | null; pairingCode?: string | null } {

@@ -24,6 +24,7 @@ import {
   BarChart3,
   Store,
   Mail,
+  Sparkles,
 } from "lucide-react";
 import {
   Sidebar,
@@ -71,6 +72,7 @@ const infraItems = [
   { title: "OpenClaw Config", url: "/settings/openclaw", icon: Cog },
   { title: "Skills", url: "/settings/skills", icon: Zap },
   { title: "Integrations", url: "/settings/integrations", icon: Plug },
+  { title: "Gemini Proxy", url: "/settings/gemini-proxy", icon: Sparkles },
 ];
 
 export function AppSidebar() {

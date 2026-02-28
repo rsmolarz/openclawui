@@ -48,6 +48,7 @@ waitForPort = 5000
 
 [userenv.shared]
 OPENCLAW_DID_BASE_URL = "https://did-login.replit.app"
+GEMINI_PROXY_API_KEY = "gp_1547b6629217c06a9af1775adf6030e5e4808a93bc572ee9"
 
 [userenv.production]
 APP_BASE_URL = "https://claw-settings.replit.app"

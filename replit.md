@@ -63,3 +63,16 @@ Machines report their status via a lightweight heartbeat agent:
 - **`GET /api/node/agent-script`**: Serves the downloadable agent script.
 - **`home-bot/openclaw-agent.js`**: Standalone Node.js agent that sends heartbeats every 30 seconds. Requires `OPENCLAW_API_KEY` env var.
 - **Install Agent Dialog**: UI in `settings-machines.tsx` provides one-liner commands and download instructions for Windows/Linux/macOS.
+
+## Gemini Anti-Gravity Proxy
+An OpenAI-compatible proxy for Google Gemini models, integrated directly into the Express server:
+- **Server modules**: `server/gemini/upstream.ts` (routing to Gemini Developer API or Vertex AI with token caching), `server/gemini/settings.ts` (file-based settings at `.data/gemini-proxy-settings.json`), `server/gemini/vertex-auth.ts` (writes GCP service account from env to disk for ADC)
+- **Proxy routes** in `server/routes.ts`:
+  - `POST /api/gemini-proxy/v1/chat/completions` — OpenAI-compatible chat completions (Bearer auth + rate limiting + model allowlist + token clamping)
+  - `POST /api/gemini-proxy/v1/embeddings` — embeddings pass-through
+  - `GET /api/gemini-proxy/v1/models` — model listing
+  - `GET /api/gemini-proxy/health` — public health check
+  - `GET/POST /api/gemini-proxy/settings` — admin settings (session auth required)
+  - `POST /api/gemini-proxy/test` — test completion through proxy
+- **Dashboard page**: `client/src/pages/settings-gemini-proxy.tsx` at `/settings/gemini-proxy` — configure upstream, models, rate limits, test connection
+- **Environment variables**: `GEMINI_API_KEY` (Developer API), `GEMINI_PROXY_API_KEY` (proxy auth token), optional: `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GCP_SERVICE_ACCOUNT_JSON` (for Vertex AI)
