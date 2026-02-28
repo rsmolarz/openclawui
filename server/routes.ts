@@ -3673,6 +3673,89 @@ setInterval(sendHeartbeat, INTERVAL_MS);
     console.error("[Nodes] Failed to set nodes connected on startup:", e.message);
   }
 
+  // ===== Periodic Skill Discovery (3x daily / every 8 hours) =====
+  const SKILL_CHECK_INTERVAL = 8 * 60 * 60 * 1000;
+  let lastSkillCheck: Date | null = null;
+  let skillCheckRunning = false;
+
+  async function checkForNewSkills() {
+    if (skillCheckRunning) return;
+    skillCheckRunning = true;
+    try {
+      const installed = await storage.getSkills();
+      const installedIds = new Set(installed.map(s => s.skillId));
+      const newSkills = SKILLS_CATALOG.filter(s => !installedIds.has(s.skillId));
+
+      if (newSkills.length > 0) {
+        console.log(`[Skills] Found ${newSkills.length} new skills available in catalog`);
+      }
+
+      let vpsSkillsChecked = false;
+      try {
+        const allInstances = await storage.getInstances();
+        const defaultInstance = allInstances[0];
+        if (defaultInstance) {
+          const vps = await storage.getVpsConnection(defaultInstance.id);
+          if (vps?.vpsIp) {
+            const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
+            const sshConfig = buildSSHConfigFromVps(vps);
+
+            try {
+              const result = await executeSSHCommand("check-skill-status", sshConfig);
+              if (result.success && result.output) {
+                vpsSkillsChecked = true;
+                const lines = result.output.split("\n");
+                const missingCount = lines.filter((l: string) => l.includes("✗") || l.includes("missing")).length;
+                const installedCount = lines.filter((l: string) => l.includes("✓")).length;
+                console.log(`[Skills] VPS check: ${installedCount} installed, ${missingCount} missing`);
+              }
+            } catch {}
+
+            try {
+              await executeSSHCommand("clawhub-install-missing", sshConfig);
+              console.log(`[Skills] ClawHub sync completed on VPS`);
+            } catch {}
+          }
+        }
+      } catch {}
+
+      if (!vpsSkillsChecked) {
+        console.log(`[Skills] VPS not available for skill check, catalog-only check completed`);
+      }
+
+      lastSkillCheck = new Date();
+      console.log(`[Skills] Periodic check complete: ${installed.length} installed, ${newSkills.length} new available`);
+    } catch (e: any) {
+      console.error("[Skills] Periodic check failed:", e.message);
+    } finally {
+      skillCheckRunning = false;
+    }
+  }
+
+  setTimeout(() => checkForNewSkills(), 30000);
+  setInterval(checkForNewSkills, SKILL_CHECK_INTERVAL);
+  console.log(`[Skills] Periodic skill discovery enabled (every ${SKILL_CHECK_INTERVAL / 3600000}h)`);
+
+  app.get("/api/skills/check-status", requireAuth, async (_req, res) => {
+    const nextCheck = lastSkillCheck
+      ? new Date(lastSkillCheck.getTime() + SKILL_CHECK_INTERVAL)
+      : new Date(Date.now() + 30000);
+    res.json({
+      lastCheck: lastSkillCheck?.toISOString() || null,
+      nextCheck: nextCheck.toISOString(),
+      intervalHours: SKILL_CHECK_INTERVAL / 3600000,
+      isRunning: skillCheckRunning,
+    });
+  });
+
+  app.post("/api/skills/check-now", requireAuth, async (_req, res) => {
+    if (skillCheckRunning) {
+      return res.json({ message: "Skill check already in progress", running: true });
+    }
+    checkForNewSkills();
+    res.json({ message: "Skill check started", running: true });
+  });
+
   // ===== Gemini Anti-Gravity Proxy =====
   const { loadSettings: loadGeminiSettings, saveSettings: saveGeminiSettings } = await import("./gemini/settings");
   const { getUpstream: getGeminiUpstream, clampRequestBody: clampGeminiBody } = await import("./gemini/upstream");

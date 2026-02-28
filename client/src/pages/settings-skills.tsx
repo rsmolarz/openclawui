@@ -21,6 +21,7 @@ import {
   Tags, AlertTriangle, Bell, Cloud, Rocket,
 } from "lucide-react";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import type { Skill } from "@shared/schema";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -134,6 +135,33 @@ export default function SettingsSkills() {
     },
   });
 
+  const { data: checkStatus, refetch: refetchCheckStatus } = useQuery<{
+    lastCheck: string | null;
+    nextCheck: string;
+    intervalHours: number;
+    isRunning: boolean;
+  }>({
+    queryKey: ["/api/skills/check-status"],
+    refetchInterval: 30000,
+  });
+
+  const checkNowMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/skills/check-now");
+    },
+    onSuccess: () => {
+      toast({ title: "Skill check started", description: "Checking for new skills on VPS and catalog..." });
+      setTimeout(() => {
+        refetchCheckStatus();
+        queryClient.invalidateQueries({ queryKey: ["/api/skills"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/skills/catalog"] });
+      }, 5000);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to start skill check.", variant: "destructive" });
+    },
+  });
+
   const installAllMutation = useMutation({
     mutationFn: async () => {
       const resp = await apiRequest("POST", "/api/skills/install-all");
@@ -186,21 +214,47 @@ export default function SettingsSkills() {
             Manage the capabilities available to your OpenClaw agent
           </p>
         </div>
-        {availableSkills.length > 0 && (
+        <div className="flex items-center gap-2">
           <Button
-            onClick={() => installAllMutation.mutate()}
-            disabled={installAllMutation.isPending}
-            data-testid="button-install-all-skills"
+            variant="outline"
+            size="sm"
+            onClick={() => checkNowMutation.mutate()}
+            disabled={checkNowMutation.isPending || checkStatus?.isRunning}
+            data-testid="button-check-new-skills"
           >
-            {installAllMutation.isPending ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            {(checkNowMutation.isPending || checkStatus?.isRunning) ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <Download className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-4 w-4 mr-2" />
             )}
-            {installAllMutation.isPending ? "Installing..." : `Install All (${availableSkills.length})`}
+            Check for New Skills
           </Button>
-        )}
+          {availableSkills.length > 0 && (
+            <Button
+              onClick={() => installAllMutation.mutate()}
+              disabled={installAllMutation.isPending}
+              data-testid="button-install-all-skills"
+            >
+              {installAllMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {installAllMutation.isPending ? "Installing..." : `Install All (${availableSkills.length})`}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {checkStatus && (
+        <div className="flex items-center gap-4 text-xs text-muted-foreground" data-testid="text-skill-check-status">
+          <span>Auto-checks every {checkStatus.intervalHours}h (3x daily)</span>
+          {checkStatus.lastCheck && (
+            <span>Last checked: {new Date(checkStatus.lastCheck).toLocaleString()}</span>
+          )}
+          <span>Next: {new Date(checkStatus.nextCheck).toLocaleString()}</span>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">

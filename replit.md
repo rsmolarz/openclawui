@@ -64,6 +64,14 @@ Machines report their status via a lightweight heartbeat agent:
 - **`home-bot/openclaw-agent.js`**: Standalone Node.js agent that sends heartbeats every 30 seconds. Requires `OPENCLAW_API_KEY` env var.
 - **Install Agent Dialog**: UI in `settings-machines.tsx` provides one-liner commands and download instructions for Windows/Linux/macOS.
 
+## Periodic Skill Discovery
+The platform automatically checks for new skills 3 times daily (every 8 hours):
+- **Automatic checks**: Runs `checkForNewSkills()` on a `setInterval` every 8h, plus 30s after startup.
+- **What it does**: Compares installed skills against the catalog, runs `openclaw skills list` and `clawhub sync --all` on VPS via SSH.
+- **Manual trigger**: `POST /api/skills/check-now` starts an immediate check; `GET /api/skills/check-status` returns last/next check times.
+- **UI**: Skills page shows a "Check for New Skills" button and auto-check status bar with last/next check times.
+- **Files**: `server/routes.ts` (periodic check logic), `client/src/pages/settings-skills.tsx` (UI).
+
 ## Gemini Anti-Gravity Proxy
 An OpenAI-compatible proxy for Google Gemini models, integrated directly into the Express server:
 - **Server modules**: `server/gemini/upstream.ts` (routing to Gemini Developer API or Vertex AI with token caching), `server/gemini/settings.ts` (file-based settings at `.data/gemini-proxy-settings.json`), `server/gemini/vertex-auth.ts` (writes GCP service account from env to disk for ADC)
