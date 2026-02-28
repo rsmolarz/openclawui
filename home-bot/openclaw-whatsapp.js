@@ -93,10 +93,32 @@ async function processMessage(phone, text, pushName) {
       throw new Error(`API error ${resp.status}: ${err}`);
     }
     const data = await resp.json();
-    return data.reply || "I couldn't generate a response.";
+    return {
+      reply: data.reply || "I couldn't generate a response.",
+      imageBase64: data.imageBase64 || null,
+      imagePrompt: data.imagePrompt || null,
+    };
   } catch (err) {
     console.error("[Bot] Message processing failed:", err.message);
-    return "Sorry, I'm having trouble connecting to the AI service. Please try again.";
+    return { reply: "Sorry, I'm having trouble connecting to the AI service. Please try again.", imageBase64: null, imagePrompt: null };
+  }
+}
+
+async function sendImage(jid, imageBuffer, caption) {
+  if (!sock) return;
+  try {
+    const result = await sock.sendMessage(jid, {
+      image: imageBuffer,
+      caption: caption || undefined,
+      mimetype: "image/png",
+    });
+    if (result?.key?.id) sentMessageIds.add(result.key.id);
+    if (sentMessageIds.size > 500) {
+      const arr = [...sentMessageIds];
+      sentMessageIds = new Set(arr.slice(-250));
+    }
+  } catch (err) {
+    console.error(`[Bot] Failed to send image to ${jid}:`, err.message);
   }
 }
 
@@ -354,15 +376,27 @@ async function startBot() {
           await newSock.sendPresenceUpdate("composing", jid);
         } catch {}
 
-        const reply = await processMessage(senderPhone, text.trim(), pushName);
+        const result = await processMessage(senderPhone, text.trim(), pushName);
 
         try {
           await newSock.sendPresenceUpdate("paused", jid);
         } catch {}
 
-        if (reply && reply.trim()) {
-          await sendMessage(jid, reply);
-          console.log(`[Bot] Reply sent to ${senderPhone} (${reply.length} chars)`);
+        if (result.reply && result.reply.trim()) {
+          await sendMessage(jid, result.reply);
+          console.log(`[Bot] Reply sent to ${senderPhone} (${result.reply.length} chars)`);
+        }
+
+        if (result.imageBase64) {
+          try {
+            const imageBuffer = Buffer.from(result.imageBase64, "base64");
+            const caption = result.imagePrompt ? result.imagePrompt.substring(0, 100) : undefined;
+            await sendImage(jid, imageBuffer, caption);
+            console.log(`[Bot] Image sent to ${senderPhone}`);
+          } catch (imgErr) {
+            console.error(`[Bot] Failed to send image to ${senderPhone}:`, imgErr.message);
+            await sendMessage(jid, "Sorry, I generated an image but couldn't send it. Please try again.");
+          }
         }
       }
     });
