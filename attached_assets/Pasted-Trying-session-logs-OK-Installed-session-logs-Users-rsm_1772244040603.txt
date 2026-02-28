@@ -1,0 +1,51 @@
+Trying session-logs...
+✔ OK. Installed session-logs -> /Users/rsmol/skills/session-logs
+Trying sherpa-onnx-tts...
+Error: Skill not found
+Trying slack...
+✔ OK. Installed slack -> /Users/rsmol/skills/slack
+Trying spotify-player...
+✔ OK. Installed spotify-player -> /Users/rsmol/skills/spotify-player
+Trying trello...
+✔ OK. Installed trello -> /Users/rsmol/skills/trello
+Trying voice-call...
+Error: Skill not found
+Trying xurl...
+Error: Skill not found
+rsmol@Mac-mini-7828 ~ % openclaw skills list | head -5
+Skills (14/51 ready)
+┌───────────┬──────────────────┬───────────────────────────────────────────────────────────────────┬──────────────────┐
+│ Status    │ Skill            │ Description                                                       │ Source           │
+├───────────┼──────────────────┼───────────────────────────────────────────────────────────────────┼──────────────────┤
+│ ✓ ready   │ 🔐 1password      │ Set up and use 1Password CLI (op). Use when installing the CLI,   │ openclaw-bundled │
+rsmol@Mac-mini-7828 ~ % echo "--- npm bin ---"
+npm bin -g
+echo "--- which checks ---"
+which himalaya goplaces xurl sag summarize obsidian-cli mcporter oracle gemini blogwatcher blu eightctl camsnap gifgrep openhue memo 2>&1
+echo "--- PATH ---"
+echo $PATH
+--- npm bin ---
+Unknown command: "bin"
+
+To see a list of supported npm commands, run:
+  npm help
+--- which checks ---
+himalaya not found
+/Users/rsmol/.nvm/versions/node/v24.14.0/bin/goplaces
+xurl not found
+sag not found
+/Users/rsmol/.nvm/versions/node/v24.14.0/bin/summarize
+obsidian-cli not found
+/Users/rsmol/.nvm/versions/node/v24.14.0/bin/mcporter
+/Users/rsmol/.nvm/versions/node/v24.14.0/bin/oracle
+/Users/rsmol/.nvm/versions/node/v24.14.0/bin/gemini
+blogwatcher not found
+blu not found
+eightctl not found
+camsnap not found
+gifgrep not found
+openhue not found
+memo not found
+--- PATH ---
+/opt/homebrew/bin:/opt/homebrew/sbin:/Users/rsmol/.nvm/versions/node/v24.14.0/bin:/Library/Frameworks/Python.framework/Versions/3.13/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin
+rsmol@Mac-mini-7828 ~ % 
