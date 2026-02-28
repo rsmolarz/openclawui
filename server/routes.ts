@@ -3623,7 +3623,8 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const { token } = req.body;
       if (!token) return res.status(400).json({ error: "Token required" });
 
-      const cmd = `mkdir -p /root/.config/clawhub && echo '${JSON.stringify({ registry: "https://clawhub.ai", token: token }).replace(/'/g, "\\'")}' > /root/.config/clawhub/config.json && clawhub whoami 2>&1`;
+      const configObj = JSON.stringify({ registry: "https://clawhub.ai", token: token });
+      const cmd = `mkdir -p /root/.config/clawhub && printf '%s' '${configObj.replace(/'/g, "'\\''")}' > /root/.config/clawhub/config.json && cat /root/.config/clawhub/config.json && echo '---DONE---'`;
       const result = await executeRawSSHCommand(cmd, sshConfig, 1, 15000);
       res.json({ success: result.success, output: result.output?.substring(0, 500) });
     } catch (error: any) {
