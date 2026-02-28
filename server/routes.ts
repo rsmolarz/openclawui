@@ -1545,15 +1545,19 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
         const parsed = JSON.parse(output);
         if (parsed.error) return res.status(500).json({ error: parsed.error });
         const instance = await storage.getInstance(instanceId);
+        const serverUrl = instance?.serverUrl || "";
         const hostname = (() => {
-          try { return new URL(instance?.serverUrl || "").hostname; } catch { return vps.vpsIp; }
+          try { return new URL(serverUrl).hostname; } catch { return vps.vpsIp; }
+        })();
+        const wsProtocol = (() => {
+          try { return new URL(serverUrl).protocol === "https:" ? "wss" : "ws"; } catch { return "ws"; }
         })();
         res.json({
           gatewayPort: parsed.port || 18789,
           gatewayBind: parsed.bind || "lan",
           gatewayToken: parsed.token || "",
           gatewayPassword: parsed.password || "",
-          websocketUrl: `ws://${hostname}:${parsed.port || 18789}`,
+          websocketUrl: `${wsProtocol}://${hostname}:${parsed.port || 18789}`,
         });
       } catch {
         res.status(500).json({ error: "Could not parse gateway config from VPS", raw: output.substring(0, 500) });
