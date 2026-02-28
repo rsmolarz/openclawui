@@ -1,7 +1,5 @@
 {
   "dashboardUrl": "https://claw-settings.replit.app",
-  "apiKey": "YOUR_API_KEY_HERE",
-  "phoneNumber": "",
   "botName": "OpenClaw AI",
   "usePairingCode": true,
   "autoRestart": true

@@ -33,24 +33,27 @@ function loadConfig() {
     console.log("\n=== OpenClaw WhatsApp Bot - First Time Setup ===\n");
     const defaultConfig = {
       dashboardUrl: "https://claw-settings.replit.app",
-      apiKey: "YOUR_API_KEY_HERE",
-      phoneNumber: "",
       botName: "OpenClaw AI",
       usePairingCode: true,
       autoRestart: true,
     };
     writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
-    console.log(`Created ${CONFIG_FILE} — edit it with your API key and phone number, then run again.`);
+    console.log(`Created ${CONFIG_FILE} with non-sensitive defaults.`);
+    console.log("Set OPENCLAW_API_KEY and OPENCLAW_PHONE_NUMBER as environment variables, then run again.");
     process.exit(0);
   }
   config = JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
-  if (!config.dashboardUrl || !config.apiKey || config.apiKey === "YOUR_API_KEY_HERE") {
-    console.error("ERROR: Set dashboardUrl and apiKey in config.json");
+
+  config.apiKey = process.env.OPENCLAW_API_KEY || "";
+  config.phoneNumber = process.env.OPENCLAW_PHONE_NUMBER || "";
+
+  if (!config.dashboardUrl || !config.apiKey) {
+    console.error("ERROR: Set dashboardUrl in config.json and OPENCLAW_API_KEY as an environment variable");
     process.exit(1);
   }
   config.dashboardUrl = config.dashboardUrl.replace(/\/$/, "");
   console.log(`[Bot] Dashboard: ${config.dashboardUrl}`);
-  console.log(`[Bot] Phone: ${config.phoneNumber || "not set"}`);
+  console.log(`[Bot] Phone: ${config.phoneNumber ? "configured" : "not set"}`);
   console.log(`[Bot] Pairing mode: ${config.usePairingCode ? "pairing code" : "QR code"}`);
   console.log(`[Bot] Host: ${hostname()}`);
 }
