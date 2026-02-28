@@ -469,6 +469,518 @@ def process_info(pid: int):
     result = subprocess.run(f"ps -p {pid} -o pid,ppid,user,%cpu,%mem,stat,start,time,command", shell=True, capture_output=True, text=True)
     return result.stdout`,
     },
+    "streamdeck-agent": {
+      skillMd: `---
+name: streamdeck.agent
+description: Stream Deck integration via webhooks. Maps physical buttons to OpenClaw actions, system commands, and Home Assistant automations.
+tools:
+  - register_action
+  - list_actions
+  - execute_action
+  - start_webhook_server
+---
+
+Receive Stream Deck button presses via HTTP webhooks and execute mapped actions.
+Supports direct webhook (Stream Deck → OpenClaw) and Companion relay (Stream Deck → Companion → OpenClaw).
+
+Architecture:
+  Stream Deck → Companion (optional) → HTTP POST → This skill → OpenClaw actions
+
+Usage:
+  POST http://localhost:3001/streamdeck?action=<action_name>`,
+      handlerPy: `import json
+import os
+import subprocess
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+from urllib.parse import urlparse, parse_qs
+
+registered_actions = {}
+action_log = []
+
+def register_action(name: str, command: str, action_type: str = "shell"):
+    registered_actions[name] = {"command": command, "type": action_type}
+    return {"status": "registered", "name": name, "type": action_type}
+
+def list_actions():
+    return registered_actions
+
+def execute_action(name: str):
+    action = registered_actions.get(name)
+    if not action:
+        return {"error": f"Action '{name}' not found"}
+    try:
+        if action["type"] == "shell":
+            result = subprocess.run(action["command"], shell=True, capture_output=True, text=True, timeout=30)
+            entry = {"action": name, "status": "success", "output": result.stdout[:500]}
+        elif action["type"] == "ha_service":
+            import requests
+            ha_url = os.environ.get("HA_URL", "http://homeassistant.local:8123")
+            ha_token = os.environ.get("HA_TOKEN", "")
+            parts = action["command"].split("/")
+            domain, service = parts[0], parts[1]
+            entity = parts[2] if len(parts) > 2 else None
+            payload = {"entity_id": entity} if entity else {}
+            r = requests.post(f"{ha_url}/api/services/{domain}/{service}",
+                headers={"Authorization": f"Bearer {ha_token}", "Content-Type": "application/json"},
+                json=payload, timeout=10)
+            entry = {"action": name, "status": "success", "ha_status": r.status_code}
+        else:
+            entry = {"action": name, "status": "error", "error": f"Unknown type: {action['type']}"}
+        action_log.append(entry)
+        if len(action_log) > 100:
+            action_log.pop(0)
+        return entry
+    except Exception as e:
+        return {"error": str(e)}
+
+class StreamDeckHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        action_name = params.get("action", [None])[0]
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length else ""
+        if not action_name and body:
+            try:
+                data = json.loads(body)
+                action_name = data.get("action")
+            except:
+                pass
+        if action_name:
+            result = execute_action(action_name)
+        else:
+            result = {"error": "No action specified. Use ?action=name or {action: name} in body"}
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(result).encode())
+
+    def log_message(self, format, *args):
+        pass
+
+def start_webhook_server(port: int = 3001):
+    server = HTTPServer(("0.0.0.0", port), StreamDeckHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return {"status": "listening", "port": port, "endpoint": f"http://localhost:{port}/streamdeck?action=<name>"}`,
+    },
+    "companion-agent": {
+      skillMd: `---
+name: companion.agent
+description: Bitfocus Companion integration. Control Companion buttons, pages, and actions via its HTTP/TCP API.
+tools:
+  - press_button
+  - release_button
+  - set_page
+  - get_config
+  - trigger_action
+---
+
+Control Bitfocus Companion programmatically. Send button presses, page changes, and trigger custom actions.
+Requires COMPANION_URL environment variable (default: http://localhost:8000).`,
+      handlerPy: `import os
+import json
+try:
+    import requests
+except ImportError:
+    import subprocess
+    subprocess.run(["pip", "install", "requests"], capture_output=True)
+    import requests
+
+COMPANION_URL = os.environ.get("COMPANION_URL", "http://localhost:8000")
+
+def press_button(page: int, bank: int):
+    try:
+        r = requests.get(f"{COMPANION_URL}/press/bank/{page}/{bank}", timeout=5)
+        return {"status": "pressed", "page": page, "bank": bank, "response": r.status_code}
+    except Exception as e:
+        return {"error": str(e)}
+
+def release_button(page: int, bank: int):
+    try:
+        r = requests.get(f"{COMPANION_URL}/release/bank/{page}/{bank}", timeout=5)
+        return {"status": "released", "page": page, "bank": bank, "response": r.status_code}
+    except Exception as e:
+        return {"error": str(e)}
+
+def set_page(page: int, surface: str = "default"):
+    try:
+        r = requests.get(f"{COMPANION_URL}/set/page/{page}", timeout=5)
+        return {"status": "page_set", "page": page, "response": r.status_code}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_config():
+    try:
+        r = requests.get(f"{COMPANION_URL}/api/config", timeout=5)
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def trigger_action(action_id: str, options: dict = None):
+    try:
+        r = requests.post(f"{COMPANION_URL}/api/action/{action_id}",
+            json=options or {}, timeout=5)
+        return {"status": "triggered", "action": action_id, "response": r.status_code}
+    except Exception as e:
+        return {"error": str(e)}`,
+    },
+    "api-agent": {
+      skillMd: `---
+name: api.agent
+description: Generic REST API caller. Make HTTP requests to any API endpoint with authentication support.
+tools:
+  - api_get
+  - api_post
+  - api_put
+  - api_delete
+  - set_default_headers
+---
+
+Make authenticated HTTP requests to any REST API. Supports GET, POST, PUT, DELETE with custom headers and JSON payloads.`,
+      handlerPy: `import json
+import os
+try:
+    import requests
+except ImportError:
+    import subprocess
+    subprocess.run(["pip", "install", "requests"], capture_output=True)
+    import requests
+
+default_headers = {}
+
+def set_default_headers(headers: dict):
+    global default_headers
+    default_headers = headers
+    return {"status": "headers_set", "count": len(headers)}
+
+def _make_request(method: str, url: str, headers: dict = None, data: dict = None):
+    try:
+        hdrs = {**default_headers, **(headers or {})}
+        r = requests.request(method, url, headers=hdrs, json=data, timeout=30)
+        try:
+            body = r.json()
+        except:
+            body = r.text[:2000]
+        return {"status": r.status_code, "body": body}
+    except Exception as e:
+        return {"error": str(e)}
+
+def api_get(url: str, headers: dict = None):
+    return _make_request("GET", url, headers)
+
+def api_post(url: str, data: dict = None, headers: dict = None):
+    return _make_request("POST", url, headers, data)
+
+def api_put(url: str, data: dict = None, headers: dict = None):
+    return _make_request("PUT", url, headers, data)
+
+def api_delete(url: str, headers: dict = None):
+    return _make_request("DELETE", url, headers)`,
+    },
+    "filesystem-agent": {
+      skillMd: `---
+name: filesystem.agent
+description: Advanced filesystem operations. Watch directories, search files, manage permissions, and handle archives.
+tools:
+  - search_files
+  - watch_directory
+  - get_file_info
+  - set_permissions
+  - create_archive
+  - extract_archive
+  - find_large_files
+---
+
+Advanced file system operations beyond basic read/write. Search, watch, archive, and manage file permissions.`,
+      handlerPy: `import os
+import subprocess
+import json
+import stat
+
+def search_files(directory: str, pattern: str, max_results: int = 50):
+    try:
+        result = subprocess.run(
+            f"find {directory} -name '{pattern}' -type f 2>/dev/null | head -{max_results}",
+            shell=True, capture_output=True, text=True, timeout=15)
+        files = [f for f in result.stdout.strip().split("\\n") if f]
+        return {"count": len(files), "files": files}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_file_info(path: str):
+    try:
+        st = os.stat(path)
+        return {
+            "path": path,
+            "size": st.st_size,
+            "mode": oct(st.st_mode),
+            "uid": st.st_uid,
+            "gid": st.st_gid,
+            "modified": st.st_mtime,
+            "is_dir": os.path.isdir(path),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+def set_permissions(path: str, mode: str):
+    try:
+        subprocess.run(f"chmod {mode} '{path}'", shell=True, check=True)
+        return {"status": "permissions_set", "path": path, "mode": mode}
+    except Exception as e:
+        return {"error": str(e)}
+
+def create_archive(source: str, output: str, format: str = "tar.gz"):
+    try:
+        if format == "tar.gz":
+            subprocess.run(f"tar -czf '{output}' '{source}'", shell=True, check=True, timeout=120)
+        elif format == "zip":
+            subprocess.run(f"zip -r '{output}' '{source}'", shell=True, check=True, timeout=120)
+        return {"status": "created", "output": output}
+    except Exception as e:
+        return {"error": str(e)}
+
+def extract_archive(archive: str, destination: str):
+    try:
+        if archive.endswith(".tar.gz") or archive.endswith(".tgz"):
+            subprocess.run(f"tar -xzf '{archive}' -C '{destination}'", shell=True, check=True, timeout=120)
+        elif archive.endswith(".zip"):
+            subprocess.run(f"unzip -o '{archive}' -d '{destination}'", shell=True, check=True, timeout=120)
+        return {"status": "extracted", "destination": destination}
+    except Exception as e:
+        return {"error": str(e)}
+
+def find_large_files(directory: str = "/", min_size_mb: int = 100, max_results: int = 20):
+    try:
+        result = subprocess.run(
+            f"find {directory} -type f -size +{min_size_mb}M -exec ls -lh {{}} \\\\; 2>/dev/null | sort -k5 -rh | head -{max_results}",
+            shell=True, capture_output=True, text=True, timeout=30)
+        return result.stdout
+    except Exception as e:
+        return {"error": str(e)}
+
+def watch_directory(path: str, duration: int = 10):
+    try:
+        result = subprocess.run(
+            f"inotifywait -m -r -t {duration} --format '%T %e %w%f' --timefmt '%H:%M:%S' '{path}' 2>/dev/null || echo 'inotifywait not available'",
+            shell=True, capture_output=True, text=True, timeout=duration + 5)
+        events = [e for e in result.stdout.strip().split("\\n") if e]
+        return {"events": events[:50]}
+    except Exception as e:
+        return {"error": str(e)}`,
+    },
+    "docker-agent": {
+      skillMd: `---
+name: docker.agent
+description: Docker container management. List, start, stop, inspect containers. View logs and manage images.
+tools:
+  - docker_ps
+  - docker_start
+  - docker_stop
+  - docker_restart
+  - docker_logs
+  - docker_inspect
+  - docker_images
+  - docker_compose_up
+  - docker_compose_down
+---
+
+Full Docker container lifecycle management. Control containers, view logs, manage images, and run docker-compose.`,
+      handlerPy: `import subprocess
+import json
+
+def _run(cmd: str, timeout: int = 30):
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+    except Exception as e:
+        return {"error": str(e)}
+
+def docker_ps(all: bool = False):
+    flag = "-a" if all else ""
+    return _run(f"docker ps {flag} --format '{{{{.ID}}}}\\t{{{{.Names}}}}\\t{{{{.Status}}}}\\t{{{{.Ports}}}}'")
+
+def docker_start(container: str):
+    return _run(f"docker start {container}")
+
+def docker_stop(container: str):
+    return _run(f"docker stop {container}")
+
+def docker_restart(container: str):
+    return _run(f"docker restart {container}")
+
+def docker_logs(container: str, lines: int = 50):
+    return _run(f"docker logs --tail {lines} {container}")
+
+def docker_inspect(container: str):
+    result = _run(f"docker inspect {container}")
+    if result.get("stdout"):
+        try:
+            data = json.loads(result["stdout"])
+            if data:
+                c = data[0]
+                return {
+                    "id": c.get("Id", "")[:12],
+                    "name": c.get("Name"),
+                    "state": c.get("State", {}).get("Status"),
+                    "image": c.get("Config", {}).get("Image"),
+                    "ports": c.get("NetworkSettings", {}).get("Ports"),
+                    "mounts": [m.get("Source") + ":" + m.get("Destination") for m in c.get("Mounts", [])],
+                }
+        except:
+            pass
+    return result
+
+def docker_images():
+    return _run("docker images --format '{{{{.Repository}}}}:{{{{.Tag}}}}\\t{{{{.Size}}}}\\t{{{{.ID}}}}'")
+
+def docker_compose_up(path: str = ".", detach: bool = True):
+    flag = "-d" if detach else ""
+    return _run(f"cd '{path}' && docker compose up {flag}", timeout=120)
+
+def docker_compose_down(path: str = "."):
+    return _run(f"cd '{path}' && docker compose down", timeout=60)`,
+    },
+    "ssh-agent": {
+      skillMd: `---
+name: ssh.agent
+description: Remote SSH execution. Run commands on remote servers, transfer files, and manage SSH connections.
+tools:
+  - ssh_exec
+  - ssh_upload
+  - ssh_download
+  - ssh_tunnel
+---
+
+Execute commands on remote servers via SSH. Transfer files with SCP. Requires SSH key or password auth.
+Set SSH_HOST, SSH_USER, SSH_KEY_PATH environment variables.`,
+      handlerPy: `import subprocess
+import os
+
+SSH_HOST = os.environ.get("SSH_HOST", "")
+SSH_USER = os.environ.get("SSH_USER", "root")
+SSH_KEY_PATH = os.environ.get("SSH_KEY_PATH", os.path.expanduser("~/.ssh/id_rsa"))
+
+def _ssh_opts():
+    opts = "-o StrictHostKeyChecking=no -o ConnectTimeout=10"
+    if SSH_KEY_PATH and os.path.exists(SSH_KEY_PATH):
+        opts += f" -i {SSH_KEY_PATH}"
+    return opts
+
+def ssh_exec(command: str, host: str = None, user: str = None):
+    h = host or SSH_HOST
+    u = user or SSH_USER
+    if not h:
+        return {"error": "No host specified. Set SSH_HOST env var or pass host parameter."}
+    try:
+        result = subprocess.run(
+            f"ssh {_ssh_opts()} {u}@{h} '{command}'",
+            shell=True, capture_output=True, text=True, timeout=30)
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+    except Exception as e:
+        return {"error": str(e)}
+
+def ssh_upload(local_path: str, remote_path: str, host: str = None, user: str = None):
+    h = host or SSH_HOST
+    u = user or SSH_USER
+    try:
+        result = subprocess.run(
+            f"scp {_ssh_opts()} '{local_path}' {u}@{h}:'{remote_path}'",
+            shell=True, capture_output=True, text=True, timeout=120)
+        return {"status": "uploaded" if result.returncode == 0 else "failed", "stderr": result.stderr}
+    except Exception as e:
+        return {"error": str(e)}
+
+def ssh_download(remote_path: str, local_path: str, host: str = None, user: str = None):
+    h = host or SSH_HOST
+    u = user or SSH_USER
+    try:
+        result = subprocess.run(
+            f"scp {_ssh_opts()} {u}@{h}:'{remote_path}' '{local_path}'",
+            shell=True, capture_output=True, text=True, timeout=120)
+        return {"status": "downloaded" if result.returncode == 0 else "failed", "stderr": result.stderr}
+    except Exception as e:
+        return {"error": str(e)}
+
+def ssh_tunnel(local_port: int, remote_port: int, host: str = None, user: str = None):
+    h = host or SSH_HOST
+    u = user or SSH_USER
+    try:
+        subprocess.Popen(
+            f"ssh {_ssh_opts()} -N -L {local_port}:localhost:{remote_port} {u}@{h}",
+            shell=True)
+        return {"status": "tunnel_started", "local_port": local_port, "remote_port": remote_port}
+    except Exception as e:
+        return {"error": str(e)}`,
+    },
+    "mqtt-agent": {
+      skillMd: `---
+name: mqtt.agent
+description: MQTT messaging for IoT devices. Publish, subscribe, and manage MQTT topics for smart home and sensor data.
+tools:
+  - mqtt_publish
+  - mqtt_subscribe
+  - mqtt_list_topics
+---
+
+MQTT messaging client for IoT device communication. Publish commands and subscribe to sensor data.
+Requires MQTT_BROKER (default: localhost:1883). Optional: MQTT_USER, MQTT_PASS.`,
+      handlerPy: `import os
+import json
+import subprocess
+import threading
+import time
+
+MQTT_BROKER = os.environ.get("MQTT_BROKER", "localhost")
+MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
+MQTT_USER = os.environ.get("MQTT_USER", "")
+MQTT_PASS = os.environ.get("MQTT_PASS", "")
+
+received_messages = []
+
+def _auth_flags():
+    flags = ""
+    if MQTT_USER:
+        flags += f" -u '{MQTT_USER}'"
+    if MQTT_PASS:
+        flags += f" -P '{MQTT_PASS}'"
+    return flags
+
+def mqtt_publish(topic: str, payload: str, retain: bool = False):
+    try:
+        retain_flag = "-r" if retain else ""
+        cmd = f"mosquitto_pub -h {MQTT_BROKER} -p {MQTT_PORT}{_auth_flags()} -t '{topic}' -m '{payload}' {retain_flag}"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            return {"status": "published", "topic": topic, "payload": payload}
+        return {"error": result.stderr or "publish failed"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def mqtt_subscribe(topic: str, duration: int = 5, max_messages: int = 20):
+    try:
+        cmd = f"timeout {duration} mosquitto_sub -h {MQTT_BROKER} -p {MQTT_PORT}{_auth_flags()} -t '{topic}' -C {max_messages} -v 2>/dev/null"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=duration + 5)
+        messages = [line for line in result.stdout.strip().split("\\n") if line]
+        return {"topic": topic, "messages": messages}
+    except Exception as e:
+        return {"error": str(e)}
+
+def mqtt_list_topics(duration: int = 3):
+    try:
+        cmd = f"timeout {duration} mosquitto_sub -h {MQTT_BROKER} -p {MQTT_PORT}{_auth_flags()} -t '#' -v 2>/dev/null"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=duration + 5)
+        topics = set()
+        for line in result.stdout.strip().split("\\n"):
+            if line:
+                parts = line.split(" ", 1)
+                if parts:
+                    topics.add(parts[0])
+        return {"topics": sorted(topics)}
+    except Exception as e:
+        return {"error": str(e)}`,
+    },
   };
   return skills[skillName] || null;
 }
@@ -4707,6 +5219,203 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  });
+
+  const skillTriggerLog: Array<{ timestamp: string; source: string; action: string; payload: any; result: string }> = [];
+
+  app.post("/api/webhooks/skill-trigger", async (req: Request, res: Response) => {
+    try {
+      const { action, source, payload } = req.body;
+      const sourceLabel = source || req.headers["x-trigger-source"] || "unknown";
+
+      if (!action) {
+        return res.status(400).json({ error: "Missing 'action' field. Send {action: 'action_name', source: 'streamdeck', payload: {...}}" });
+      }
+
+      const entry = {
+        timestamp: new Date().toISOString(),
+        source: sourceLabel as string,
+        action,
+        payload: payload || {},
+        result: "received",
+      };
+
+      skillTriggerLog.push(entry);
+      if (skillTriggerLog.length > 200) skillTriggerLog.shift();
+
+      console.log(`[Webhook] Skill trigger: action=${action} source=${sourceLabel}`);
+
+      res.json({ status: "ok", action, source: sourceLabel, timestamp: entry.timestamp });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/webhooks/skill-trigger/log", requireAuth, async (_req: Request, res: Response) => {
+    res.json(skillTriggerLog.slice(-50));
+  });
+
+  app.post("/api/custom-skills/create", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { name, description, tools, handlerCode } = req.body;
+      if (!name || !description) {
+        return res.status(400).json({ error: "name and description are required" });
+      }
+
+      const safeName = name.replace(/[^a-zA-Z0-9._-]/g, "");
+      const toolsList = tools || [];
+      const toolsYaml = toolsList.length > 0 ? toolsList.map((t: string) => `  - ${t}`).join("\n") : "  - run";
+
+      const skillMd = `---
+name: ${safeName}
+description: ${description}
+tools:
+${toolsYaml}
+---
+
+${description}`;
+
+      const handlerPy = handlerCode || `import subprocess
+
+def run(command: str):
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+    except Exception as e:
+        return {"error": str(e)}`;
+
+      const { executeSSHCommand } = await import("./ssh");
+      const vps = await storage.getVpsConnection();
+      if (!vps) {
+        return res.status(400).json({ error: "No VPS connection configured" });
+      }
+
+      const sshConfig = {
+        host: vps.vpsIp,
+        port: vps.vpsPort || 22,
+        username: vps.sshUser || "root",
+        privateKey: vps.sshKeyPath || undefined,
+      };
+
+      const skillPath = `/root/.openclaw/skills/${safeName}`;
+      await executeSSHCommand(sshConfig, `mkdir -p '${skillPath}'`);
+      await executeSSHCommand(sshConfig, `cat > '${skillPath}/SKILL.md' << 'SKILLEOF'\n${skillMd}\nSKILLEOF`);
+      await executeSSHCommand(sshConfig, `cat > '${skillPath}/handler.py' << 'HANDLEREOF'\n${handlerPy}\nHANDLEREOF`);
+
+      res.json({
+        status: "created",
+        name: safeName,
+        path: skillPath,
+        files: ["SKILL.md", "handler.py"],
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/custom-skills/templates", requireAuth, async (_req: Request, res: Response) => {
+    const templates = [
+      {
+        name: "webhook-listener",
+        label: "Webhook Listener",
+        description: "HTTP server that listens for incoming webhooks from Stream Deck, Companion, or external services",
+        tools: ["start_listener", "get_events"],
+        handler: `from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading, json
+
+events = []
+
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length else ""
+        events.append({"path": self.path, "body": body})
+        if len(events) > 50: events.pop(0)
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok"}')
+    def log_message(self, *a): pass
+
+def start_listener(port: int = 3000):
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return {"status": "listening", "port": port}
+
+def get_events():
+    return events[-20:]`,
+      },
+      {
+        name: "ha-controller",
+        label: "Home Assistant Controller",
+        description: "Control Home Assistant devices, automations, and scenes via REST API",
+        tools: ["ha_call_service", "ha_get_states"],
+        handler: `import os, json
+try:
+    import requests
+except ImportError:
+    import subprocess; subprocess.run(["pip","install","requests"], capture_output=True); import requests
+
+HA_URL = os.environ.get("HA_URL", "http://homeassistant.local:8123")
+HA_TOKEN = os.environ.get("HA_TOKEN", "")
+
+def _h():
+    return {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
+
+def ha_call_service(domain: str, service: str, entity_id: str = None):
+    payload = {"entity_id": entity_id} if entity_id else {}
+    r = requests.post(f"{HA_URL}/api/services/{domain}/{service}", headers=_h(), json=payload, timeout=10)
+    return {"status": r.status_code}
+
+def ha_get_states():
+    r = requests.get(f"{HA_URL}/api/states", headers=_h(), timeout=10)
+    return [{"entity_id": s["entity_id"], "state": s["state"]} for s in r.json()[:50]]`,
+      },
+      {
+        name: "shell-automation",
+        label: "Shell Automation",
+        description: "Run shell commands and scripts on the local system",
+        tools: ["run_command", "run_script"],
+        handler: `import subprocess, os
+
+def run_command(command: str):
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+    except Exception as e:
+        return {"error": str(e)}
+
+def run_script(path: str):
+    if not os.path.exists(path):
+        return {"error": f"Script not found: {path}"}
+    return run_command(f"bash '{path}'")`,
+      },
+      {
+        name: "api-integration",
+        label: "REST API Integration",
+        description: "Connect to any REST API with configurable authentication",
+        tools: ["api_call"],
+        handler: `import json, os
+try:
+    import requests
+except ImportError:
+    import subprocess; subprocess.run(["pip","install","requests"], capture_output=True); import requests
+
+API_BASE = os.environ.get("CUSTOM_API_BASE", "")
+API_KEY = os.environ.get("CUSTOM_API_KEY", "")
+
+def api_call(method: str, path: str, data: dict = None, headers: dict = None):
+    url = f"{API_BASE}{path}" if API_BASE else path
+    hdrs = {"Authorization": f"Bearer {API_KEY}", **(headers or {})} if API_KEY else (headers or {})
+    try:
+        r = requests.request(method, url, headers=hdrs, json=data, timeout=30)
+        try: body = r.json()
+        except: body = r.text[:2000]
+        return {"status": r.status_code, "body": body}
+    except Exception as e:
+        return {"error": str(e)}`,
+      },
+    ];
+    res.json(templates);
   });
 
   app.post("/api/webhooks/github", async (req: Request, res: Response) => {
