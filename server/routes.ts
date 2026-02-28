@@ -4312,6 +4312,133 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     }
   });
 
+  app.post("/api/webhooks/github", async (req: Request, res: Response) => {
+    try {
+      const signature = req.headers["x-hub-signature-256"] as string | undefined;
+      const event = req.headers["x-github-event"] as string;
+      const deliveryId = req.headers["x-github-delivery"] as string;
+
+      const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
+      if (webhookSecret && signature) {
+        const body = JSON.stringify(req.body);
+        const expected = "sha256=" + createHmac("sha256", webhookSecret).update(body).digest("hex");
+        const sigBuf = Buffer.from(signature);
+        const expBuf = Buffer.from(expected);
+        if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+          console.warn("[GitHub Webhook] Invalid signature for delivery:", deliveryId);
+          return res.status(401).json({ error: "Invalid signature" });
+        }
+      }
+
+      const payload = req.body;
+      const repo = payload.repository?.full_name || "unknown";
+      const sender = payload.sender?.login || "unknown";
+
+      let message = "";
+      let severity: "info" | "warning" | "critical" = "info";
+      let details = "";
+
+      switch (event) {
+        case "push": {
+          const branch = payload.ref?.replace("refs/heads/", "") || "unknown";
+          const commits = payload.commits || [];
+          const commitMessages = commits.map((c: any) => `• ${c.message?.split("\n")[0]} (${c.author?.username || c.author?.name})`).join("\n");
+          message = `Push to ${repo}/${branch}: ${commits.length} commit(s) by ${sender}`;
+          details = commitMessages || "No commit details";
+          break;
+        }
+        case "pull_request": {
+          const action = payload.action;
+          const pr = payload.pull_request;
+          message = `PR #${pr?.number} ${action}: "${pr?.title}" on ${repo} by ${sender}`;
+          details = `Branch: ${pr?.head?.ref} → ${pr?.base?.ref}\nURL: ${pr?.html_url}\n${pr?.body?.substring(0, 500) || ""}`;
+          if (action === "opened" || action === "reopened") severity = "warning";
+          break;
+        }
+        case "issues": {
+          const action = payload.action;
+          const issue = payload.issue;
+          message = `Issue #${issue?.number} ${action}: "${issue?.title}" on ${repo} by ${sender}`;
+          details = `URL: ${issue?.html_url}\nLabels: ${issue?.labels?.map((l: any) => l.name).join(", ") || "none"}\n${issue?.body?.substring(0, 500) || ""}`;
+          break;
+        }
+        case "issue_comment": {
+          const issue = payload.issue;
+          const comment = payload.comment;
+          message = `Comment on #${issue?.number} "${issue?.title}" in ${repo} by ${sender}`;
+          details = `${comment?.body?.substring(0, 500) || ""}\nURL: ${comment?.html_url}`;
+          break;
+        }
+        case "workflow_run": {
+          const run = payload.workflow_run;
+          const conclusion = run?.conclusion;
+          message = `Workflow "${run?.name}" ${run?.status} on ${repo} (${conclusion || "in progress"})`;
+          details = `Branch: ${run?.head_branch}\nURL: ${run?.html_url}`;
+          if (conclusion === "failure") severity = "critical";
+          else if (conclusion === "success") severity = "info";
+          break;
+        }
+        case "release": {
+          const release = payload.release;
+          message = `Release ${payload.action}: ${release?.tag_name} on ${repo} by ${sender}`;
+          details = `Name: ${release?.name}\nURL: ${release?.html_url}\n${release?.body?.substring(0, 500) || ""}`;
+          break;
+        }
+        case "ping": {
+          message = `GitHub webhook ping from ${repo}`;
+          details = `Zen: ${payload.zen}\nHook ID: ${payload.hook_id}`;
+          break;
+        }
+        default: {
+          message = `GitHub event "${event}" on ${repo} by ${sender}`;
+          details = JSON.stringify(payload).substring(0, 1000);
+          break;
+        }
+      }
+
+      await storage.createGuardianLog({
+        type: "service",
+        severity,
+        message,
+        details,
+        status: "detected",
+        source: `github-webhook:${event}`,
+      });
+
+      console.log(`[GitHub Webhook] ${event} from ${repo} by ${sender} (delivery: ${deliveryId})`);
+
+      if (event === "workflow_run" && payload.workflow_run?.conclusion === "failure") {
+        try {
+          const { scanSystem } = await import("./code-guardian");
+          scanSystem().catch(() => {});
+        } catch {}
+      }
+
+      res.json({ received: true, event, repo, delivery: deliveryId });
+    } catch (error: any) {
+      console.error("[GitHub Webhook] Error:", error.message);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  app.get("/api/webhooks/github/info", requireAuth, async (_req: Request, res: Response) => {
+    const baseUrl = process.env.REPL_SLUG
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co`
+      : process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : null;
+
+    const deployedUrl = "https://claw-settings.replit.app";
+
+    res.json({
+      webhookUrl: `${deployedUrl}/api/webhooks/github`,
+      devUrl: baseUrl ? `${baseUrl}/api/webhooks/github` : null,
+      secretConfigured: !!process.env.GITHUB_WEBHOOK_SECRET,
+      supportedEvents: ["push", "pull_request", "issues", "issue_comment", "workflow_run", "release", "ping"],
+      instructions: "Add this URL as a webhook in your GitHub repo: Settings → Webhooks → Add webhook. Set Content-Type to application/json. Optionally set a secret and add GITHUB_WEBHOOK_SECRET to your environment.",
+    });
+  });
+
   setTimeout(async () => {
     try {
       if (process.env.TELEGRAM_BOT_TOKEN) {
