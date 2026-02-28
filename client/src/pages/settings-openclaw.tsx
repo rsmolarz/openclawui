@@ -2624,7 +2624,8 @@ export default function SettingsOpenclaw() {
                     {config.websocketUrl || (() => {
                       try {
                         const u = new URL(currentInstance?.serverUrl || "");
-                        return `ws://${u.hostname}:${config.gatewayPort}`;
+                        const scheme = u.protocol === "https:" ? "wss" : "ws";
+                        return `${scheme}://${u.hostname}:${config.gatewayPort}`;
                       } catch { return `ws://your-server:${config.gatewayPort}`; }
                     })()}
                   </code>
@@ -2637,7 +2638,8 @@ export default function SettingsOpenclaw() {
                       const wsAddr = config.websocketUrl || (() => {
                         try {
                           const u = new URL(currentInstance?.serverUrl || "");
-                          return `ws://${u.hostname}:${config.gatewayPort}`;
+                          const scheme = u.protocol === "https:" ? "wss" : "ws";
+                          return `${scheme}://${u.hostname}:${config.gatewayPort}`;
                         } catch { return ""; }
                       })();
                       if (wsAddr) {
