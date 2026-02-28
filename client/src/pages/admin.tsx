@@ -32,6 +32,10 @@ import {
   Phone,
   Code,
   ArrowUpCircle,
+  Container,
+  KeyRound,
+  Globe,
+  Timer,
 } from "lucide-react";
 import type { GuardianLog, FeatureProposal } from "@shared/schema";
 
@@ -53,11 +57,16 @@ function severityIcon(severity: string) {
   }
 }
 
-function typeIcon(type: string) {
+function typeIcon(type: string, source?: string) {
+  if (source === "docker-check") return <Container className="h-4 w-4" />;
+  if (source === "api-keys-check") return <KeyRound className="h-4 w-4" />;
+  if (source === "webhook-check") return <Globe className="h-4 w-4" />;
+  if (source === "whatsapp-homebot" || source === "vps-bot-conflict") return <Phone className="h-4 w-4" />;
   switch (type) {
     case "connectivity": return <Wifi className="h-4 w-4" />;
     case "service": return <Server className="h-4 w-4" />;
     case "resource": return <HardDrive className="h-4 w-4" />;
+    case "disconnect": return <Unplug className="h-4 w-4" />;
     case "error": return <Bug className="h-4 w-4" />;
     default: return <Zap className="h-4 w-4" />;
   }
@@ -309,6 +318,22 @@ function CodeGuardianTab() {
   const warningCount = logs.filter(l => l.severity === "warning" && l.status === "detected").length;
   const fixedCount = logs.filter(l => l.status === "fixed").length;
 
+  const lastScanTime = logs.length > 0
+    ? new Date(Math.max(...logs.map(l => new Date(l.createdAt).getTime())))
+    : null;
+
+  const scanChecks = [
+    { label: "SSH", source: "ssh-check" },
+    { label: "Gateway", source: "gateway-check" },
+    { label: "Docker", source: "docker-check" },
+    { label: "API Keys", source: "api-keys-check" },
+    { label: "Disk", source: "disk-check" },
+    { label: "Memory", source: "memory-check" },
+    { label: "WhatsApp", source: "whatsapp-homebot" },
+    { label: "Nodes", source: "nodes-check" },
+    { label: "Webhooks", source: "webhook-check" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -320,6 +345,18 @@ function CodeGuardianTab() {
           <p className="text-sm text-muted-foreground mt-1">
             Monitors system health, detects errors and disconnects, and attempts automated fixes.
           </p>
+          <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Timer className="h-3 w-3" />
+              <span data-testid="text-autoscan-status">Auto-scan every 15 min</span>
+              <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+            </div>
+            {lastScanTime && (
+              <span className="text-xs text-muted-foreground" data-testid="text-last-scan">
+                Last scan: {lastScanTime.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
         </div>
         <Button
           onClick={() => scanMutation.mutate()}
@@ -334,6 +371,25 @@ function CodeGuardianTab() {
           {scanMutation.isPending ? "Scanning..." : "Run Scan"}
         </Button>
       </div>
+
+      <Card data-testid="card-scan-checks">
+        <CardContent className="pt-4 pb-3">
+          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Scan Coverage</p>
+          <div className="flex flex-wrap gap-2">
+            {scanChecks.map(check => {
+              const checkLogs = logs.filter(l => l.source === check.source);
+              const latest = checkLogs.length > 0 ? checkLogs[0] : null;
+              const dotColor = !latest ? "bg-muted-foreground/30" : latest.severity === "critical" ? "bg-red-500" : latest.severity === "warning" ? "bg-amber-500" : "bg-green-500";
+              return (
+                <div key={check.source} className="flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs" data-testid={`check-${check.source}`}>
+                  <div className={`h-2 w-2 rounded-full ${dotColor}`} />
+                  {check.label}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <WhatsAppHealthPanel />
 
@@ -403,7 +459,7 @@ function CodeGuardianTab() {
                   data-testid={`card-guardian-log-${log.id}`}
                 >
                   <div className="flex items-center gap-2 mt-0.5">
-                    {typeIcon(log.type)}
+                    {typeIcon(log.type, log.source)}
                     {severityIcon(log.severity)}
                   </div>
                   <div className="flex-1 min-w-0">
