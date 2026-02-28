@@ -3615,6 +3615,22 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     }
   });
 
+  app.post("/api/ssh/setup-clawhub-auth", requireAuth, async (req, res) => {
+    try {
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.status(500).json({ error: "No SSH config" });
+      const { token } = req.body;
+      if (!token) return res.status(400).json({ error: "Token required" });
+
+      const cmd = `mkdir -p /root/.config/clawhub && echo '${JSON.stringify({ registry: "https://clawhub.ai", token: token }).replace(/'/g, "\\'")}' > /root/.config/clawhub/config.json && clawhub whoami 2>&1`;
+      const result = await executeRawSSHCommand(cmd, sshConfig, 1, 15000);
+      res.json({ success: result.success, output: result.output?.substring(0, 500) });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   app.post("/api/ssh/setup-github-auth", requireAuth, async (req, res) => {
     try {
       const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
