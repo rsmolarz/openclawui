@@ -125,9 +125,13 @@ async function checkSchedules(): Promise<void> {
       }
     }
   } catch (err: any) {
-    console.error("[Automation] Schedule check error:", err.message);
+    if (!checkSchedules._errLogged) {
+      console.error("[Automation] Schedule check error:", err.message);
+      checkSchedules._errLogged = true;
+    }
   }
 }
+checkSchedules._errLogged = false;
 
 export function startAutomationScheduler(): void {
   if (schedulerInterval) return;

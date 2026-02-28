@@ -5057,9 +5057,11 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
 
   setTimeout(async () => {
     try {
-      if (process.env.TELEGRAM_BOT_TOKEN) {
+      if (process.env.TELEGRAM_BOT_TOKEN && process.env.NODE_ENV !== "development") {
         const { startTelegramBot } = await import("./bot/telegram");
         await startTelegramBot();
+      } else if (process.env.TELEGRAM_BOT_TOKEN) {
+        console.log("[Telegram] Skipped auto-start in development (production instance handles polling)");
       }
     } catch (err: any) {
       console.error("[Startup] Telegram auto-start failed:", err.message);
