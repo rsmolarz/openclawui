@@ -22,10 +22,11 @@ import {
   type AutomationJob, type InsertAutomationJob,
   type AutomationRun, type InsertAutomationRun,
   type MetricsEvent, type InsertMetricsEvent,
+  type EmailWorkflow, type InsertEmailWorkflow,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
-  automationJobs, automationRuns, metricsEvents,
+  automationJobs, automationRuns, metricsEvents, emailWorkflows,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -150,6 +151,12 @@ export interface IStorage {
 
   getMetricsEvents(category?: string, limit?: number): Promise<MetricsEvent[]>;
   createMetricsEvent(data: InsertMetricsEvent): Promise<MetricsEvent>;
+
+  getEmailWorkflows(): Promise<EmailWorkflow[]>;
+  getEmailWorkflow(id: string): Promise<EmailWorkflow | undefined>;
+  createEmailWorkflow(data: InsertEmailWorkflow): Promise<EmailWorkflow>;
+  updateEmailWorkflow(id: string, data: Partial<InsertEmailWorkflow> & { lastTriggered?: Date; triggerCount?: number }): Promise<EmailWorkflow | undefined>;
+  deleteEmailWorkflow(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -760,6 +767,29 @@ export class DatabaseStorage implements IStorage {
   async createMetricsEvent(data: InsertMetricsEvent): Promise<MetricsEvent> {
     const [event] = await db.insert(metricsEvents).values(data).returning();
     return event;
+  }
+
+  async getEmailWorkflows(): Promise<EmailWorkflow[]> {
+    return db.select().from(emailWorkflows).orderBy(desc(emailWorkflows.createdAt));
+  }
+
+  async getEmailWorkflow(id: string): Promise<EmailWorkflow | undefined> {
+    const [wf] = await db.select().from(emailWorkflows).where(eq(emailWorkflows.id, id));
+    return wf;
+  }
+
+  async createEmailWorkflow(data: InsertEmailWorkflow): Promise<EmailWorkflow> {
+    const [wf] = await db.insert(emailWorkflows).values(data).returning();
+    return wf;
+  }
+
+  async updateEmailWorkflow(id: string, data: Partial<InsertEmailWorkflow> & { lastTriggered?: Date; triggerCount?: number }): Promise<EmailWorkflow | undefined> {
+    const [wf] = await db.update(emailWorkflows).set(data).where(eq(emailWorkflows.id, id)).returning();
+    return wf;
+  }
+
+  async deleteEmailWorkflow(id: string): Promise<void> {
+    await db.delete(emailWorkflows).where(eq(emailWorkflows.id, id));
   }
 }
 

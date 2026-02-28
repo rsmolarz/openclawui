@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema } from "@shared/schema";
+import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 
@@ -4354,6 +4354,13 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
     { key: "RESEND_API_KEY", label: "Resend", description: "Transactional email delivery API", prefix: "re_", skills: ["resend"] },
     { key: "TWILIO_ACCOUNT_SID", label: "Twilio Account SID", description: "Twilio account identifier for SMS and voice", prefix: "AC", skills: ["twilio"] },
     { key: "TWILIO_AUTH_TOKEN", label: "Twilio Auth Token", description: "Twilio authentication token for API access", prefix: "", skills: ["twilio"] },
+    { key: "META_ADS_ACCESS_TOKEN", label: "Meta Ads", description: "Meta/Facebook Ads API for campaign management and performance", prefix: "", skills: ["meta-ads"] },
+    { key: "META_AD_ACCOUNT_ID", label: "Meta Ad Account ID", description: "Meta/Facebook Ads account identifier", prefix: "act_", skills: ["meta-ads"] },
+    { key: "PODPAGE_API_KEY", label: "Podpage", description: "Podcast page management and episode publishing", prefix: "", skills: ["podpage"] },
+    { key: "CLOVER_API_TOKEN", label: "Clover POS", description: "Clover POS transactions, inventory, and payments", prefix: "", skills: ["clover"] },
+    { key: "CLOVER_MERCHANT_ID", label: "Clover Merchant ID", description: "Clover POS merchant identifier", prefix: "", skills: ["clover"] },
+    { key: "ATT_API_KEY", label: "AT&T", description: "AT&T telecom order management and support", prefix: "", skills: ["att"] },
+    { key: "VOYA_API_KEY", label: "Voya Financial", description: "Voya retirement and investment account management", prefix: "", skills: ["voya"] },
   ];
 
   app.get("/api/ssh/skill-keys", requireAuth, async (req, res) => {
@@ -6231,6 +6238,65 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
     if (idx === -1) return res.status(404).json({ error: "Not found" });
     codeUpgrades.splice(idx, 1);
     res.json({ success: true });
+  });
+
+  app.get("/api/email-workflows", requireAuth, async (_req, res) => {
+    try {
+      const workflows = await storage.getEmailWorkflows();
+      res.json(workflows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/email-workflows/:id", requireAuth, async (req, res) => {
+    try {
+      const wf = await storage.getEmailWorkflow(req.params.id);
+      if (!wf) return res.status(404).json({ error: "Workflow not found" });
+      res.json(wf);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/email-workflows", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertEmailWorkflowSchema.parse(req.body);
+      const wf = await storage.createEmailWorkflow(parsed);
+      res.json(wf);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/email-workflows/:id", requireAuth, async (req, res) => {
+    try {
+      const updateSchema = z.object({
+        name: z.string().optional(),
+        description: z.string().nullable().optional(),
+        category: z.string().optional(),
+        triggerPattern: z.string().optional(),
+        triggerSource: z.string().optional(),
+        action: z.string().optional(),
+        actionConfig: z.any().optional(),
+        enabled: z.boolean().optional(),
+      });
+      const parsed = updateSchema.parse(req.body);
+      const wf = await storage.updateEmailWorkflow(req.params.id, parsed);
+      if (!wf) return res.status(404).json({ error: "Workflow not found" });
+      res.json(wf);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/email-workflows/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteEmailWorkflow(req.params.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   setTimeout(async () => {

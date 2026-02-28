@@ -369,3 +369,22 @@ export type AutomationRun = typeof automationRuns.$inferSelect;
 export type InsertAutomationRun = z.infer<typeof insertAutomationRunSchema>;
 export type MetricsEvent = typeof metricsEvents.$inferSelect;
 export type InsertMetricsEvent = z.infer<typeof insertMetricsEventSchema>;
+
+export const emailWorkflows = pgTable("email_workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("general"),
+  triggerPattern: text("trigger_pattern").notNull(),
+  triggerSource: text("trigger_source").notNull().default("email"),
+  action: text("action").notNull(),
+  actionConfig: jsonb("action_config"),
+  enabled: boolean("enabled").notNull().default(true),
+  lastTriggered: timestamp("last_triggered"),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertEmailWorkflowSchema = createInsertSchema(emailWorkflows).omit({ id: true, lastTriggered: true, triggerCount: true, createdAt: true });
+export type EmailWorkflow = typeof emailWorkflows.$inferSelect;
+export type InsertEmailWorkflow = z.infer<typeof insertEmailWorkflowSchema>;

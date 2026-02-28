@@ -35,6 +35,7 @@ import Automation from "@/pages/automation";
 import FileManager from "@/pages/file-manager";
 import Metrics from "@/pages/metrics";
 import Marketplace from "@/pages/marketplace";
+import EmailWorkflows from "@/pages/email-workflows";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -63,6 +64,7 @@ function Router() {
       <Route path="/files" component={FileManager} />
       <Route path="/metrics" component={Metrics} />
       <Route path="/marketplace" component={Marketplace} />
+      <Route path="/email-workflows" component={EmailWorkflows} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -23,6 +23,7 @@ import {
   FolderOpen,
   BarChart3,
   Store,
+  Mail,
 } from "lucide-react";
 import {
   Sidebar,
@@ -47,6 +48,7 @@ const navItems = [
   { title: "AI Task Runner", url: "/ai-tasks", icon: Bot },
   { title: "Admin", url: "/admin", icon: Shield },
   { title: "Marketplace", url: "/marketplace", icon: Store },
+  { title: "Email Workflows", url: "/email-workflows", icon: Mail },
 ];
 
 const settingsItems = [
