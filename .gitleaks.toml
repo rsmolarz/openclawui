@@ -1,0 +1,17 @@
+title = "Custom Gitleaks Config"
+
+[allowlist]
+  description = "Allow non-secret prefix patterns in SKILL_API_KEYS config"
+  paths = []
+  regexTarget = "line"
+  regexes = [
+    '''prefix:\s*"sk-"''',
+    '''prefix:\s*"sk-ant-"''',
+    '''prefix:\s*"github_pat_"''',
+    '''prefix:\s*"ntn_"''',
+    '''prefix:\s*"AIza"''',
+    '''prefix:\s*"xoxb-"''',
+    '''prefix:\s*"pplx-"''',
+    '''prefix:\s*"gsk_"''',
+    '''prefix:\s*"hf_"'''
+  ]
