@@ -198,7 +198,7 @@ export interface ChatResponse {
   imagePrompt?: string;
 }
 
-export async function chat(userMessage: string, senderName?: string, platform?: string): Promise<ChatResponse> {
+export async function chat(userMessage: string, senderName?: string, platform?: string, history?: ChatMessage[]): Promise<ChatResponse> {
   const hasOpenRouter = !!OPENROUTER_API_KEY;
   const hasOpenAI = !!OPENAI_API_KEY;
   const hasGemini = !!GEMINI_API_KEY;
@@ -243,6 +243,7 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
+    ...(history || []),
     { role: "user", content: userMessage },
   ];
 

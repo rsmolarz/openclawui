@@ -3567,7 +3567,39 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       if (session.status === "approved") {
         await storage.updateWhatsappSessionLastMessage(phone);
         const { chat, generateImage } = await import("./bot/openrouter");
-        const response = await chat(text, pushName || session.displayName || undefined, "WhatsApp");
+
+        const conversationUserId = `whatsapp:${phone}`;
+        let conversations = await storage.getAiConversations(conversationUserId);
+        let conversation = conversations[0];
+        if (!conversation) {
+          conversation = await storage.createAiConversation({
+            userId: conversationUserId,
+            instanceId: null,
+            title: `WhatsApp: ${pushName || phone}`,
+          });
+        }
+
+        const pastMessages = await storage.getRecentAiMessages(conversation.id, 20);
+        const history = pastMessages
+          .filter(m => (m.role === "user" || m.role === "assistant") && m.content.trim().length > 0)
+          .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+        const response = await chat(text, pushName || session.displayName || undefined, "WhatsApp", history);
+
+        await storage.createAiMessage({
+          conversationId: conversation.id,
+          role: "user",
+          content: text,
+        });
+        const assistantContent = response.text || (response.imagePrompt ? `[Generated image: ${response.imagePrompt}]` : "");
+        if (assistantContent) {
+          await storage.createAiMessage({
+            conversationId: conversation.id,
+            role: "assistant",
+            content: assistantContent,
+          });
+        }
+
         let imageBase64: string | null = null;
         if (response.imagePrompt) {
           const imageBuffer = await generateImage(response.imagePrompt);

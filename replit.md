@@ -49,3 +49,9 @@ The WhatsApp and Telegram bots support AI image generation via the "Nano Banana 
 - **`server/bot/telegram.ts`**: Uses Telegram's `sendPhoto` API to deliver generated images.
 - **`server/routes.ts`**: The home-bot API endpoint returns `imageBase64` and `imagePrompt` fields for remote bot image delivery.
 - **Requires**: `OPENAI_API_KEY` or `GEMINI_API_KEY` environment variable to be set.
+
+## WhatsApp Persistent Memory
+The WhatsApp bot maintains conversation history per phone number using the `ai_conversations` and `ai_messages` database tables.
+- **`server/routes.ts`**: The `home-bot-message` route creates a conversation per phone number (userId = `whatsapp:{phone}`), loads up to 20 recent messages as history, and saves both user and assistant messages after each exchange.
+- **`server/bot/openrouter.ts`**: The `chat()` function accepts an optional `history` parameter (array of past user/assistant messages) which is injected between the system prompt and the current user message.
+- History is capped at the last 20 message pairs to keep token usage manageable.

@@ -672,6 +672,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(aiMessages.createdAt);
   }
 
+  async getRecentAiMessages(conversationId: string, limit = 20): Promise<AiMessage[]> {
+    const recent = await db.select().from(aiMessages)
+      .where(eq(aiMessages.conversationId, conversationId))
+      .orderBy(desc(aiMessages.createdAt))
+      .limit(limit);
+    return recent.reverse();
+  }
+
   async createAiMessage(data: InsertAiMessage): Promise<AiMessage> {
     const [msg] = await db.insert(aiMessages).values(data).returning();
     return msg;
