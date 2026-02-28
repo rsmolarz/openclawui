@@ -1,0 +1,139 @@
+penClaw 2026.2.24 (df9a474)
+   I'm like tmux: confusing at first, then suddenly you can't live without me.
+
+Plugins (4/36 loaded)
+Source roots:
+  stock: /Users/rsmol/.nvm/versions/node/v24.14.0/lib/node_modules/openclaw/extensions
+
+┌──────────────┬──────────┬──────────┬────────────────────────────┬───────────┐
+│ Name         │ ID       │ Status   │ Source                     │ Version   │
+├──────────────┼──────────┼──────────┼────────────────────────────┼───────────┤
+│ @openclaw/   │ bluebubb │ disabled │ stock:bluebubbles/index.ts │ 2026.2.24 │
+│ bluebubbles  │ les      │          │ OpenClaw BlueBubbles       │           │
+│              │          │          │ channel plugin             │           │
+│ @openclaw/   │ copilot- │ disabled │ stock:copilot-proxy/index. │ 2026.2.24 │
+│ copilot-     │ proxy    │          │ ts                         │           │
+│ proxy        │          │          │ OpenClaw Copilot Proxy     │           │
+│              │          │          │ provider plugin            │           │
+│ Device       │ device-  │ loaded   │ stock:device-pair/index.ts │           │
+│ Pairing      │ pair     │          │ Generate setup codes and   │           │
+│              │          │          │ approve device pairing     │           │
+│              │          │          │ requests.                  │           │
+│ @openclaw/   │ diagnost │ disabled │ stock:diagnostics-otel/    │ 2026.2.24 │
+│ diagnostics- │ ics-otel │          │ index.ts                   │           │
+│ otel         │          │          │ OpenClaw diagnostics       │           │
+│              │          │          │ OpenTelemetry exporter     │           │
+│ @openclaw/   │ discord  │ disabled │ stock:discord/index.ts     │ 2026.2.24 │
+│ discord      │          │          │ OpenClaw Discord channel   │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ feishu   │ disabled │ stock:feishu/index.ts      │ 2026.2.24 │
+│ feishu       │          │          │ OpenClaw Feishu/Lark       │           │
+│              │          │          │ channel plugin (community  │           │
+│              │          │          │ maintained by @m1heng)     │           │
+│ @openclaw/   │ google-  │ disabled │ stock:google-gemini-cli-   │ 2026.2.24 │
+│ google-      │ gemini-  │          │ auth/index.ts              │           │
+│ gemini-cli-  │ cli-auth │          │ OpenClaw Gemini CLI OAuth  │           │
+│ auth         │          │          │ provider plugin            │           │
+│ @openclaw/   │ googlech │ disabled │ stock:googlechat/index.ts  │ 2026.2.24 │
+│ googlechat   │ at       │          │ OpenClaw Google Chat       │           │
+│              │          │          │ channel plugin             │           │
+│ @openclaw/   │ imessage │ disabled │ stock:imessage/index.ts    │ 2026.2.24 │
+│ imessage     │          │          │ OpenClaw iMessage channel  │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ irc      │ disabled │ stock:irc/index.ts         │ 2026.2.24 │
+│ irc          │          │          │ OpenClaw IRC channel       │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ line     │ disabled │ stock:line/index.ts        │ 2026.2.24 │
+│ line         │          │          │ OpenClaw LINE channel      │           │
+│              │          │          │ plugin                     │           │
+│ LLM Task     │ llm-task │ disabled │ stock:llm-task/index.ts    │ 2026.2.24 │
+│              │          │          │ Generic JSON-only LLM      │           │
+│              │          │          │ tool for structured tasks  │           │
+│              │          │          │ callable from workflows.   │           │
+│ Lobster      │ lobster  │ disabled │ stock:lobster/index.ts     │ 2026.2.24 │
+│              │          │          │ Typed workflow tool with   │           │
+│              │          │          │ resumable approvals.       │           │
+│ @openclaw/   │ matrix   │ disabled │ stock:matrix/index.ts      │ 2026.2.24 │
+│ matrix       │          │          │ OpenClaw Matrix channel    │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ mattermo │ disabled │ stock:mattermost/index.ts  │ 2026.2.24 │
+│ mattermost   │ st       │          │ OpenClaw Mattermost        │           │
+│              │          │          │ channel plugin             │           │
+│ Memory       │ memory-  │ loaded   │ stock:memory-core/index.ts │ 2026.2.24 │
+│ (Core)       │ core     │          │ File-backed memory search  │           │
+│              │          │          │ tools and CLI              │           │
+│ @openclaw/   │ memory-  │ disabled │ stock:memory-lancedb/      │ 2026.2.24 │
+│ memory-      │ lancedb  │          │ index.ts                   │           │
+│ lancedb      │          │          │ OpenClaw LanceDB-backed    │           │
+│              │          │          │ long-term memory plugin    │           │
+│              │          │          │ with auto-recall/capture   │           │
+│ @openclaw/   │ minimax- │ disabled │ stock:minimax-portal-auth/ │ 2026.2.24 │
+│ minimax-     │ portal-  │          │ index.ts                   │           │
+│ portal-auth  │ auth     │          │ OpenClaw MiniMax Portal    │           │
+│              │          │          │ OAuth provider plugin      │           │
+│ @openclaw/   │ msteams  │ disabled │ stock:msteams/index.ts     │ 2026.2.24 │
+│ msteams      │          │          │ OpenClaw Microsoft Teams   │           │
+│              │          │          │ channel plugin             │           │
+│ @openclaw/   │ nextclou │ disabled │ stock:nextcloud-talk/      │ 2026.2.24 │
+│ nextcloud-   │ d-talk   │          │ index.ts                   │           │
+│ talk         │          │          │ OpenClaw Nextcloud Talk    │           │
+│              │          │          │ channel plugin             │           │
+│ @openclaw/   │ nostr    │ disabled │ stock:nostr/index.ts       │ 2026.2.24 │
+│ nostr        │          │          │ OpenClaw Nostr channel     │           │
+│              │          │          │ plugin for NIP-04          │           │
+│              │          │          │ encrypted DMs              │           │
+│ OpenProse    │ open-    │ disabled │ stock:open-prose/index.ts  │ 2026.2.24 │
+│              │ prose    │          │ OpenProse VM skill pack    │           │
+│              │          │          │ with a /prose slash        │           │
+│              │          │          │ command.                   │           │
+│ Phone        │ phone-   │ loaded   │ stock:phone-control/index. │           │
+│ Control      │ control  │          │ ts                         │           │
+│              │          │          │ Arm/disarm high-risk       │           │
+│              │          │          │ phone node commands        │           │
+│              │          │          │ (camera/screen/writes)     │           │
+│              │          │          │ with an optional auto-     │           │
+│              │          │          │ expiry.                    │           │
+│ qwen-portal- │          │ disabled │ stock:qwen-portal-auth/    │           │
+│ auth         │          │          │ index.ts                   │           │
+│ @openclaw/   │ signal   │ disabled │ stock:signal/index.ts      │ 2026.2.24 │
+│ signal       │          │          │ OpenClaw Signal channel    │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ slack    │ disabled │ stock:slack/index.ts       │ 2026.2.24 │
+│ slack        │          │          │ OpenClaw Slack channel     │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ synology │ disabled │ stock:synology-chat/index. │ 2026.2.24 │
+│ synology-    │ -chat    │          │ ts                         │           │
+│ chat         │          │          │ Synology Chat channel      │           │
+│              │          │          │ plugin for OpenClaw        │           │
+│ Talk Voice   │ talk-    │ loaded   │ stock:talk-voice/index.ts  │           │
+│              │ voice    │          │ Manage Talk voice          │           │
+│              │          │          │ selection (list/set).      │           │
+│ @openclaw/   │ telegram │ disabled │ stock:telegram/index.ts    │ 2026.2.24 │
+│ telegram     │          │          │ OpenClaw Telegram channel  │           │
+│              │          │          │ plugin                     │           │
+│ Thread       │ thread-  │ disabled │ stock:thread-ownership/    │           │
+│ Ownership    │ ownershi │          │ index.ts                   │           │
+│              │ p        │          │ Prevents multiple agents   │           │
+│              │          │          │ from responding in the     │           │
+│              │          │          │ same Slack thread. Uses    │           │
+│              │          │          │ HTTP calls to the slack-   │           │
+│              │          │          │ forwarder ownership API.   │           │
+│ @openclaw/   │ tlon     │ disabled │ stock:tlon/index.ts        │ 2026.2.24 │
+│ tlon         │          │          │ OpenClaw Tlon/Urbit        │           │
+│              │          │          │ channel plugin             │           │
+│ @openclaw/   │ twitch   │ disabled │ stock:twitch/index.ts      │ 2026.2.24 │
+│ twitch       │          │          │ OpenClaw Twitch channel    │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ voice-   │ disabled │ stock:voice-call/index.ts  │ 2026.2.24 │
+│ voice-call   │ call     │          │ OpenClaw voice-call plugin │           │
+│ @openclaw/   │ whatsapp │ disabled │ stock:whatsapp/index.ts    │ 2026.2.24 │
+│ whatsapp     │          │          │ OpenClaw WhatsApp channel  │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ zalo     │ disabled │ stock:zalo/index.ts        │ 2026.2.24 │
+│ zalo         │          │          │ OpenClaw Zalo channel      │           │
+│              │          │          │ plugin                     │           │
+│ @openclaw/   │ zalouser │ disabled │ stock:zalouser/index.ts    │ 2026.2.24 │
+│ zalouser     │          │          │ OpenClaw Zalo Personal     │           │
+│              │          │          │ Account plugin via zca-cli │           │
+└──────────────┴──────────┴──────────┴────────────────────────────┴───────────┘
+rsmol@Mac-mini-7828 ~ % 
