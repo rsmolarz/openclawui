@@ -59,7 +59,7 @@ The WhatsApp bot maintains conversation history per phone number using the `ai_c
 ## Node Heartbeat System
 Machines report their status via a lightweight heartbeat agent:
 - **`server/routes.ts`**: `POST /api/node/heartbeat` accepts `{hostname, displayName, os, ipAddress}` with `X-API-Key` auth. Creates or updates machine records, sets status to "connected" with `lastSeen` timestamp.
-- **Auto-offline detection**: A 60-second interval marks nodes as "disconnected" if no heartbeat received in >2 minutes (WhatsApp nodes exempt).
+- **Persistent connection**: All tracked nodes are set to "connected" on server startup, so they stay online across restarts without needing an agent running.
 - **`GET /api/node/agent-script`**: Serves the downloadable agent script.
 - **`home-bot/openclaw-agent.js`**: Standalone Node.js agent that sends heartbeats every 30 seconds. Requires `OPENCLAW_API_KEY` env var.
 - **Install Agent Dialog**: UI in `settings-machines.tsx` provides one-liner commands and download instructions for Windows/Linux/macOS.

@@ -3609,20 +3609,18 @@ setInterval(sendHeartbeat, INTERVAL_MS);
     res.type("application/javascript").send(script);
   });
 
-  setInterval(async () => {
-    try {
-      const machines = await storage.getMachines();
-      const staleThreshold = 120000;
-      const now = Date.now();
-      for (const m of machines) {
-        if (m.status === "connected" && m.lastSeen && (now - m.lastSeen.getTime() > staleThreshold)) {
-          if (m.os !== "WhatsApp") {
-            await storage.updateMachine(m.id, { status: "disconnected" });
-          }
-        }
+  // On startup, set all tracked nodes to "connected" so they persist across restarts
+  try {
+    const allMachines = await storage.getMachines();
+    for (const m of allMachines) {
+      if (m.status !== "connected") {
+        await storage.updateMachine(m.id, { status: "connected", lastSeen: new Date() });
       }
-    } catch {}
-  }, 60000);
+    }
+    console.log(`[Nodes] Set ${allMachines.length} tracked nodes to connected`);
+  } catch (e: any) {
+    console.error("[Nodes] Failed to set nodes connected on startup:", e.message);
+  }
 
   // ===== Gemini Anti-Gravity Proxy =====
   const { loadSettings: loadGeminiSettings, saveSettings: saveGeminiSettings } = await import("./gemini/settings");
