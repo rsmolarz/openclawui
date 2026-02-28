@@ -106,6 +106,13 @@ curl -sLo himalaya.tgz "https://github.com/pimalaya/himalaya/releases/download/v
 file himalaya.tgz && head -c 20 himalaya.tgz | xxd | head -2 && \
 if file himalaya.tgz | grep -q gzip; then tar xzf himalaya.tgz && mv himalaya /usr/local/bin/ && chmod +x /usr/local/bin/himalaya && himalaya --version; \
 else echo "Not gzip - trying cargo install"; pip install himalaya 2>/dev/null || cargo install himalaya 2>/dev/null || echo "Could not install himalaya"; fi`,
+  "enable-plugins": `openclaw plugins enable whatsapp 2>&1; \
+openclaw plugins enable discord 2>&1; \
+openclaw plugins enable voice-call 2>&1; \
+echo "--- Restarting gateway ---" && \
+openclaw gateway restart 2>&1; \
+echo "=== Skills after plugin enable ===" && \
+openclaw skills list 2>&1 | head -5`,
   "check-skill-bins": `echo "--- Checking required skill binaries ---" && \
 for cmd in goplaces himalaya memo remindctl grizzly things imsg peekaboo camsnap gifgrep wacli openhue ordercli songsee nano-pdf blu eightctl blogwatcher sonoscli sag obsidian-cli xurl rg jq whisper ffmpeg gh tmux op gemini oracle mcporter summarize openclaw clawhub; do \
   P=$(which $cmd 2>/dev/null) && echo "✓ $cmd -> $P" || echo "✗ $cmd not found"; \
