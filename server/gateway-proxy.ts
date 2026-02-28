@@ -208,13 +208,14 @@ export function setupGatewayProxy(app: Express, httpServer: Server) {
 
     const parsedTarget = new URL(gwInfo.url);
     const wsPort = parsedTarget.port || 18789;
-    let wsTargetUrl = `ws://${parsedTarget.hostname}:${wsPort}`;
+    const wsScheme = parsedTarget.protocol === "https:" ? "wss" : "ws";
+    let wsTargetUrl = `${wsScheme}://${parsedTarget.hostname}:${wsPort}`;
     if (gwInfo.token) {
       wsTargetUrl += `/?token=${encodeURIComponent(gwInfo.token)}`;
     }
     const source = instanceId ? `explicit:${instanceId}` : "node-root";
 
-    console.log(`[gateway-proxy] Proxying WS ${source} -> ws://${parsedTarget.hostname}:${wsPort} (token: ${gwInfo.token ? "yes" : "no"})`);
+    console.log(`[gateway-proxy] Proxying WS ${source} -> ${wsScheme}://${parsedTarget.hostname}:${wsPort} (token: ${gwInfo.token ? "yes" : "no"})`);
 
     wss.handleUpgrade(request, socket, head, (clientWs) => {
       console.log(`[gateway-proxy] Client WebSocket upgraded successfully (source: ${source})`);
