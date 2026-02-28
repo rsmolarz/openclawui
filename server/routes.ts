@@ -2759,6 +2759,9 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       const instanceId = await resolveInstanceId(req);
       if (!instanceId) return res.json({ paired: [], source: "none" });
 
+      let gatewayNodes: any[] = [];
+      let source = "tracked";
+
       const vps = instanceId ? await storage.getVpsConnection(instanceId) : null;
       if (vps?.vpsIp) {
         const { executeSSHCommand, buildSSHConfigFromVps } = await import("./ssh");
@@ -2770,7 +2773,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
             const parsed = JSON.parse(nodeListResult.output.trim());
             if (!parsed.error && parsed.nodes && Array.isArray(parsed.nodes)) {
               const connectedNodes = parsed.nodes.filter((n: any) => n.connected);
-              const normalized = connectedNodes.map((n: any, idx: number) => ({
+              gatewayNodes = connectedNodes.map((n: any, idx: number) => ({
                 id: n.nodeId || n.id || `node-${idx}`,
                 hostname: n.displayName || n.name || n.hostname || `node-${idx}`,
                 displayName: n.displayName || n.name || n.hostname || `node-${idx}`,
@@ -2782,34 +2785,61 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
                 status: "paired",
                 connected: true,
               }));
-              return res.json({ paired: normalized, source: "gateway" });
+              source = "gateway";
             }
           }
         } catch {}
 
-        try {
-          const result = await executeSSHCommand("list-paired-nodes", sshConfig);
-          if (result.success && result.output) {
-            try {
-              let parsed = JSON.parse(result.output.trim());
-              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                parsed = Object.values(parsed);
-              }
-              if (Array.isArray(parsed)) {
-                const normalized = parsed.map((n: any, idx: number) => {
-                  if (typeof n === "string") return { id: n, hostname: n, ip: "Unknown", os: "Unknown" };
-                  const entry = { ...n };
-                  if (!entry.id) entry.id = entry.hostname || entry.name || `node-${idx}`;
-                  return entry;
-                });
-                return res.json({ paired: normalized, source: "gateway" });
-              }
-            } catch {}
-          }
-        } catch {}
+        if (gatewayNodes.length === 0) {
+          try {
+            const result = await executeSSHCommand("list-paired-nodes", sshConfig);
+            if (result.success && result.output) {
+              try {
+                let parsed = JSON.parse(result.output.trim());
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                  parsed = Object.values(parsed);
+                }
+                if (Array.isArray(parsed)) {
+                  gatewayNodes = parsed.map((n: any, idx: number) => {
+                    if (typeof n === "string") return { id: n, hostname: n, ip: "Unknown", os: "Unknown", status: "paired", connected: true };
+                    const entry = { ...n, status: "paired", connected: true };
+                    if (!entry.id) entry.id = entry.hostname || entry.name || `node-${idx}`;
+                    return entry;
+                  });
+                  source = "gateway";
+                }
+              } catch {}
+            }
+          } catch {}
+        }
       }
 
-      res.json({ paired: [], source: "local" });
+      const machines = await storage.getMachines();
+      const trackedNodes = machines
+        .filter(m => m.status === "connected")
+        .map(m => ({
+          id: String(m.id),
+          hostname: m.hostname || m.name,
+          displayName: m.displayName || m.hostname || m.name,
+          name: m.displayName || m.hostname || m.name,
+          clientId: String(m.id),
+          ip: m.ipAddress || "",
+          os: m.os || "",
+          status: "paired",
+          connected: true,
+        }));
+
+      const seenNames = new Set(gatewayNodes.map((n: any) => (n.name || n.hostname || "").toLowerCase()));
+      const merged = [...gatewayNodes];
+      for (const tn of trackedNodes) {
+        const name = (tn.name || tn.hostname || "").toLowerCase();
+        if (!seenNames.has(name)) {
+          merged.push(tn);
+          seenNames.add(name);
+        }
+      }
+
+      return res.json({ paired: merged, source });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch paired nodes" });
     }
@@ -3002,6 +3032,29 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       }
 
       const allMachines = await storage.getMachines();
+
+      const pairedNames = new Set(paired.map((n: any) => (n.displayName || n.hostname || n.name || "").toLowerCase()));
+      const trackedAsPaired = allMachines
+        .filter(m => m.status === "connected")
+        .filter(m => {
+          const name = (m.displayName || m.hostname || m.name || "").toLowerCase();
+          return !pairedNames.has(name);
+        })
+        .map(m => ({
+          requestId: String(m.id),
+          id: String(m.id),
+          name: m.displayName || m.hostname || m.name,
+          displayName: m.displayName || m.hostname || m.name,
+          hostname: m.hostname || m.name,
+          clientId: String(m.id),
+          role: "node",
+          ip: m.ipAddress || "",
+          os: m.os || "",
+          status: "paired",
+          connected: true,
+        }));
+      paired = [...paired, ...trackedAsPaired];
+
       const connectedIds = new Set<string>();
       for (const n of nodes) {
         if (n.status && n.status.includes("connected")) {
@@ -3020,8 +3073,6 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
 
         if (isConnected && m.status !== "connected") {
           await storage.updateMachine(m.id, { status: "connected", lastSeen: new Date() });
-        } else if (!isConnected && gatewayRunning && m.status === "connected") {
-          await storage.updateMachine(m.id, { status: "disconnected" });
         }
       }
 
@@ -3039,7 +3090,7 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
             hostname: m.hostname || m.name,
             ip: m.ipAddress || matchedGatewayNode?.ip || "",
             os: m.os || matchedGatewayNode?.platform || "",
-            status: matchedGatewayNode ? "connected" : (m.status || "disconnected"),
+            status: matchedGatewayNode ? "connected" : (m.status === "connected" ? "connected" : (m.status || "disconnected")),
             caps: matchedGatewayNode?.caps || "",
             version: matchedGatewayNode?.version || "",
             platform: matchedGatewayNode?.platform || m.os || "",
