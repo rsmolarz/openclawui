@@ -161,6 +161,86 @@ json.dump(d,open(f,'w'),indent=2)
 print('Origins now:', json.dumps(origins, indent=2))
 print('Changed:', changed)
 "`,
+  "deploy-virtual-nodes": `
+# Create isolated config directories for each virtual node
+NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo"
+
+# Read gateway auth from main config
+TOKEN=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d.get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null)
+PASSWORD=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d.get('gateway',{}).get('auth',{}).get('password',''))" 2>/dev/null)
+
+for NODE in $NODES; do
+  DIR="/root/.openclaw-vnode-$NODE"
+  mkdir -p "$DIR"
+
+  # Write a minimal config for this virtual node
+  python3 -c "
+import json, os
+config = {
+  'meta': {'lastTouchedVersion': '2026.2.28'},
+  'gateway': {
+    'mode': 'local',
+    'host': '127.0.0.1',
+    'port': 18789,
+    'auth': {}
+  }
+}
+token = '$TOKEN'
+password = '$PASSWORD'
+if token:
+    config['gateway']['auth'] = {'mode': 'token', 'token': token}
+elif password:
+    config['gateway']['auth'] = {'mode': 'password', 'password': password}
+with open('$DIR/openclaw.json', 'w') as f:
+    json.dump(config, f, indent=2)
+"
+
+  # Create systemd service for this virtual node — use --display-name if supported, fallback to HOSTNAME override
+  cat > "/etc/systemd/system/openclaw-vnode-$NODE.service" << SVCEOF
+[Unit]
+Description=OpenClaw Virtual Node ($NODE)
+After=network.target
+
+[Service]
+Type=simple
+Environment=OPENCLAW_CONFIG_PATH=$DIR/openclaw.json
+Environment=OPENCLAW_STATE_DIR=$DIR
+Environment=HOSTNAME=$NODE
+ExecStart=/bin/sh -c 'exec /usr/bin/openclaw node run 2>&1'
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+  echo "Created virtual node: $NODE"
+done
+
+# Stop the old virtual-nodes service if running
+systemctl stop openclaw-virtual-nodes 2>/dev/null
+systemctl disable openclaw-virtual-nodes 2>/dev/null
+
+# Enable and start all virtual node services
+systemctl daemon-reload
+for NODE in $NODES; do
+  systemctl enable "openclaw-vnode-$NODE" 2>/dev/null
+  systemctl restart "openclaw-vnode-$NODE" 2>/dev/null
+  echo "Started openclaw-vnode-$NODE"
+done
+
+sleep 5
+echo "---STATUS---"
+for NODE in $NODES; do
+  STATUS=$(systemctl is-active "openclaw-vnode-$NODE" 2>/dev/null)
+  echo "$NODE: $STATUS"
+done
+echo "---LOG---"
+journalctl -u 'openclaw-vnode-*' --no-pager -n 30 2>/dev/null || echo "No logs yet"`,
+  "virtual-nodes-status": `NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo" && for NODE in $NODES; do STATUS=$(systemctl is-active "openclaw-vnode-$NODE" 2>/dev/null || echo "not found"); echo "$NODE: $STATUS"; done && echo "---LOG---" && for NODE in $NODES; do echo "=== $NODE ===" && journalctl -u "openclaw-vnode-$NODE" --no-pager -n 5 2>/dev/null; done`,
+  "virtual-nodes-stop": `NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo" && for NODE in $NODES; do systemctl stop "openclaw-vnode-$NODE" 2>/dev/null; systemctl disable "openclaw-vnode-$NODE" 2>/dev/null; echo "Stopped $NODE"; done && systemctl stop openclaw-virtual-nodes 2>/dev/null; echo "All virtual nodes stopped"`,
+  "examine-node-protocol": `echo "=== CLI HELP ===" && openclaw --help 2>&1 | head -40 && echo "---NODE-HELP---" && openclaw node --help 2>&1 | head -40 && echo "---NODE-JSON---" && cat /root/.openclaw/openclaw.json 2>/dev/null | head -60 && echo "---GATEWAY-HELP---" && openclaw gateway --help 2>&1 | head -30 && echo "---PROC---" && ps aux | grep openclaw-node | grep -v grep && echo "---CMDLINE---" && cat /proc/$(pgrep -f openclaw-node | head -1)/cmdline 2>/dev/null | tr '\\0' ' ' ; echo`,
+  "virtual-nodes-restart": "systemctl restart openclaw-virtual-nodes; sleep 3; systemctl status openclaw-virtual-nodes --no-pager | head -15; echo '---LOG---'; journalctl -u openclaw-virtual-nodes --no-pager -n 20",
 };
 
 export interface SSHConnectionConfig {
