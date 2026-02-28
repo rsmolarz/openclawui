@@ -2848,9 +2848,13 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
       }
 
       if (!usedCli) {
-        const statusCmd = `ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep ${gatewayPort} || echo 'not-listening'`;
-        const statusResult = await executeRawSSHCommand(statusCmd, sshConfig);
-        gatewayRunning = statusResult.success && statusResult.output ? (!statusResult.output.includes("not-listening") && statusResult.output.includes("openclaw")) : false;
+        try {
+          const statusCmd = `ps aux | grep -E 'openclaw' | grep -v grep | head -5; echo '---LISTENING---'; ss -tlnp | grep ${gatewayPort} || echo 'not-listening'`;
+          const statusResult = await executeRawSSHCommand(statusCmd, sshConfig);
+          gatewayRunning = statusResult.success && statusResult.output ? (!statusResult.output.includes("not-listening") && statusResult.output.includes("openclaw")) : false;
+        } catch (e: any) {
+          console.error("[live-status] SSH status check failed:", e.message);
+        }
       }
 
       let paired: any[] = cliPaired;
@@ -3041,7 +3045,28 @@ print(json.dumps({'success':True,'updated':list(updates.keys())}))
         totalTracked: allNodes.length,
       });
     } catch (error: any) {
-      res.status(500).json({ gateway: "error", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message });
+      console.error("[live-status] Top-level error:", error.message);
+      try {
+        const allMachines = await storage.getMachines();
+        const fallbackNodes = allMachines
+          .filter((m: any) => m.os !== "WhatsApp")
+          .map((m: any) => ({
+            id: m.id,
+            name: m.displayName || m.hostname || m.name,
+            hostname: m.hostname || m.name,
+            ip: m.ipAddress || "",
+            os: m.os || "",
+            status: m.status || "disconnected",
+            caps: "",
+            version: "",
+            platform: m.os || "",
+            lastSeen: m.lastSeen,
+            source: "database",
+          }));
+        res.json({ gateway: "error", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message, allNodes: fallbackNodes, totalTracked: fallbackNodes.length });
+      } catch {
+        res.status(500).json({ gateway: "error", nodes: [], devices: [], paired: [], pending: [], pairedCount: 0, pendingCount: 0, error: error.message, allNodes: [], totalTracked: 0 });
+      }
     }
   });
 

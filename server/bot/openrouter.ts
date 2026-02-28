@@ -131,8 +131,29 @@ export async function chat(userMessage: string, senderName?: string, platform?: 
   const primaryModel = config?.defaultLlm || "deepseek/deepseek-chat";
   const fallbackModel = config?.fallbackLlm || "openrouter/auto";
 
+  let skillsContext = "";
+  let nodesContext = "";
+  try {
+    const [skills, machines] = await Promise.all([
+      storage.getSkills(),
+      storage.getMachines(),
+    ]);
+    const enabledSkills = skills.filter(s => s.enabled);
+    if (enabledSkills.length > 0) {
+      const skillList = enabledSkills.map(s => `- ${s.name}: ${s.description || s.category}`).join("\n");
+      skillsContext = `\n\nYou have the following skills/capabilities available:\n${skillList}\nWhen a user asks you to do something covered by one of these skills, confirm you can help and describe what you can do. If a skill is listed, you have access to it.`;
+    }
+    const connectedNodes = machines.filter(m => m.status === "connected");
+    if (connectedNodes.length > 0) {
+      const nodeList = connectedNodes.map(m => `- ${m.displayName || m.hostname || m.name} (${m.os || "unknown"})`).join("\n");
+      nodesContext = `\n\nYou are connected to the following nodes/devices:\n${nodeList}`;
+    }
+  } catch (err: any) {
+    console.error("[OpenClaw] Failed to load skills/nodes context:", err.message);
+  }
+
   const platformLabel = platform || "messaging";
-  const systemPrompt = `You are OpenClaw, a helpful AI assistant available via ${platformLabel}. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are an AI gateway powered by OpenClaw.${senderName ? ` The user's name is ${senderName}.` : ""}`;
+  const systemPrompt = `You are OpenClaw, a helpful AI assistant available via ${platformLabel}. You are concise, friendly, and knowledgeable. Keep responses brief and suitable for mobile reading. If asked about yourself, you are an AI gateway powered by OpenClaw.${senderName ? ` The user's name is ${senderName}.` : ""}${skillsContext}${nodesContext}`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },

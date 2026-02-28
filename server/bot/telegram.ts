@@ -103,8 +103,16 @@ async function handleMessage(update: TelegramUpdate): Promise<void> {
   }
 
   if (text === "/help") {
+    let skillsList = "";
+    try {
+      const skills = await storage.getSkills();
+      const enabled = skills.filter(s => s.enabled);
+      if (enabled.length > 0) {
+        skillsList = `\n\n*Installed Skills (${enabled.length}):*\n${enabled.slice(0, 15).map(s => `• ${s.name}`).join("\n")}${enabled.length > 15 ? `\n...and ${enabled.length - 15} more` : ""}`;
+      }
+    } catch {}
     await sendMessage(chatId,
-      `*OpenClaw AI Help*\n\nJust send me any message and I'll respond using AI.\n\nI can help with:\n• General questions\n• Code and tech questions\n• Writing and editing\n• Analysis and research\n\nPowered by OpenClaw AI Gateway.`
+      `*OpenClaw AI Help*\n\nJust send me any message and I'll respond using AI.\n\nI can help with:\n• General questions\n• Code and tech questions\n• Writing and editing\n• Analysis and research${skillsList}\n\nPowered by OpenClaw AI Gateway.`
     );
     return;
   }
