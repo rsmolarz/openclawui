@@ -1,0 +1,362 @@
+Make the most of your experience
+We hope you are enjoying Tailscale.
+
+Choose a plan to unlock more possibilities.
+
+Learn more
+Compare all plans
+
+Dismiss
+Personal Plus
+$5
+Per month
+
+
+Choose Personal Plus
+Starter
+$6
+Per month, per active user
+
+
+Choose Starter
+Machines
+Manage the devices connected to your tailnet. Learn more
+
+
+Add device
+Search by name, owner, tag, version...
+
+Filters
+
+34 machines
+Machine
+Addresses
+Version
+Last Seen
+Machines action menu
+homeassistant
+
+rsmolarz@rsmolarz.com
+Expired Apr 17, 2025SubnetsExit NodeConnector
+
+100.82.98.77
+1.78.1
+Linux 6.6.62-haos-raspi
+Feb 1, 2025
+
+homeassistant-1
+
+rsmolarz@rsmolarz.com
+SubnetsExit NodeConnector
+
+100.77.164.57
+1.94.1
+Linux 6.12.47-haos-raspi
+Connected
+
+homepc
+
+rsmolarz@rsmolarz.com
+Expired Apr 6, 2025Exit Node
+
+100.103.190.59
+1.82.0
+Windows 11 23H2
+Apr 9, 2025
+
+surface-7
+
+rsmolarz@rsmolarz.com
+Expired Apr 9, 2025Exit Node
+
+100.126.220.103
+1.80.2
+Windows 11 22H2
+Mar 9, 2025
+
+01-308bnew
+
+rsmolarz@rsmolarz.com
+Expired Nov 5, 2025Subnets
+
+100.99.246.50
+1.84.0
+Windows Server 2019
+Jun 15, 2025
+
+gl-axt1800
+
+rsmolarz@rsmolarz.com
+Expired Sep 30, 2025Subnets
+
+100.106.16.25
+1.66.4-1 (OpenWrt)
+Linux 5.4.164
+Apr 7, 2025
+
+gl-axt1800-2
+
+rsmolarz@rsmolarz.com
+Expired Nov 22, 2025Subnets
+
+100.87.94.23
+1.66.4-1 (OpenWrt)
+Linux 5.4.164
+May 26, 2025
+
+companionpi-1
+
+rsmolarz@rsmolarz.com
+Expired Jul 27, 2025
+
+100.81.80.90
+1.84.0
+Linux 6.6.62+rpt-rpi-v8
+Jul 28, 2025
+
+desktop-nimcp7b-1
+
+rsmolarz@rsmolarz.com
+
+100.115.103.60
+1.94.1
+Windows 11 25H2
+Connected
+
+drnewstx
+
+rsmolarz@rsmolarz.com
+Expired Dec 14, 2025
+
+100.73.207.16
+1.90.6
+Windows 11 24H2
+Dec 4, 2025
+
+framework
+
+rsmolarz@rsmolarz.com
+
+100.80.169.25
+1.94.2
+Windows 11 25H2
+Connected
+
+gl-axt1800-1
+
+rsmolarz@rsmolarz.com
+Expired Oct 4, 2025
+
+100.123.90.49
+1.66.4-1 (OpenWrt)
+Linux 5.4.164
+May 16, 2025
+
+h2rgraphics
+
+rsmolarz@rsmolarz.com
+
+100.118.254.13
+1.94.1
+Linux 6.12.62+rpt-rpi-v8
+Connected
+
+ip-172-31-9-172
+
+rsmolarz@rsmolarz.com
+
+100.109.35.56
+1.94.1
+Linux 6.14.0-1018-aws
+Feb 3
+
+ipad
+
+rsmolarz@rsmolarz.com
+Expired Apr 4, 2025
+
+100.102.178.127
+1.78.3
+iOS 16.7.10
+Jan 9, 2025
+
+ipad-mini-6th-gen-wificellular
+
+rsmolarz@rsmolarz.com
+Expired Oct 23, 2025
+
+100.68.247.67
+1.88.3
+iOS 18.4.1
+Oct 3, 2025
+
+ipad-mini-gen-5
+
+rsmolarz@rsmolarz.com
+Expired Apr 4, 2025
+
+100.117.192.22
+1.80.2
+iOS 18.3.2
+Apr 14, 2025
+
+iphone-15-pro-max
+
+rsmolarz@rsmolarz.com
+Expired Apr 4, 2025
+
+100.108.225.21
+1.80.0
+iOS 18.1.1
+Feb 11, 2025
+
+iphone171
+
+rsmolarz@rsmolarz.com
+
+100.123.49.90
+1.94.1
+iOS 26.3.0
+Connected
+
+mac-mini
+
+rsmolarz@rsmolarz.com
+
+100.72.2.3
+1.90.4
+macOS 26.0.1
+Connected
+
+pikvm-1
+
+rsmolarz@rsmolarz.com
+Expired Jan 28, 2026
+
+100.106.6.33
+1.86.2
+Linux 6.6.45-13-rpi
+Feb 1
+
+podcastpc
+
+rsmolarz@rsmolarz.com
+
+100.123.153.103
+1.94.1
+Windows 11 23H2
+Feb 26, 12:35 PM GMT-4
+
+raspberrypi3
+
+rsmolarz@rsmolarz.com
+Expired Mar 27, 2025
+
+100.76.65.108
+1.76.1
+Linux 6.6.31+rpt-rpi-2712
+Nov 5, 2024
+
+raspberrypi4
+
+rsmolarz@rsmolarz.com
+Expired Apr 4, 2025
+
+100.104.247.59
+1.76.1
+Linux 6.6.31+rpt-rpi-v8
+Oct 26, 2024
+
+raspberrypi5
+
+rsmolarz@rsmolarz.com
+Expired May 6, 2025
+
+100.72.148.58
+1.80.2
+Linux 6.6.62+rpt-rpi-2712
+Mar 14, 2025
+
+rsmolarzbackup
+
+rsmolarz@rsmolarz.com
+
+100.84.58.107
+1.94.1
+Windows 11 25H2
+Feb 25, 1:31 AM GMT-4
+
+samsung-sm-x210
+
+rsmolarz@rsmolarz.com
+Expired Apr 5, 2025
+
+100.121.241.20
+1.74.1
+Android 14
+Oct 20, 2024
+
+srv1390515
+
+rsmolarz@rsmolarz.com
+SSH
+
+100.70.33.69
+1.94.2
+Linux 6.8.0-100-generic
+Connected
+
+surface-backup
+
+rsmolarz@rsmolarz.com
+
+100.120.17.101
+1.94.1
+Windows 11 23H2
+Feb 21
+
+surface-travel
+
+rsmolarz@rsmolarz.com
+Expired Jan 13, 2026
+
+100.104.28.9
+1.92.3
+Windows 11 22H2
+Jan 21
+
+travel-asusduo
+
+rsmolarz@rsmolarz.com
+
+100.75.158.12
+1.94.2
+Windows 11 25H2
+Feb 27, 7:50 AM GMT-4
+
+vient
+
+rsmolarz@rsmolarz.com
+
+100.70.218.39
+1.94.2
+Windows 11 24H2
+Feb 27, 6:37 PM GMT-4
+
+vient3stx
+
+rsmolarz@rsmolarz.com
+Expired Nov 2, 2025
+
+100.72.255.50
+1.76.6
+Windows 10 20H2
+May 6, 2025
+
+vient4
+
+rsmolarz@rsmolarz.com
+
+100.105.145.41
+1.94.1
+Windows 11 25H2
