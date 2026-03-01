@@ -29,7 +29,12 @@ The application employs a client-server architecture.
     - **Marketplace**: Skill plugin catalog with installation, uninstallation, and deployment capabilities for node skills.
     - **Custom Skill Builder**: Allows deployment of private skills to the VPS via SSH.
     - **Email Workflows**: Database-backed automation for email patterns with preset templates and actions.
-- **Data Models**: Key models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, and `email_workflows`.
+- **Activity Audit Log**: Tracks all mutation actions (machine/API key/settings changes) in `audit_logs` table with paginated API and dedicated Activity Log page.
+    - **Keyboard Shortcuts**: Global Ctrl+K command palette, Ctrl+N (new node), Ctrl+R (refresh all), ? (help dialog).
+    - **Bulk Node Operations**: Multi-select checkboxes on Nodes page with bulk restart, status update, and CSV export.
+    - **Quick Stats Panel**: Real-time stats bar on Overview page showing active/offline nodes, uptime %, and last activity.
+    - **WhatsApp Adaptive Polling**: Connected=15s, disconnected=60s, exponential backoff after 3 failures (max 5min).
+- **Data Models**: Key models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, and `audit_logs`.
 
 ## External Dependencies
 - **Database**: PostgreSQL (via Drizzle ORM)

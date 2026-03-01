@@ -37,6 +37,8 @@ import Metrics from "@/pages/metrics";
 import Marketplace from "@/pages/marketplace";
 import EmailWorkflows from "@/pages/email-workflows";
 import SettingsGeminiProxy from "@/pages/settings-gemini-proxy";
+import ActivityLog from "@/pages/activity-log";
+import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -67,6 +69,7 @@ function Router() {
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/email-workflows" component={EmailWorkflows} />
       <Route path="/settings/gemini-proxy" component={SettingsGeminiProxy} />
+      <Route path="/activity-log" component={ActivityLog} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -92,6 +95,7 @@ function AuthenticatedLayout() {
               </div>
             </header>
             <main className="flex-1 overflow-auto">
+              <KeyboardShortcuts />
               <Router />
             </main>
           </div>

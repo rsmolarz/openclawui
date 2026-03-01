@@ -23,13 +23,15 @@ import {
   type AutomationRun, type InsertAutomationRun,
   type MetricsEvent, type InsertMetricsEvent,
   type EmailWorkflow, type InsertEmailWorkflow,
+  type AuditLog, type InsertAuditLog,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
+  auditLogs,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -157,6 +159,10 @@ export interface IStorage {
   createEmailWorkflow(data: InsertEmailWorkflow): Promise<EmailWorkflow>;
   updateEmailWorkflow(id: string, data: Partial<InsertEmailWorkflow> & { lastTriggered?: Date; triggerCount?: number }): Promise<EmailWorkflow | undefined>;
   deleteEmailWorkflow(id: string): Promise<void>;
+
+  getAuditLogs(page: number, limit: number, actionType?: string): Promise<AuditLog[]>;
+  getAuditLogCount(actionType?: string): Promise<number>;
+  createAuditLog(data: InsertAuditLog): Promise<AuditLog>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -798,6 +804,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEmailWorkflow(id: string): Promise<void> {
     await db.delete(emailWorkflows).where(eq(emailWorkflows.id, id));
+  }
+
+  async getAuditLogs(page: number, limit: number, actionType?: string): Promise<AuditLog[]> {
+    const offset = (page - 1) * limit;
+    if (actionType) {
+      return db.select().from(auditLogs)
+        .where(eq(auditLogs.actionType, actionType))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(limit)
+        .offset(offset);
+    }
+    return db.select().from(auditLogs)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getAuditLogCount(actionType?: string): Promise<number> {
+    if (actionType) {
+      const result = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs).where(eq(auditLogs.actionType, actionType));
+      return result[0]?.count ?? 0;
+    }
+    const result = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs);
+    return result[0]?.count ?? 0;
+  }
+
+  async createAuditLog(data: InsertAuditLog): Promise<AuditLog> {
+    const [log] = await db.insert(auditLogs).values(data).returning();
+    return log;
   }
 }
 

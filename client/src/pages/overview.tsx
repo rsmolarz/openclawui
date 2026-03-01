@@ -7,7 +7,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Cpu, Settings, Bell, KeyRound, TrendingUp, Server, Cog,
-  CheckCircle2, Circle, ChevronRight, X, Rocket, MessageSquare
+  CheckCircle2, Circle, ChevronRight, X, Rocket, MessageSquare,
+  Activity, WifiOff, Clock, BarChart3
 } from "lucide-react";
 import { useInstance } from "@/hooks/use-instance";
 import { Link } from "wouter";
@@ -202,6 +203,7 @@ export default function Overview() {
 
   const { data: machines, isLoading: machinesLoading } = useQuery<Machine[]>({
     queryKey: ["/api/machines"],
+    refetchInterval: 30000,
   });
 
   const { data: settings, isLoading: settingsLoading } = useQuery<Setting[]>({
@@ -234,7 +236,15 @@ export default function Overview() {
 
   const { data: botStatus } = useQuery<{ state: string; phone: string | null }>({
     queryKey: ["/api/whatsapp/status"],
-    refetchInterval: 10000,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      const failCount = query.state.fetchFailureCount;
+      const baseInterval = state === "connected" ? 15000 : 60000;
+      if (failCount >= 3) {
+        return Math.min(baseInterval * Math.pow(2, failCount - 2), 300000);
+      }
+      return baseInterval;
+    },
   });
 
   const isLoading = machinesLoading || settingsLoading || apiKeysLoading;
@@ -268,8 +278,40 @@ export default function Overview() {
     );
   }
 
+  const offlineNodes = totalNodes - connectedNodes;
+  const uptimePercent = totalNodes > 0 ? ((connectedNodes / totalNodes) * 100).toFixed(1) : "0.0";
+  const lastActivity = machines
+    ?.filter((m) => m.lastSeen)
+    .sort((a, b) => new Date(b.lastSeen!).getTime() - new Date(a.lastSeen!).getTime())[0]?.lastSeen;
+  const lastActivityFormatted = lastActivity
+    ? new Date(lastActivity).toLocaleString()
+    : "No activity";
+
   return (
     <div className="p-6 space-y-6">
+      <div className="flex items-center gap-4 flex-wrap bg-muted/50 rounded-lg p-3" data-testid="bar-quick-stats">
+        <div className="flex items-center gap-2" data-testid="stat-active-nodes">
+          <Activity className="h-4 w-4 text-green-500" />
+          <span className="text-xs text-muted-foreground">Active</span>
+          <span className="text-sm font-semibold" data-testid="stat-active-nodes-value">{connectedNodes}</span>
+        </div>
+        <div className="flex items-center gap-2" data-testid="stat-offline-nodes">
+          <WifiOff className={`h-4 w-4 ${offlineNodes > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+          <span className="text-xs text-muted-foreground">Offline</span>
+          <span className={`text-sm font-semibold ${offlineNodes > 0 ? "text-red-500" : ""}`} data-testid="stat-offline-nodes-value">{offlineNodes}</span>
+        </div>
+        <div className="flex items-center gap-2" data-testid="stat-uptime">
+          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Uptime</span>
+          <span className="text-sm font-semibold" data-testid="stat-uptime-value">{uptimePercent}%</span>
+        </div>
+        <div className="flex items-center gap-2" data-testid="stat-last-activity">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Last Activity</span>
+          <span className="text-sm font-semibold" data-testid="stat-last-activity-value">{lastActivityFormatted}</span>
+        </div>
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
           Dashboard Overview

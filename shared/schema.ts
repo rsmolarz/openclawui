@@ -388,3 +388,16 @@ export const emailWorkflows = pgTable("email_workflows", {
 export const insertEmailWorkflowSchema = createInsertSchema(emailWorkflows).omit({ id: true, lastTriggered: true, triggerCount: true, createdAt: true });
 export type EmailWorkflow = typeof emailWorkflows.$inferSelect;
 export type InsertEmailWorkflow = z.infer<typeof insertEmailWorkflowSchema>;
+
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  action: text("action").notNull(),
+  actionType: text("action_type").notNull(),
+  details: text("details"),
+  userId: varchar("user_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;

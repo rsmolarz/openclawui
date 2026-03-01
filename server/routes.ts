@@ -115,6 +115,10 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   });
 }
 
+function logAudit(action: string, actionType: string, details?: string, userId?: string) {
+  storage.createAuditLog({ action, actionType, details: details ?? null, userId: userId ?? null }).catch(() => {});
+}
+
 async function resolveInstanceId(req: Request): Promise<string | null> {
   const instanceId = (req.query.instanceId as string) || (req.body?.instanceId as string);
   if (instanceId) return instanceId;
@@ -1272,6 +1276,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       }
       const dataWithKey = { ...parsed.data, apiKey: randomBytes(32).toString("hex") };
       const instance = await storage.createInstance(dataWithKey);
+      logAudit(`Created instance "${parsed.data.name}"`, "instance_change", undefined, req.session.userId);
       res.status(201).json(instance);
     } catch (error) {
       res.status(500).json({ error: "Failed to create instance" });
@@ -1300,6 +1305,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       if (!updated) {
         return res.status(404).json({ error: "Instance not found" });
       }
+      logAudit(`Updated instance "${updated.name}"`, "instance_change", undefined, req.session.userId);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to update instance" });
@@ -1315,6 +1321,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       if (instance.isDefault) {
         return res.status(400).json({ error: "Cannot delete the default instance" });
       }
+      logAudit(`Deleted instance "${instance.name}"`, "instance_change", undefined, req.session.userId);
       await storage.deleteInstance(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
@@ -1338,6 +1345,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
         return res.status(400).json({ error: parsed.error.message });
       }
       await storage.bulkUpdateSettings(parsed.data.updates);
+      logAudit(`Updated ${parsed.data.updates.length} settings`, "settings_update", parsed.data.updates.map((u: any) => u.key).join(", "), req.session.userId);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update settings" });
@@ -1360,6 +1368,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
         return res.status(400).json({ error: parsed.error.message });
       }
       const machine = await storage.createMachine(parsed.data);
+      logAudit(`Created node "${parsed.data.name}"`, "machine_change", JSON.stringify(parsed.data), req.session.userId);
       res.status(201).json(machine);
     } catch (error) {
       res.status(500).json({ error: "Failed to create machine" });
@@ -1377,6 +1386,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
       if (!updated) {
         return res.status(404).json({ error: "Node not found" });
       }
+      logAudit(`Updated node "${updated.displayName || updated.name}"`, "machine_change", JSON.stringify(parsed.data), req.session.userId);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to update node" });
@@ -1385,6 +1395,7 @@ async function restart(){try{await fetch('/api/whatsapp/restart',{method:'POST'}
 
   app.delete("/api/machines/:id", requireAuth, async (req, res) => {
     try {
+      logAudit(`Deleted node ${req.params.id}`, "machine_change", undefined, req.session.userId);
       await storage.deleteMachine(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
@@ -2269,6 +2280,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         return res.status(400).json({ error: parsed.error.message });
       }
       const apiKey = await storage.createApiKey(parsed.data);
+      logAudit(`Created API key "${parsed.data.name}"`, "api_key_change", undefined, req.session.userId);
       res.status(201).json(apiKey);
     } catch (error) {
       res.status(500).json({ error: "Failed to create API key" });
@@ -2281,6 +2293,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
       if (!updated) {
         return res.status(404).json({ error: "API key not found" });
       }
+      logAudit(`Updated API key "${updated.name}"`, "api_key_change", undefined, req.session.userId);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to update API key" });
@@ -2289,6 +2302,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
 
   app.delete("/api/api-keys/:id", requireAuth, async (req, res) => {
     try {
+      logAudit(`Deleted API key ${req.params.id}`, "api_key_change", undefined, req.session.userId);
       await storage.deleteApiKey(req.params.id as string);
       res.json({ success: true });
     } catch (error) {
@@ -2386,6 +2400,7 @@ h1{color:#ef4444;font-size:1.5rem}p{color:#999;line-height:1.6}
         return res.status(400).json({ error: parsed.error.message });
       }
       const config = await storage.upsertOpenclawConfig(instanceId, parsed.data);
+      logAudit("Updated OpenClaw config", "config_change", Object.keys(parsed.data).join(", "), req.session.userId);
       if (parsed.data.whatsappEnabled !== undefined) {
         await storage.updateDockerServiceStatus("whatsapp-bridge", parsed.data.whatsappEnabled ? "running" : "stopped", instanceId);
         if (!isProductionRuntime) {
@@ -6920,6 +6935,21 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       console.error("[Startup] Guardian auto-scan failed:", err.message);
     }
   }, 3000);
+
+  app.get("/api/audit-logs", requireAuth, async (req, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+      const actionType = (req.query.actionType as string) || undefined;
+      const [logs, total] = await Promise.all([
+        storage.getAuditLogs(page, limit, actionType),
+        storage.getAuditLogCount(actionType),
+      ]);
+      res.json({ logs, total, page, limit, totalPages: Math.ceil(total / limit) });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch audit logs" });
+    }
+  });
 
   return httpServer;
 }

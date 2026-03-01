@@ -25,6 +25,7 @@ import {
   Store,
   Mail,
   Sparkles,
+  History,
 } from "lucide-react";
 import {
   Sidebar,
@@ -50,6 +51,7 @@ const navItems = [
   { title: "Admin", url: "/admin", icon: Shield },
   { title: "Marketplace", url: "/marketplace", icon: Store },
   { title: "Email Workflows", url: "/email-workflows", icon: Mail },
+  { title: "Activity Log", url: "/activity-log", icon: History },
 ];
 
 const settingsItems = [

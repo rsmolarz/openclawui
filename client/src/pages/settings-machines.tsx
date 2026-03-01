@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network, Link2, Zap, Server, ScreenShare, Pencil } from "lucide-react";
+import { Plus, Monitor, Trash2, Wifi, WifiOff, Copy, Info, ExternalLink, Terminal, ChevronDown, Clock, RefreshCw, Loader2, AlertCircle, CheckCircle2, Activity, Signal, ShieldCheck, ShieldX, Network, Link2, Zap, Server, ScreenShare, Pencil, Download } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
@@ -246,6 +247,8 @@ function NodeCard({
   gatewayPort,
   gatewayToken,
   vpsIp,
+  isSelected,
+  onToggleSelect,
 }: {
   machine: Machine;
   onDelete: (id: string) => void;
@@ -258,12 +261,23 @@ function NodeCard({
   gatewayPort: number;
   gatewayToken: string;
   vpsIp?: string;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const effectiveStatus = healthResult?.status || machine.status;
   return (
     <Card data-testid={`card-node-${machine.id}`}>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between gap-3">
+          {onToggleSelect && (
+            <div className="pt-1 shrink-0">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onToggleSelect(machine.id)}
+                data-testid={`checkbox-node-${machine.id}`}
+              />
+            </div>
+          )}
           <div className="flex items-start gap-3 min-w-0 flex-1">
             <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${effectiveStatus === "connected" ? "bg-green-500/10" : effectiveStatus === "disconnected" ? "bg-destructive/10" : "bg-muted"}`}>
               <Monitor className={`h-5 w-5 ${effectiveStatus === "connected" ? "text-green-600" : effectiveStatus === "disconnected" ? "text-destructive" : "text-muted-foreground"}`} />
@@ -1004,6 +1018,7 @@ export default function SettingsMachines() {
   const [checkingHealthIds, setCheckingHealthIds] = useState<Set<string>>(new Set());
   const [sshNodeResult, setSSHNodeResult] = useState<{ output?: string; error?: string } | null>(null);
   const [sshNodeRunning, setSSHNodeRunning] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { selectedInstanceId } = useInstance();
 
   const { data: machines, isLoading } = useQuery<Machine[]>({
@@ -1335,6 +1350,62 @@ export default function SettingsMachines() {
     for (const machine of machines) {
       handleHealthCheck(machine.id);
     }
+  };
+
+  const toggleSelectNode = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (!machinesWithLiveStatus || machinesWithLiveStatus.length === 0) return;
+    if (selectedIds.size === machinesWithLiveStatus.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(machinesWithLiveStatus.map((m) => m.id)));
+    }
+  };
+
+  const handleBulkRestart = async () => {
+    Array.from(selectedIds).forEach((id) => {
+      handleHealthCheck(id);
+    });
+    toast({ title: "Bulk health check", description: `Running health checks on ${selectedIds.size} node(s).` });
+  };
+
+  const handleBulkUpdateStatus = async () => {
+    Array.from(selectedIds).forEach((id) => {
+      updateMutation.mutate({ id, status: "connected" });
+    });
+    toast({ title: "Bulk status update", description: `Setting ${selectedIds.size} node(s) to connected.` });
+    setSelectedIds(new Set());
+  };
+
+  const handleExportCsv = () => {
+    if (!machinesWithLiveStatus) return;
+    const selected = machinesWithLiveStatus.filter((m) => selectedIds.has(m.id));
+    const headers = ["name", "displayName", "hostname", "ipAddress", "os", "status", "lastSeen"];
+    const rows = selected.map((m) =>
+      headers.map((h) => {
+        const val = m[h as keyof typeof m];
+        if (val === null || val === undefined) return "";
+        if (val instanceof Date) return val.toISOString();
+        return String(val).replace(/"/g, '""');
+      })
+    );
+    const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${v}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nodes-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV exported", description: `Exported ${selected.length} node(s) to CSV.` });
   };
 
   const onSubmit = (data: InsertMachine) => {
@@ -1798,7 +1869,56 @@ export default function SettingsMachines() {
 
       {machinesWithLiveStatus && machinesWithLiveStatus.length > 0 ? (
         <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tracked Nodes</h2>
+          <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Tracked Nodes</h2>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedIds.size === machinesWithLiveStatus.length && machinesWithLiveStatus.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                  data-testid="checkbox-select-all"
+                />
+                <span className="text-xs text-muted-foreground">Select All</span>
+              </div>
+            </div>
+          </div>
+
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 flex-wrap rounded-lg bg-muted/50 p-3 mb-4" data-testid="bar-bulk-actions">
+              <span className="text-sm font-medium" data-testid="text-selection-count">{selectedIds.size} node{selectedIds.size !== 1 ? "s" : ""} selected</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkRestart}
+                  disabled={checkingHealthIds.size > 0}
+                  data-testid="button-bulk-restart"
+                >
+                  <Activity className="h-3.5 w-3.5 mr-1.5" />
+                  Restart Selected
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkUpdateStatus}
+                  data-testid="button-bulk-update-status"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                  Update Status
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCsv}
+                  data-testid="button-bulk-export-csv"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Export CSV
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
             {machinesWithLiveStatus.map((machine) => (
               <NodeCard
@@ -1814,6 +1934,8 @@ export default function SettingsMachines() {
                 gatewayPort={gatewayPort}
                 gatewayToken={gatewayToken}
                 vpsIp={vpsIp}
+                isSelected={selectedIds.has(machine.id)}
+                onToggleSelect={toggleSelectNode}
               />
             ))}
           </div>
