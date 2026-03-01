@@ -1,6 +1,6 @@
 import { Client } from "ssh2";
 
-const SSH_TIMEOUT_MS = 30000;
+const SSH_TIMEOUT_MS = 60000;
 const CMD_TIMEOUT_MS = 120000;
 
 const ALLOWED_COMMANDS: Record<string, string> = {
@@ -165,51 +165,50 @@ print('Origins now:', json.dumps(origins, indent=2))
 print('Changed:', changed)
 "`,
   "deploy-virtual-nodes": `
-# Create isolated config directories for each virtual node
-NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo"
-
 # Read gateway auth from main config
 TOKEN=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d.get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null)
-PASSWORD=$(python3 -c "import json; d=json.load(open('/root/.openclaw/openclaw.json')); print(d.get('gateway',{}).get('auth',{}).get('password',''))" 2>/dev/null)
 
-for NODE in $NODES; do
+# Define virtual nodes: name:displayName
+VNODES="podcastpc:Podcast_PC vient1:vient1 frameworks:Everywhere vient4:Ryans_Patient_Computer rsmolarzbackup:RSmolarzBackup DESKTOP-NIMCP7B:Desktop travel-asusduo:Travel_AsusDuo iphone171:iPhone samsung-sm-x210:Samsung_Tablet"
+
+# Stop old services
+systemctl stop openclaw-virtual-nodes 2>/dev/null
+systemctl disable openclaw-virtual-nodes 2>/dev/null
+
+for ENTRY in $VNODES; do
+  NODE=$(echo "$ENTRY" | cut -d: -f1)
+  DNAME=$(echo "$ENTRY" | cut -d: -f2 | tr '_' ' ')
   DIR="/root/.openclaw-vnode-$NODE"
   mkdir -p "$DIR"
 
-  # Write a minimal config for this virtual node
+  # Write minimal config — only auth, no host/port (those are CLI flags)
   python3 -c "
-import json, os
+import json
 config = {
   'meta': {'lastTouchedVersion': '2026.2.28'},
   'gateway': {
     'mode': 'local',
-    'host': '127.0.0.1',
-    'port': 18789,
-    'auth': {}
+    'auth': {
+      'mode': 'token',
+      'token': '$TOKEN'
+    }
   }
 }
-token = '$TOKEN'
-password = '$PASSWORD'
-if token:
-    config['gateway']['auth'] = {'mode': 'token', 'token': token}
-elif password:
-    config['gateway']['auth'] = {'mode': 'password', 'password': password}
 with open('$DIR/openclaw.json', 'w') as f:
     json.dump(config, f, indent=2)
 "
 
-  # Create systemd service for this virtual node — use --display-name if supported, fallback to HOSTNAME override
+  # Create systemd service using CLI flags for host/port/display-name
   cat > "/etc/systemd/system/openclaw-vnode-$NODE.service" << SVCEOF
 [Unit]
-Description=OpenClaw Virtual Node ($NODE)
+Description=OpenClaw Virtual Node ($DNAME)
 After=network.target
 
 [Service]
 Type=simple
 Environment=OPENCLAW_CONFIG_PATH=$DIR/openclaw.json
 Environment=OPENCLAW_STATE_DIR=$DIR
-Environment=HOSTNAME=$NODE
-ExecStart=/bin/sh -c 'exec /usr/bin/openclaw node run 2>&1'
+ExecStart=/usr/bin/openclaw node run --host 127.0.0.1 --port 18789 --display-name "$DNAME"
 Restart=always
 RestartSec=30
 
@@ -217,32 +216,35 @@ RestartSec=30
 WantedBy=multi-user.target
 SVCEOF
 
-  echo "Created virtual node: $NODE"
+  echo "Created virtual node: $NODE ($DNAME)"
 done
-
-# Stop the old virtual-nodes service if running
-systemctl stop openclaw-virtual-nodes 2>/dev/null
-systemctl disable openclaw-virtual-nodes 2>/dev/null
 
 # Enable and start all virtual node services
 systemctl daemon-reload
-for NODE in $NODES; do
+for ENTRY in $VNODES; do
+  NODE=$(echo "$ENTRY" | cut -d: -f1)
   systemctl enable "openclaw-vnode-$NODE" 2>/dev/null
   systemctl restart "openclaw-vnode-$NODE" 2>/dev/null
   echo "Started openclaw-vnode-$NODE"
 done
 
-sleep 5
+sleep 8
 echo "---STATUS---"
-for NODE in $NODES; do
+for ENTRY in $VNODES; do
+  NODE=$(echo "$ENTRY" | cut -d: -f1)
   STATUS=$(systemctl is-active "openclaw-vnode-$NODE" 2>/dev/null)
   echo "$NODE: $STATUS"
 done
 echo "---LOG---"
-journalctl -u 'openclaw-vnode-*' --no-pager -n 30 2>/dev/null || echo "No logs yet"`,
-  "virtual-nodes-status": `NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo" && for NODE in $NODES; do STATUS=$(systemctl is-active "openclaw-vnode-$NODE" 2>/dev/null || echo "not found"); echo "$NODE: $STATUS"; done && echo "---LOG---" && for NODE in $NODES; do echo "=== $NODE ===" && journalctl -u "openclaw-vnode-$NODE" --no-pager -n 5 2>/dev/null; done`,
-  "virtual-nodes-stop": `NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo" && for NODE in $NODES; do systemctl stop "openclaw-vnode-$NODE" 2>/dev/null; systemctl disable "openclaw-vnode-$NODE" 2>/dev/null; echo "Stopped $NODE"; done && systemctl stop openclaw-virtual-nodes 2>/dev/null; echo "All virtual nodes stopped"`,
-  "examine-node-protocol": `echo "=== CLI HELP ===" && openclaw --help 2>&1 | head -40 && echo "---NODE-HELP---" && openclaw node --help 2>&1 | head -40 && echo "---NODE-JSON---" && cat /root/.openclaw/openclaw.json 2>/dev/null | head -60 && echo "---GATEWAY-HELP---" && openclaw gateway --help 2>&1 | head -30 && echo "---PROC---" && ps aux | grep openclaw-node | grep -v grep && echo "---CMDLINE---" && cat /proc/$(pgrep -f openclaw-node | head -1)/cmdline 2>/dev/null | tr '\\0' ' ' ; echo`,
+for ENTRY in $VNODES; do
+  NODE=$(echo "$ENTRY" | cut -d: -f1)
+  echo "=== $NODE ==="
+  journalctl -u "openclaw-vnode-$NODE" --no-pager -n 3 2>/dev/null
+done`,
+  "virtual-nodes-status": `NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo iphone171 samsung-sm-x210" && for NODE in $NODES; do STATUS=$(systemctl is-active "openclaw-vnode-$NODE" 2>/dev/null || echo "not found"); echo "$NODE: $STATUS"; done && echo "---LOG---" && for NODE in $NODES; do echo "=== $NODE ===" && journalctl -u "openclaw-vnode-$NODE" --no-pager -n 3 2>/dev/null; done`,
+  "virtual-nodes-stop": `pkill -f 'openclaw-vnode-' 2>/dev/null; pkill -f 'openclaw node run' 2>/dev/null; sleep 2; NODES="podcastpc vient1 frameworks vient4 rsmolarzbackup DESKTOP-NIMCP7B travel-asusduo iphone171 samsung-sm-x210" && for NODE in $NODES; do systemctl stop "openclaw-vnode-$NODE" 2>/dev/null; systemctl disable "openclaw-vnode-$NODE" 2>/dev/null; done; systemctl stop openclaw-virtual-nodes 2>/dev/null; echo "All virtual nodes killed and stopped"`,
+  "kill-virtual-nodes": "pkill -9 -f 'openclaw node run' 2>/dev/null; echo 'Killed all openclaw node run processes'; ps aux | grep 'openclaw node' | grep -v grep | wc -l",
+  "examine-node-protocol": `echo "=== MAIN CONFIG ===" && cat /root/.openclaw/openclaw.json 2>&1 && echo "---VNODE-CONFIG---" && cat /root/.openclaw-vnode-frameworks/openclaw.json 2>&1 && echo "---NODE-RUN-HELP---" && openclaw node run --help 2>&1 | head -30 && echo "---DEVICES---" && openclaw devices list 2>&1 | head -20`,
   "virtual-nodes-restart": "systemctl restart openclaw-virtual-nodes; sleep 3; systemctl status openclaw-virtual-nodes --no-pager | head -15; echo '---LOG---'; journalctl -u openclaw-virtual-nodes --no-pager -n 20",
 };
 
