@@ -29,6 +29,7 @@ import {
   Sparkles,
   History,
   Code2,
+  AudioWaveform,
 } from "lucide-react";
 import {
   Sidebar,
@@ -58,6 +59,7 @@ const navItems = [
   { title: "Email Workflows", url: "/email-workflows", icon: Mail },
   { title: "Activity Log", url: "/activity-log", icon: History },
   { title: "Replit Projects", url: "/replit-projects", icon: Code2 },
+  { title: "Voice Chat", url: "/voice-chat", icon: AudioWaveform },
 ];
 
 const settingsItems = [

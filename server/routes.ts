@@ -7193,6 +7193,76 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
     }
   });
 
+  // ── Voice Chat ──
+  app.post("/api/voice/chat", requireAuth, async (req, res) => {
+    try {
+      const { message, history } = req.body;
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      const chatHistory = (history || []).map((m: any) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+
+      const { chat } = await import("./bot/openrouter");
+      const response = await chat(message, "Voice User", "voice-chat", chatHistory);
+
+      logAudit("Voice chat message", "voice_chat", undefined, req.session.userId);
+      res.json({ text: response.text, imagePrompt: response.imagePrompt || null });
+    } catch (error: any) {
+      console.error("[Voice Chat] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/voice/tts", requireAuth, async (req, res) => {
+    try {
+      const { text, voice } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Text is required" });
+      }
+
+      const validVoices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+      const selectedVoice = validVoices.includes(voice) ? voice : "nova";
+
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "OpenAI API key not configured for TTS" });
+      }
+
+      const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "tts-1",
+          input: text.substring(0, 4096),
+          voice: selectedVoice,
+          response_format: "mp3",
+        }),
+      });
+
+      if (!ttsRes.ok) {
+        const errText = await ttsRes.text();
+        console.error("[TTS] OpenAI error:", errText);
+        return res.status(502).json({ error: "TTS generation failed" });
+      }
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "no-cache");
+
+      const arrayBuffer = await ttsRes.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (error: any) {
+      console.error("[TTS] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ── Omi Integration ──
   app.get("/api/omi/status", requireAuth, async (_req, res) => {
     try {
