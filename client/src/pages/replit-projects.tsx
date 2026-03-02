@@ -12,10 +12,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Code2, RefreshCw, Plus, ExternalLink, Pencil, Trash2,
   Globe, Lock, Search, Activity, CheckCircle2, XCircle,
-  Clock, AlertTriangle, Loader2,
+  Clock, AlertTriangle, Loader2, Upload,
 } from "lucide-react";
 import type { ReplitProject } from "@shared/schema";
 
@@ -374,6 +375,7 @@ export default function ReplitProjects() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [syncUsername, setSyncUsername] = useState("");
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [bulkJson, setBulkJson] = useState("");
 
   const { data: projects, isLoading } = useQuery<ReplitProject[]>({
     queryKey: ["/api/replit-projects"],
@@ -387,11 +389,29 @@ export default function ReplitProjects() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/replit-projects"] });
-      toast({ title: "Sync complete", description: `${data.total} projects found (${data.created} new, ${data.updated} updated)` });
+      const msg = data.note || `${data.total} projects found (${data.created} new, ${data.updated} updated)`;
+      toast({ title: "Sync complete", description: msg });
       setSyncDialogOpen(false);
     },
     onError: (err: any) => {
       toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const bulkImportMutation = useMutation({
+    mutationFn: async (jsonStr: string) => {
+      const projects = JSON.parse(jsonStr);
+      const res = await apiRequest("POST", "/api/replit-projects/bulk-import", { projects: Array.isArray(projects) ? projects : [projects] });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/replit-projects"] });
+      toast({ title: "Import complete", description: `${data.created} projects imported, ${data.skipped} skipped` });
+      setSyncDialogOpen(false);
+      setBulkJson("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -439,8 +459,8 @@ export default function ReplitProjects() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setSyncDialogOpen(true)} data-testid="button-sync-replit">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Sync from Replit
+            <Upload className="h-4 w-4 mr-2" />
+            Import Projects
           </Button>
           <Button variant="outline" size="sm" onClick={() => checkAllMutation.mutate()} disabled={checkAllMutation.isPending || !projects?.some((p) => p.deploymentUrl)} data-testid="button-check-all-deployments">
             {checkAllMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
@@ -530,8 +550,8 @@ export default function ReplitProjects() {
           {projects?.length === 0 && (
             <div className="flex items-center gap-2 justify-center">
               <Button variant="outline" onClick={() => setSyncDialogOpen(true)} data-testid="button-empty-sync">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Sync from Replit
+                <Upload className="h-4 w-4 mr-2" />
+                Import Projects
               </Button>
               <Button onClick={() => setAddOpen(true)} data-testid="button-empty-add">
                 <Plus className="h-4 w-4 mr-2" />
@@ -551,36 +571,64 @@ export default function ReplitProjects() {
       <AddProjectDialog open={addOpen} onOpenChange={setAddOpen} />
 
       <Dialog open={syncDialogOpen} onOpenChange={setSyncDialogOpen}>
-        <DialogContent data-testid="dialog-sync-replit">
+        <DialogContent className="max-w-lg" data-testid="dialog-sync-replit">
           <DialogHeader>
-            <DialogTitle>Sync from Replit</DialogTitle>
+            <DialogTitle>Import Projects</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enter your Replit username to sync all your projects. You'll also need to set your Replit session cookie
-              (<code className="text-xs bg-muted px-1 py-0.5 rounded">REPLIT_SID</code>) in your environment secrets.
-            </p>
-            <div>
-              <Label>Replit Username</Label>
-              <Input
-                value={syncUsername}
-                onChange={(e) => setSyncUsername(e.target.value)}
-                placeholder="your-replit-username"
-                data-testid="input-sync-username"
+          <Tabs defaultValue="sync">
+            <TabsList className="w-full">
+              <TabsTrigger value="sync" className="flex-1">Profile Sync</TabsTrigger>
+              <TabsTrigger value="bulk" className="flex-1">Bulk Import</TabsTrigger>
+            </TabsList>
+            <TabsContent value="sync" className="space-y-4 mt-4">
+              <p className="text-sm text-muted-foreground">
+                Sync public projects from your Replit profile. Requires <code className="text-xs bg-muted px-1 py-0.5 rounded">REPLIT_SID</code> in Secrets.
+              </p>
+              <div>
+                <Label>Replit Username</Label>
+                <Input
+                  value={syncUsername}
+                  onChange={(e) => setSyncUsername(e.target.value)}
+                  placeholder="your-replit-username"
+                  data-testid="input-sync-username"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSyncDialogOpen(false)} data-testid="button-cancel-sync">Cancel</Button>
+                <Button
+                  onClick={() => syncMutation.mutate(syncUsername)}
+                  disabled={!syncUsername || syncMutation.isPending}
+                  data-testid="button-submit-sync"
+                >
+                  {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Sync Profile
+                </Button>
+              </div>
+            </TabsContent>
+            <TabsContent value="bulk" className="space-y-4 mt-4">
+              <p className="text-sm text-muted-foreground">
+                Paste a JSON array of projects. Each project needs at least a <code className="text-xs bg-muted px-1 py-0.5 rounded">title</code> or <code className="text-xs bg-muted px-1 py-0.5 rounded">slug</code>.
+              </p>
+              <Textarea
+                value={bulkJson}
+                onChange={(e) => setBulkJson(e.target.value)}
+                placeholder={`[\n  { "title": "My App", "slug": "my-app", "url": "https://replit.com/@user/my-app", "language": "TypeScript" },\n  { "title": "Another App", "slug": "another-app", "language": "Python" }\n]`}
+                className="font-mono text-xs min-h-[160px]"
+                data-testid="input-bulk-json"
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSyncDialogOpen(false)} data-testid="button-cancel-sync">Cancel</Button>
-            <Button
-              onClick={() => syncMutation.mutate(syncUsername)}
-              disabled={!syncUsername || syncMutation.isPending}
-              data-testid="button-submit-sync"
-            >
-              {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Start Sync
-            </Button>
-          </DialogFooter>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSyncDialogOpen(false)}>Cancel</Button>
+                <Button
+                  onClick={() => bulkImportMutation.mutate(bulkJson)}
+                  disabled={!bulkJson.trim() || bulkImportMutation.isPending}
+                  data-testid="button-submit-bulk"
+                >
+                  {bulkImportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                  Import Projects
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

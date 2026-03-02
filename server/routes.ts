@@ -7002,66 +7002,51 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
         return res.status(400).json({ error: "Provide a username in the request body or set REPLIT_USERNAME in Secrets." });
       }
 
-      const query = `query UserRepls($username: String!, $after: String) {
-        userByUsername(username: $username) {
-          repls(after: $after, count: 50) {
-            items {
-              id
-              slug
-              title
-              description
-              url
-              language
-              imageUrl
-              isPrivate
-              deployment { id }
-              hostedUrl
-            }
-            pageInfo { hasNextPage nextCursor }
-          }
-        }
-      }`;
+      const headers = {
+        "Cookie": `connect.sid=${sid}`,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "text/html",
+      };
 
+      const profileRes = await fetch(`https://replit.com/@${username}`, { headers });
+      if (!profileRes.ok) {
+        return res.status(502).json({ error: `Failed to fetch profile: ${profileRes.status}` });
+      }
+      const html = await profileRes.text();
+      const match = html.match(/__NEXT_DATA__[^>]*>(.*?)<\/script>/);
+      if (!match) {
+        return res.status(502).json({ error: "Could not parse profile page data" });
+      }
+
+      const nextData = JSON.parse(match[1]);
+      const apollo = nextData?.props?.apolloState || {};
       const allRepls: any[] = [];
-      let after: string | null = null;
-      let hasNext = true;
 
-      while (hasNext) {
-        const gqlRes = await fetch("https://replit.com/graphql", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Cookie": `connect.sid=${sid}`,
-            "X-Requested-With": "XMLHttpRequest",
-            "User-Agent": "OpenClaw-Dashboard/1.0",
-          },
-          body: JSON.stringify({ query, variables: { username, after } }),
-        });
-
-        if (!gqlRes.ok) {
-          const text = await gqlRes.text();
-          return res.status(502).json({ error: `Replit API error: ${gqlRes.status}`, details: text });
+      for (const [key, value] of Object.entries(apollo)) {
+        if (key.startsWith("Repl:") && typeof value === "object" && value !== null) {
+          const v = value as any;
+          allRepls.push({
+            id: v.id || key.replace("Repl:", ""),
+            slug: v.slug,
+            title: v.title,
+            description: v.description,
+            url: v.url,
+            language: v.language,
+            imageUrl: v.imageUrl,
+            isPrivate: v.isPrivate,
+            deployment: v.deployment,
+            hostedUrl: v.hostedUrl,
+          });
         }
-
-        const json = await gqlRes.json();
-        const userData = json.data?.userByUsername;
-        if (!userData) {
-          return res.status(400).json({ error: "User not found or API returned no data", details: json.errors });
-        }
-
-        const items = userData.repls?.items || [];
-        allRepls.push(...items);
-
-        const pageInfo = userData.repls?.pageInfo;
-        hasNext = pageInfo?.hasNextPage ?? false;
-        after = pageInfo?.nextCursor ?? null;
       }
 
       let created = 0;
       let updated = 0;
 
       for (const repl of allRepls) {
-        const existing = await storage.getReplitProjectByReplitId(String(repl.id));
+        if (!repl.slug && !repl.title) continue;
+        const replitId = String(repl.id);
+        const existing = await storage.getReplitProjectByReplitId(replitId);
         const deploymentUrl = repl.hostedUrl || (repl.deployment ? `https://${repl.slug}.replit.app` : null);
 
         if (existing) {
@@ -7079,14 +7064,14 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
           updated++;
         } else {
           await storage.createReplitProject({
-            slug: repl.slug,
+            slug: repl.slug || repl.title,
             title: repl.title || repl.slug,
             description: repl.description || null,
             url: repl.url || `https://replit.com/@${username}/${repl.slug}`,
             language: repl.language || null,
             imageUrl: repl.imageUrl || null,
             isPrivate: repl.isPrivate ?? false,
-            replitId: String(repl.id),
+            replitId,
             deploymentUrl: deploymentUrl,
             status: "active",
             deploymentStatus: repl.deployment ? "deployed" : null,
@@ -7099,11 +7084,55 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
         }
       }
 
-      logAudit(`Synced ${allRepls.length} Replit projects (${created} new, ${updated} updated)`, "replit_project", undefined, req.session.userId);
-      res.json({ total: allRepls.length, created, updated });
+      logAudit(`Synced Replit projects from profile (${created} new, ${updated} updated)`, "replit_project", undefined, req.session.userId);
+      res.json({ total: allRepls.length, created, updated, source: "profile", note: allRepls.length === 0 ? "No public repls found on profile. Use bulk import to add projects manually." : undefined });
     } catch (error: any) {
       console.error("[Replit Sync] Error:", error.message);
       res.status(500).json({ error: "Failed to sync from Replit", details: error.message });
+    }
+  });
+
+  app.post("/api/replit-projects/bulk-import", requireAuth, async (req, res) => {
+    try {
+      const { projects } = req.body;
+      if (!Array.isArray(projects) || projects.length === 0) {
+        return res.status(400).json({ error: "Provide a 'projects' array with at least one project" });
+      }
+
+      let created = 0;
+      let skipped = 0;
+
+      for (const proj of projects) {
+        if (!proj.title && !proj.slug) { skipped++; continue; }
+        const slug = proj.slug || proj.title.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-");
+        const existingProjects = await storage.getReplitProjects();
+        const exists = existingProjects.find(p => p.slug === slug || (proj.replitId && p.replitId === String(proj.replitId)));
+        if (exists) { skipped++; continue; }
+
+        await storage.createReplitProject({
+          slug,
+          title: proj.title || slug,
+          description: proj.description || null,
+          url: proj.url || `https://replit.com/@${req.body.username || process.env.REPLIT_USERNAME || "user"}/${slug}`,
+          language: proj.language || null,
+          imageUrl: proj.imageUrl || null,
+          isPrivate: proj.isPrivate ?? false,
+          replitId: proj.replitId ? String(proj.replitId) : null,
+          deploymentUrl: proj.deploymentUrl || null,
+          status: proj.status || "active",
+          deploymentStatus: null,
+          lastSynced: null,
+          notes: proj.notes || null,
+          tags: proj.tags || null,
+          progress: proj.progress || 0,
+        });
+        created++;
+      }
+
+      logAudit(`Bulk imported ${created} Replit projects (${skipped} skipped)`, "replit_project", undefined, req.session.userId);
+      res.json({ created, skipped, total: projects.length });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to bulk import", details: error.message });
     }
   });
 
