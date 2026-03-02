@@ -25,11 +25,13 @@ import {
   type EmailWorkflow, type InsertEmailWorkflow,
   type AuditLog, type InsertAuditLog,
   type ReplitProject, type InsertReplitProject,
+  type ProjectEvaluation, type InsertProjectEvaluation,
+  type OmiTodo, type InsertOmiTodo,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
-  auditLogs, replitProjects,
+  auditLogs, replitProjects, projectEvaluations, omiTodos,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -171,6 +173,13 @@ export interface IStorage {
   createReplitProject(data: InsertReplitProject): Promise<ReplitProject>;
   updateReplitProject(id: string, data: Partial<InsertReplitProject> & { lastSynced?: Date; updatedAt?: Date }): Promise<ReplitProject | undefined>;
   deleteReplitProject(id: string): Promise<void>;
+
+  getLatestProjectEvaluation(): Promise<ProjectEvaluation | undefined>;
+  createProjectEvaluation(data: InsertProjectEvaluation): Promise<ProjectEvaluation>;
+
+  getOmiTodos(status?: string): Promise<OmiTodo[]>;
+  createOmiTodo(data: InsertOmiTodo): Promise<OmiTodo>;
+  updateOmiTodo(id: string, data: Partial<InsertOmiTodo>): Promise<OmiTodo | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -869,6 +878,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteReplitProject(id: string): Promise<void> {
     await db.delete(replitProjects).where(eq(replitProjects.id, id));
+  }
+
+  async getLatestProjectEvaluation(): Promise<ProjectEvaluation | undefined> {
+    const [evaluation] = await db.select().from(projectEvaluations).orderBy(desc(projectEvaluations.evaluatedAt)).limit(1);
+    return evaluation;
+  }
+
+  async createProjectEvaluation(data: InsertProjectEvaluation): Promise<ProjectEvaluation> {
+    const [evaluation] = await db.insert(projectEvaluations).values(data).returning();
+    return evaluation;
+  }
+
+  async getOmiTodos(status?: string): Promise<OmiTodo[]> {
+    if (status) {
+      return db.select().from(omiTodos).where(eq(omiTodos.status, status)).orderBy(desc(omiTodos.createdAt));
+    }
+    return db.select().from(omiTodos).orderBy(desc(omiTodos.createdAt));
+  }
+
+  async createOmiTodo(data: InsertOmiTodo): Promise<OmiTodo> {
+    const [todo] = await db.insert(omiTodos).values(data).returning();
+    return todo;
+  }
+
+  async updateOmiTodo(id: string, data: Partial<InsertOmiTodo>): Promise<OmiTodo | undefined> {
+    const [todo] = await db.update(omiTodos).set(data).where(eq(omiTodos.id, id)).returning();
+    return todo;
   }
 }
 

@@ -426,3 +426,30 @@ export const replitProjects = pgTable("replit_projects", {
 export const insertReplitProjectSchema = createInsertSchema(replitProjects).omit({ id: true, createdAt: true, updatedAt: true });
 export type ReplitProject = typeof replitProjects.$inferSelect;
 export type InsertReplitProject = z.infer<typeof insertReplitProjectSchema>;
+
+export const projectEvaluations = pgTable("project_evaluations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectScores: text("project_scores").notNull(),
+  recommendations: text("recommendations"),
+  evaluatedAt: timestamp("evaluated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertProjectEvaluationSchema = createInsertSchema(projectEvaluations).omit({ id: true, createdAt: true });
+export type ProjectEvaluation = typeof projectEvaluations.$inferSelect;
+export type InsertProjectEvaluation = z.infer<typeof insertProjectEvaluationSchema>;
+
+export const omiTodos = pgTable("omi_todos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  content: text("content").notNull(),
+  source: text("source"),
+  sourceTitle: text("source_title"),
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("medium"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const insertOmiTodoSchema = createInsertSchema(omiTodos).omit({ id: true, createdAt: true });
+export type OmiTodo = typeof omiTodos.$inferSelect;
+export type InsertOmiTodo = z.infer<typeof insertOmiTodoSchema>;
