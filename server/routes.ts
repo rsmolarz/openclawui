@@ -3688,10 +3688,13 @@ setInterval(sendHeartbeat, INTERVAL_MS);
     console.error("[Nodes] Failed to set nodes connected on startup:", e.message);
   }
 
-  // ===== Periodic Skill Discovery (3x daily / every 8 hours) =====
-  const SKILL_CHECK_INTERVAL = 8 * 60 * 60 * 1000;
+  // ===== Periodic Skill Discovery (hourly) =====
+  const SKILL_CHECK_INTERVAL = 1 * 60 * 60 * 1000;
   let lastSkillCheck: Date | null = null;
   let skillCheckRunning = false;
+  let newSkillCount = 0;
+  let newSkillNames: string[] = [];
+  let previousNewCount = 0;
 
   async function checkForNewSkills() {
     if (skillCheckRunning) return;
@@ -3700,6 +3703,10 @@ setInterval(sendHeartbeat, INTERVAL_MS);
       const installed = await storage.getSkills();
       const installedIds = new Set(installed.map(s => s.skillId));
       const newSkills = SKILLS_CATALOG.filter(s => !installedIds.has(s.skillId));
+
+      previousNewCount = newSkillCount;
+      newSkillCount = newSkills.length;
+      newSkillNames = newSkills.map(s => s.name);
 
       if (newSkills.length > 0) {
         console.log(`[Skills] Found ${newSkills.length} new skills available in catalog`);
@@ -3739,7 +3746,7 @@ setInterval(sendHeartbeat, INTERVAL_MS);
       }
 
       lastSkillCheck = new Date();
-      console.log(`[Skills] Periodic check complete: ${installed.length} installed, ${newSkills.length} new available`);
+      console.log(`[Skills] Periodic check complete: ${installed.length} installed, ${newSkillCount} new available`);
     } catch (e: any) {
       console.error("[Skills] Periodic check failed:", e.message);
     } finally {
@@ -3760,7 +3767,24 @@ setInterval(sendHeartbeat, INTERVAL_MS);
       nextCheck: nextCheck.toISOString(),
       intervalHours: SKILL_CHECK_INTERVAL / 3600000,
       isRunning: skillCheckRunning,
+      newSkillCount,
+      newSkillNames: newSkillNames.slice(0, 10),
     });
+  });
+
+  app.get("/api/skills/new-count", requireAuth, async (_req, res) => {
+    try {
+      const installed = await storage.getSkills();
+      const installedIds = new Set(installed.map(s => s.skillId));
+      const available = SKILLS_CATALOG.filter(s => !installedIds.has(s.skillId));
+      res.json({
+        count: available.length,
+        names: available.slice(0, 5).map(s => s.name),
+        lastCheck: lastSkillCheck?.toISOString() || null,
+      });
+    } catch {
+      res.json({ count: newSkillCount, names: newSkillNames.slice(0, 5), lastCheck: lastSkillCheck?.toISOString() || null });
+    }
   });
 
   app.post("/api/skills/check-now", requireAuth, async (_req, res) => {

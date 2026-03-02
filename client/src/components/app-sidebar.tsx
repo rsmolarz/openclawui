@@ -1,4 +1,6 @@
 import { useLocation, Link } from "wouter";
+import { useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Settings,
@@ -40,8 +42,10 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 const navItems = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
@@ -82,12 +86,37 @@ const infraItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, isLoggingOut } = useAuth();
+  const { toast } = useToast();
+  const prevCountRef = useRef<number | null>(null);
+
+  const { data: skillStatus } = useQuery<{ count: number; names: string[]; lastCheck: string | null }>({
+    queryKey: ["/api/skills/new-count"],
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+
+  const newSkillCount = skillStatus?.count || 0;
+
+  useEffect(() => {
+    if (prevCountRef.current !== null && newSkillCount > prevCountRef.current) {
+      const diff = newSkillCount - prevCountRef.current;
+      const names = skillStatus?.names?.slice(0, 3).join(", ") || "";
+      toast({
+        title: `${diff} new skill${diff > 1 ? "s" : ""} available`,
+        description: names ? `Including: ${names}` : "Check the Marketplace to install them",
+      });
+    }
+    prevCountRef.current = newSkillCount;
+  }, [newSkillCount, skillStatus?.names, toast]);
+
+  const badgePages = new Set(["/marketplace", "/settings/skills"]);
 
   const renderNavItem = (item: { title: string; url: string; icon: React.ElementType }) => {
     const isActive =
       item.url === "/"
         ? location === "/"
         : location.startsWith(item.url);
+    const showBadge = badgePages.has(item.url) && newSkillCount > 0;
     return (
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton
@@ -97,7 +126,12 @@ export function AppSidebar() {
         >
           <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
             <item.icon className="h-4 w-4" />
-            <span>{item.title}</span>
+            <span className="flex-1">{item.title}</span>
+            {showBadge && (
+              <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1.5 text-[10px] font-bold" data-testid={`badge-new-skills-${item.title.toLowerCase()}`}>
+                {newSkillCount}
+              </Badge>
+            )}
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>

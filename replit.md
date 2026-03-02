@@ -76,12 +76,14 @@ Machines report their status via a lightweight heartbeat agent:
 - **Install Agent Dialog**: UI in `settings-machines.tsx` provides one-liner commands and download instructions for Windows/Linux/macOS.
 
 ## Periodic Skill Discovery
-The platform automatically checks for new skills 3 times daily (every 8 hours):
-- **Automatic checks**: Runs `checkForNewSkills()` on a `setInterval` every 8h, plus 30s after startup.
+The platform automatically checks for new skills every hour:
+- **Automatic checks**: Runs `checkForNewSkills()` on a `setInterval` every 1h, plus 30s after startup.
 - **What it does**: Compares installed skills against the catalog, runs `openclaw skills list` and `clawhub sync --all` on VPS via SSH.
-- **Manual trigger**: `POST /api/skills/check-now` starts an immediate check; `GET /api/skills/check-status` returns last/next check times.
-- **UI**: Skills page shows a "Check for New Skills" button and auto-check status bar with last/next check times.
-- **Files**: `server/routes.ts` (periodic check logic), `client/src/pages/settings-skills.tsx` (UI).
+- **Manual trigger**: `POST /api/skills/check-now` starts an immediate check; `GET /api/skills/check-status` returns last/next check times + new skill count/names.
+- **New skill count endpoint**: `GET /api/skills/new-count` returns `{count, names, lastCheck}` for sidebar badge display.
+- **Sidebar badges**: Red notification badges appear on "Marketplace" and "Skills" nav items showing the count of uninstalled skills. Badges update every 60s via polling.
+- **Toast notifications**: When the new skill count increases between polls, a toast notification fires showing how many new skills appeared and their names.
+- **Files**: `server/routes.ts` (periodic check logic), `client/src/components/app-sidebar.tsx` (badges + toast), `client/src/pages/settings-skills.tsx` (UI).
 
 ## Gemini Anti-Gravity Proxy
 An OpenAI-compatible proxy for Google Gemini models, integrated directly into the Express server:
