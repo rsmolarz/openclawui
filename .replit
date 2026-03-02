@@ -53,6 +53,7 @@ HA_URL = "https://7dh9qbje0m4st3shm4vmud3hxiikcpxp.ui.nabu.casa"
 HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJlOGY5OWZlNGUxY2M0N2ExYTQzNDllOTI3ZmUxYTEzMiIsImlhdCI6MTc3MjMyMzA3MSwiZXhwIjoyMDg3NjgzMDcxfQ.txLvSV8fh14sMYERn4jhtGscc8LPPsdD2nFucGqgWJU"
 COMPANION_URL = "http://100.72.2.3:8000"
 STREAMDECK_URL = "http://100.72.2.3"
+REPLIT_USERNAME = "rsmolarz"
 
 [userenv.production]
 APP_BASE_URL = "https://claw-settings.replit.app"
