@@ -985,6 +985,192 @@ def mqtt_list_topics(duration: int = 3):
     except Exception as e:
         return {"error": str(e)}`,
     },
+    "desktop-control": {
+      skillMd: `---
+name: desktop.control
+description: Advanced desktop automation with pixel-perfect mouse control, keyboard input, screen capture, window management, clipboard, and drag-and-drop. The most comprehensive desktop control skill for OpenClaw.
+tools:
+  - move_mouse
+  - move_relative
+  - click
+  - double_click
+  - right_click
+  - middle_click
+  - drag
+  - scroll
+  - get_mouse_position
+  - type_text
+  - press
+  - hotkey
+  - key_down
+  - key_up
+  - screenshot
+  - get_pixel_color
+  - get_screen_size
+  - find_on_screen
+  - get_all_windows
+  - activate_window
+  - get_active_window
+  - copy_to_clipboard
+  - get_from_clipboard
+  - pause
+---
+
+Advanced desktop automation with pixel-perfect mouse, keyboard, screen capture, window management, and clipboard control.
+Requires: pip install pyautogui pillow pygetwindow pyperclip
+Optional: pip install opencv-python (for image recognition)
+Safety: failsafe enabled by default (move mouse to corner to abort). Approval mode available.`,
+      handlerPy: `import pyautogui
+import time
+import sys
+from typing import Tuple, Optional, List
+from pathlib import Path
+import logging
+
+pyautogui.MINIMUM_DURATION = 0
+pyautogui.MINIMUM_SLEEP = 0
+pyautogui.PAUSE = 0
+
+logger = logging.getLogger(__name__)
+
+_failsafe = True
+pyautogui.FAILSAFE = True
+_screen_w, _screen_h = pyautogui.size()
+
+def move_mouse(x: int, y: int, duration: float = 0, smooth: bool = True):
+    if smooth and duration > 0:
+        pyautogui.moveTo(x, y, duration=duration, tween=pyautogui.easeInOutQuad)
+    else:
+        pyautogui.moveTo(x, y, duration=duration)
+    return {"status": "moved", "x": x, "y": y}
+
+def move_relative(x_offset: int, y_offset: int, duration: float = 0):
+    pyautogui.move(x_offset, y_offset, duration=duration)
+    pos = pyautogui.position()
+    return {"status": "moved", "x": pos.x, "y": pos.y}
+
+def click(x: int = None, y: int = None, button: str = "left", clicks: int = 1, interval: float = 0.1):
+    pyautogui.click(x=x, y=y, clicks=clicks, interval=interval, button=button)
+    pos = pyautogui.position()
+    return {"status": "clicked", "button": button, "clicks": clicks, "x": pos.x, "y": pos.y}
+
+def double_click(x: int = None, y: int = None):
+    pyautogui.doubleClick(x=x, y=y)
+    return {"status": "double_clicked", "x": x, "y": y}
+
+def right_click(x: int = None, y: int = None):
+    pyautogui.rightClick(x=x, y=y)
+    return {"status": "right_clicked", "x": x, "y": y}
+
+def middle_click(x: int = None, y: int = None):
+    pyautogui.middleClick(x=x, y=y)
+    return {"status": "middle_clicked"}
+
+def drag(start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.5, button: str = "left"):
+    pyautogui.moveTo(start_x, start_y)
+    pyautogui.drag(end_x - start_x, end_y - start_y, duration=duration, button=button)
+    return {"status": "dragged", "from": [start_x, start_y], "to": [end_x, end_y]}
+
+def scroll(clicks: int, x: int = None, y: int = None):
+    pyautogui.scroll(clicks, x=x, y=y)
+    return {"status": "scrolled", "clicks": clicks}
+
+def get_mouse_position():
+    pos = pyautogui.position()
+    return {"x": pos.x, "y": pos.y}
+
+def type_text(text: str, interval: float = 0, wpm: int = None):
+    if wpm:
+        interval = 60.0 / (wpm * 5)
+    pyautogui.write(text, interval=interval)
+    return {"status": "typed", "length": len(text)}
+
+def press(key: str, presses: int = 1, interval: float = 0.05):
+    pyautogui.press(key, presses=presses, interval=interval)
+    return {"status": "pressed", "key": key, "presses": presses}
+
+def hotkey(*keys):
+    pyautogui.hotkey(*keys)
+    return {"status": "hotkey", "keys": list(keys)}
+
+def key_down(key: str):
+    pyautogui.keyDown(key)
+    return {"status": "key_down", "key": key}
+
+def key_up(key: str):
+    pyautogui.keyUp(key)
+    return {"status": "key_up", "key": key}
+
+def screenshot(filename: str = None, region: tuple = None):
+    img = pyautogui.screenshot(region=region)
+    path = filename or "/tmp/screenshot.png"
+    img.save(path)
+    return {"status": "captured", "path": path, "size": [img.width, img.height]}
+
+def get_pixel_color(x: int, y: int):
+    r, g, b = pyautogui.pixel(x, y)
+    return {"r": r, "g": g, "b": b, "hex": f"#{r:02x}{g:02x}{b:02x}"}
+
+def get_screen_size():
+    w, h = pyautogui.size()
+    return {"width": w, "height": h}
+
+def find_on_screen(image_path: str, confidence: float = 0.8):
+    try:
+        location = pyautogui.locateOnScreen(image_path, confidence=confidence)
+        if location:
+            center = pyautogui.center(location)
+            return {"found": True, "x": center.x, "y": center.y, "region": [location.left, location.top, location.width, location.height]}
+        return {"found": False}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_all_windows():
+    try:
+        import pygetwindow as gw
+        return [{"title": w.title, "visible": w.visible} for w in gw.getAllWindows() if w.title.strip()]
+    except Exception as e:
+        return {"error": str(e)}
+
+def activate_window(title: str):
+    try:
+        import pygetwindow as gw
+        windows = gw.getWindowsWithTitle(title)
+        if windows:
+            windows[0].activate()
+            return {"status": "activated", "window": title}
+        return {"error": "window not found"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_active_window():
+    try:
+        import pygetwindow as gw
+        w = gw.getActiveWindow()
+        return {"title": w.title if w else None}
+    except Exception as e:
+        return {"error": str(e)}
+
+def copy_to_clipboard(text: str):
+    try:
+        import pyperclip
+        pyperclip.copy(text)
+        return {"status": "copied", "length": len(text)}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_from_clipboard():
+    try:
+        import pyperclip
+        text = pyperclip.paste()
+        return {"text": text}
+    except Exception as e:
+        return {"error": str(e)}
+
+def pause(seconds: float):
+    time.sleep(seconds)
+    return {"status": "paused", "seconds": seconds}`,
+    },
   };
   return skills[skillName] || null;
 }
@@ -6378,6 +6564,7 @@ def api_call(method: str, path: str, data: dict = None, headers: dict = None):
           { name: "system-agent", description: "Full local system control — run commands, read/write files, inspect processes, and control applications on any node", category: "node-control", author: "openclaw" },
           { name: "windows-admin", description: "Windows administrative control via PowerShell — registry edits, service management, system configuration", category: "node-control", author: "openclaw" },
           { name: "ui-automation", description: "Visual UI automation — click buttons, type text, control mouse, and operate native apps without an API", category: "node-control", author: "openclaw" },
+          { name: "desktop-control", description: "Advanced desktop automation — pixel-perfect mouse, keyboard, screen capture, window management, clipboard, drag-and-drop, and image recognition", category: "node-control", author: "openclaw" },
           { name: "screen-vision", description: "Screen vision and OCR — capture screen, find text, locate UI elements, and click automatically", category: "node-control", author: "openclaw" },
           { name: "homeassistant-agent", description: "Home Assistant full control — lights, switches, sensors, automations, scenes, and service calls via HA REST API", category: "smart-home", author: "openclaw" },
           { name: "webhook-agent", description: "Webhook listener skill — receive HTTP requests from Stream Deck, Companion, or any external trigger", category: "node-control", author: "openclaw" },
