@@ -401,3 +401,28 @@ export const auditLogs = pgTable("audit_logs", {
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export const replitProjects = pgTable("replit_projects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  url: text("url").notNull(),
+  deploymentUrl: text("deployment_url"),
+  language: text("language"),
+  imageUrl: text("image_url"),
+  isPrivate: boolean("is_private").notNull().default(false),
+  replitId: text("replit_id").unique(),
+  status: text("status").notNull().default("active"),
+  deploymentStatus: text("deployment_status"),
+  lastSynced: timestamp("last_synced"),
+  notes: text("notes"),
+  tags: text("tags").array(),
+  progress: integer("progress").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertReplitProjectSchema = createInsertSchema(replitProjects).omit({ id: true, createdAt: true, updatedAt: true });
+export type ReplitProject = typeof replitProjects.$inferSelect;
+export type InsertReplitProject = z.infer<typeof insertReplitProjectSchema>;

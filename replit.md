@@ -34,7 +34,8 @@ The application employs a client-server architecture.
     - **Bulk Node Operations**: Multi-select checkboxes on Nodes page with bulk restart, status update, and CSV export.
     - **Quick Stats Panel**: Real-time stats bar on Overview page showing active/offline nodes, uptime %, and last activity.
     - **WhatsApp Adaptive Polling**: Connected=15s, disconnected=60s, exponential backoff after 3 failures (max 5min).
-- **Data Models**: Key models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, and `audit_logs`.
+    - **Replit Projects**: Monitor all Replit projects with auto-sync via GraphQL API (`REPLIT_SID` + `REPLIT_USERNAME` env vars), manual tracking, progress bars, deployment health checks, tags, notes, and status filtering.
+- **Data Models**: Key models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, and `replit_projects`.
 
 ## External Dependencies
 - **Database**: PostgreSQL (via Drizzle ORM)

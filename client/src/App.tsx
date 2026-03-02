@@ -38,6 +38,7 @@ import Marketplace from "@/pages/marketplace";
 import EmailWorkflows from "@/pages/email-workflows";
 import SettingsGeminiProxy from "@/pages/settings-gemini-proxy";
 import ActivityLog from "@/pages/activity-log";
+import ReplitProjects from "@/pages/replit-projects";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { Loader2 } from "lucide-react";
 
@@ -70,6 +71,7 @@ function Router() {
       <Route path="/email-workflows" component={EmailWorkflows} />
       <Route path="/settings/gemini-proxy" component={SettingsGeminiProxy} />
       <Route path="/activity-log" component={ActivityLog} />
+      <Route path="/replit-projects" component={ReplitProjects} />
       <Route component={NotFound} />
     </Switch>
   );

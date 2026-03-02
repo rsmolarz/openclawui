@@ -35,6 +35,7 @@ import {
   Mail,
   Sparkles,
   History,
+  Code2,
 } from "lucide-react";
 
 const allPages = [
@@ -64,6 +65,7 @@ const allPages = [
   { title: "Skills", url: "/settings/skills", icon: Zap },
   { title: "Integrations", url: "/settings/integrations", icon: Plug },
   { title: "Gemini Proxy", url: "/settings/gemini-proxy", icon: Sparkles },
+  { title: "Replit Projects", url: "/replit-projects", icon: Code2 },
 ];
 
 const shortcuts = [

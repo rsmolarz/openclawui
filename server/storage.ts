@@ -24,11 +24,12 @@ import {
   type MetricsEvent, type InsertMetricsEvent,
   type EmailWorkflow, type InsertEmailWorkflow,
   type AuditLog, type InsertAuditLog,
+  type ReplitProject, type InsertReplitProject,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
-  auditLogs,
+  auditLogs, replitProjects,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -163,6 +164,13 @@ export interface IStorage {
   getAuditLogs(page: number, limit: number, actionType?: string): Promise<AuditLog[]>;
   getAuditLogCount(actionType?: string): Promise<number>;
   createAuditLog(data: InsertAuditLog): Promise<AuditLog>;
+
+  getReplitProjects(): Promise<ReplitProject[]>;
+  getReplitProject(id: string): Promise<ReplitProject | undefined>;
+  getReplitProjectByReplitId(replitId: string): Promise<ReplitProject | undefined>;
+  createReplitProject(data: InsertReplitProject): Promise<ReplitProject>;
+  updateReplitProject(id: string, data: Partial<InsertReplitProject> & { lastSynced?: Date; updatedAt?: Date }): Promise<ReplitProject | undefined>;
+  deleteReplitProject(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -833,6 +841,34 @@ export class DatabaseStorage implements IStorage {
   async createAuditLog(data: InsertAuditLog): Promise<AuditLog> {
     const [log] = await db.insert(auditLogs).values(data).returning();
     return log;
+  }
+
+  async getReplitProjects(): Promise<ReplitProject[]> {
+    return db.select().from(replitProjects).orderBy(desc(replitProjects.updatedAt));
+  }
+
+  async getReplitProject(id: string): Promise<ReplitProject | undefined> {
+    const [project] = await db.select().from(replitProjects).where(eq(replitProjects.id, id));
+    return project;
+  }
+
+  async getReplitProjectByReplitId(replitId: string): Promise<ReplitProject | undefined> {
+    const [project] = await db.select().from(replitProjects).where(eq(replitProjects.replitId, replitId));
+    return project;
+  }
+
+  async createReplitProject(data: InsertReplitProject): Promise<ReplitProject> {
+    const [project] = await db.insert(replitProjects).values(data).returning();
+    return project;
+  }
+
+  async updateReplitProject(id: string, data: Partial<InsertReplitProject> & { lastSynced?: Date; updatedAt?: Date }): Promise<ReplitProject | undefined> {
+    const [project] = await db.update(replitProjects).set({ ...data, updatedAt: new Date() }).where(eq(replitProjects.id, id)).returning();
+    return project;
+  }
+
+  async deleteReplitProject(id: string): Promise<void> {
+    await db.delete(replitProjects).where(eq(replitProjects.id, id));
   }
 }
 

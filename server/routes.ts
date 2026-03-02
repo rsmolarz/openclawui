@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema } from "@shared/schema";
+import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema, insertReplitProjectSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 
@@ -6935,6 +6935,210 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       console.error("[Startup] Guardian auto-scan failed:", err.message);
     }
   }, 3000);
+
+  // ── Replit Projects ──────────────────────────────────────
+  app.get("/api/replit-projects", requireAuth, async (_req, res) => {
+    try {
+      const projects = await storage.getReplitProjects();
+      res.json(projects);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch replit projects" });
+    }
+  });
+
+  app.get("/api/replit-projects/:id", requireAuth, async (req, res) => {
+    try {
+      const project = await storage.getReplitProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      res.json(project);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  app.post("/api/replit-projects", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertReplitProjectSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+      const project = await storage.createReplitProject(parsed.data);
+      logAudit(`Added Replit project "${parsed.data.title}"`, "replit_project", undefined, req.session.userId);
+      res.status(201).json(project);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create project" });
+    }
+  });
+
+  app.patch("/api/replit-projects/:id", requireAuth, async (req, res) => {
+    try {
+      const updateSchema = insertReplitProjectSchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+      const updated = await storage.updateReplitProject(req.params.id, parsed.data);
+      if (!updated) return res.status(404).json({ error: "Project not found" });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update project" });
+    }
+  });
+
+  app.delete("/api/replit-projects/:id", requireAuth, async (req, res) => {
+    try {
+      logAudit(`Deleted Replit project ${req.params.id}`, "replit_project", undefined, req.session.userId);
+      await storage.deleteReplitProject(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete project" });
+    }
+  });
+
+  app.post("/api/replit-projects/sync", requireAuth, async (req, res) => {
+    try {
+      const sid = process.env.REPLIT_SID;
+      if (!sid) {
+        return res.status(400).json({ error: "REPLIT_SID environment variable not set. Add your Replit session cookie (connect.sid) as REPLIT_SID in Secrets." });
+      }
+      const username = req.body.username || process.env.REPLIT_USERNAME;
+      if (!username) {
+        return res.status(400).json({ error: "Provide a username in the request body or set REPLIT_USERNAME in Secrets." });
+      }
+
+      const query = `query UserRepls($username: String!, $after: String) {
+        userByUsername(username: $username) {
+          repls(after: $after, count: 50) {
+            items {
+              id
+              slug
+              title
+              description
+              url
+              language
+              imageUrl
+              isPrivate
+              deployment { id }
+              hostedUrl
+            }
+            pageInfo { hasNextPage nextCursor }
+          }
+        }
+      }`;
+
+      const allRepls: any[] = [];
+      let after: string | null = null;
+      let hasNext = true;
+
+      while (hasNext) {
+        const gqlRes = await fetch("https://replit.com/graphql", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Cookie": `connect.sid=${sid}`,
+            "X-Requested-With": "XMLHttpRequest",
+            "User-Agent": "OpenClaw-Dashboard/1.0",
+          },
+          body: JSON.stringify({ query, variables: { username, after } }),
+        });
+
+        if (!gqlRes.ok) {
+          const text = await gqlRes.text();
+          return res.status(502).json({ error: `Replit API error: ${gqlRes.status}`, details: text });
+        }
+
+        const json = await gqlRes.json();
+        const userData = json.data?.userByUsername;
+        if (!userData) {
+          return res.status(400).json({ error: "User not found or API returned no data", details: json.errors });
+        }
+
+        const items = userData.repls?.items || [];
+        allRepls.push(...items);
+
+        const pageInfo = userData.repls?.pageInfo;
+        hasNext = pageInfo?.hasNextPage ?? false;
+        after = pageInfo?.nextCursor ?? null;
+      }
+
+      let created = 0;
+      let updated = 0;
+
+      for (const repl of allRepls) {
+        const existing = await storage.getReplitProjectByReplitId(String(repl.id));
+        const deploymentUrl = repl.hostedUrl || (repl.deployment ? `https://${repl.slug}.replit.app` : null);
+
+        if (existing) {
+          await storage.updateReplitProject(existing.id, {
+            title: repl.title || repl.slug,
+            slug: repl.slug,
+            description: repl.description || null,
+            url: repl.url || `https://replit.com/@${username}/${repl.slug}`,
+            language: repl.language || null,
+            imageUrl: repl.imageUrl || null,
+            isPrivate: repl.isPrivate ?? false,
+            deploymentUrl: deploymentUrl,
+            lastSynced: new Date(),
+          });
+          updated++;
+        } else {
+          await storage.createReplitProject({
+            slug: repl.slug,
+            title: repl.title || repl.slug,
+            description: repl.description || null,
+            url: repl.url || `https://replit.com/@${username}/${repl.slug}`,
+            language: repl.language || null,
+            imageUrl: repl.imageUrl || null,
+            isPrivate: repl.isPrivate ?? false,
+            replitId: String(repl.id),
+            deploymentUrl: deploymentUrl,
+            status: "active",
+            deploymentStatus: repl.deployment ? "deployed" : null,
+            lastSynced: new Date(),
+            notes: null,
+            tags: null,
+            progress: 0,
+          });
+          created++;
+        }
+      }
+
+      logAudit(`Synced ${allRepls.length} Replit projects (${created} new, ${updated} updated)`, "replit_project", undefined, req.session.userId);
+      res.json({ total: allRepls.length, created, updated });
+    } catch (error: any) {
+      console.error("[Replit Sync] Error:", error.message);
+      res.status(500).json({ error: "Failed to sync from Replit", details: error.message });
+    }
+  });
+
+  app.post("/api/replit-projects/:id/check-deployment", requireAuth, async (req, res) => {
+    try {
+      const project = await storage.getReplitProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      if (!project.deploymentUrl) {
+        return res.json({ status: "no_deployment", message: "No deployment URL configured" });
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const healthRes = await fetch(project.deploymentUrl, {
+          method: "HEAD",
+          signal: controller.signal,
+          redirect: "follow",
+        });
+        clearTimeout(timeout);
+
+        const status = healthRes.ok ? "healthy" : "unhealthy";
+        await storage.updateReplitProject(project.id, { deploymentStatus: status });
+        res.json({ status, statusCode: healthRes.status, url: project.deploymentUrl });
+      } catch (fetchErr: any) {
+        clearTimeout(timeout);
+        const status = fetchErr.name === "AbortError" ? "timeout" : "unreachable";
+        await storage.updateReplitProject(project.id, { deploymentStatus: status });
+        res.json({ status, error: fetchErr.message, url: project.deploymentUrl });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check deployment" });
+    }
+  });
 
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
