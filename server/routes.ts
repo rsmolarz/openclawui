@@ -7254,12 +7254,34 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Transfer-Encoding", "chunked");
 
-      const arrayBuffer = await ttsRes.arrayBuffer();
-      res.send(Buffer.from(arrayBuffer));
+      let clientClosed = false;
+      req.on("close", () => { clientClosed = true; });
+
+      if (ttsRes.body) {
+        const reader = (ttsRes.body as any).getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done || clientClosed) break;
+            res.write(Buffer.from(value));
+          }
+        } finally {
+          reader.releaseLock();
+          res.end();
+        }
+      } else {
+        const arrayBuffer = await ttsRes.arrayBuffer();
+        res.send(Buffer.from(arrayBuffer));
+      }
     } catch (error: any) {
       console.error("[TTS] Error:", error.message);
-      res.status(500).json({ error: error.message });
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message });
+      } else {
+        res.end();
+      }
     }
   });
 
