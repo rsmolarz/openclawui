@@ -13,12 +13,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import {
   Code2, RefreshCw, Plus, ExternalLink, Pencil, Trash2,
   Globe, Lock, Search, Activity, CheckCircle2, XCircle,
-  Clock, AlertTriangle, Loader2, Upload,
+  Clock, AlertTriangle, Loader2, Upload, Brain, Zap,
+  TrendingUp, Target, BarChart3, ListTodo, Mic, Sparkles,
+  Check, X, MessageSquare,
 } from "lucide-react";
-import type { ReplitProject } from "@shared/schema";
+import type { ReplitProject, OmiTodo } from "@shared/schema";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500/10 text-green-600 dark:text-green-400",
@@ -368,6 +371,378 @@ function ProjectCard({ project }: { project: ReplitProject }) {
   );
 }
 
+function ScoreBadge({ score, label, icon: Icon }: { score: number; label: string; icon: typeof TrendingUp }) {
+  const color = score >= 7 ? "text-green-600 dark:text-green-400 bg-green-500/10" : score >= 4 ? "text-yellow-600 dark:text-yellow-400 bg-yellow-500/10" : "text-red-500 bg-red-500/10";
+  return (
+    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${color}`}>
+      <Icon className="h-3 w-3" />
+      <span>{label}</span>
+      <span className="font-bold">{score}</span>
+    </div>
+  );
+}
+
+function TimePriorityTab() {
+  const { toast } = useToast();
+
+  const { data: evaluation, isLoading: evalLoading } = useQuery<any>({
+    queryKey: ["/api/replit-projects/evaluation"],
+  });
+
+  const evaluateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/replit-projects/evaluate");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/replit-projects/evaluation"] });
+      toast({ title: "Evaluation complete", description: "Projects have been analyzed and ranked" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Evaluation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const scores = evaluation?.projectScores || [];
+  const recs = evaluation?.recommendations;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2" data-testid="text-time-priority-title">
+            <Brain className="h-5 w-5 text-purple-500" />
+            AI Project Prioritization
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            OpenClaw evaluates your projects on revenue potential, brand impact, and trading edge
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {evaluation?.evaluatedAt && (
+            <span className="text-xs text-muted-foreground">Last evaluated: {formatTimestamp(evaluation.evaluatedAt)}</span>
+          )}
+          <Button onClick={() => evaluateMutation.mutate()} disabled={evaluateMutation.isPending} data-testid="button-evaluate-projects">
+            {evaluateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+            {evaluateMutation.isPending ? "Evaluating..." : "Evaluate Projects"}
+          </Button>
+        </div>
+      </div>
+
+      {evaluateMutation.isPending && (
+        <Card className="border-purple-500/20 bg-purple-500/5">
+          <CardContent className="py-8 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-purple-500" />
+            <p className="text-sm font-medium">AI is analyzing your projects...</p>
+            <p className="text-xs text-muted-foreground mt-1">This may take 15-30 seconds</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {recs && !evaluateMutation.isPending && (
+        <Card className="border-purple-500/20" data-testid="card-strategy">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Target className="h-4 w-4 text-purple-500" />
+              Strategic Recommendation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm" data-testid="text-strategy">{recs.overallStrategy}</p>
+            {recs.topPriority && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-purple-500/30 text-purple-600 dark:text-purple-400">
+                  Top Priority: {recs.topPriority}
+                </Badge>
+              </div>
+            )}
+            {recs.timeAllocation && (
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Time Allocation</p>
+                <p className="text-sm" data-testid="text-time-allocation">{recs.timeAllocation}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {scores.length > 0 && !evaluateMutation.isPending && (
+        <div className="space-y-3">
+          {scores.map((s: any, i: number) => (
+            <Card key={s.slug || i} className={i === 0 ? "border-yellow-500/30 bg-yellow-500/5" : ""} data-testid={`card-score-${s.slug}`}>
+              <CardContent className="py-4">
+                <div className="flex items-start justify-between flex-wrap gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-muted-foreground">#{i + 1}</span>
+                      <h3 className="font-semibold truncate">{s.title}</h3>
+                      {s.composite && (
+                        <Badge variant="outline" className="shrink-0">
+                          {typeof s.composite === 'number' ? s.composite.toFixed(1) : s.composite}/10
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap mb-3">
+                      <ScoreBadge score={s.revenue?.score || 0} label="Revenue" icon={TrendingUp} />
+                      <ScoreBadge score={s.brand?.score || 0} label="Brand" icon={Target} />
+                      <ScoreBadge score={s.trading?.score || 0} label="Trading" icon={BarChart3} />
+                      {s.timeEstimate && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> {s.timeEstimate}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-muted-foreground mb-2">
+                      {s.revenue?.reason && <p><span className="font-medium text-foreground">Revenue:</span> {s.revenue.reason}</p>}
+                      {s.brand?.reason && <p><span className="font-medium text-foreground">Brand:</span> {s.brand.reason}</p>}
+                      {s.trading?.reason && <p><span className="font-medium text-foreground">Trading:</span> {s.trading.reason}</p>}
+                    </div>
+                    {s.nextActions && s.nextActions.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs font-medium mb-1">Next Actions:</p>
+                        <ul className="text-xs text-muted-foreground space-y-0.5">
+                          {s.nextActions.map((a: string, j: number) => (
+                            <li key={j} className="flex items-start gap-1.5">
+                              <Zap className="h-3 w-3 text-yellow-500 shrink-0 mt-0.5" />
+                              {a}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!evaluation && !evaluateMutation.isPending && !evalLoading && (
+        <div className="text-center py-16">
+          <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-1">No evaluation yet</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Click "Evaluate Projects" to let AI analyze and prioritize your projects
+          </p>
+        </div>
+      )}
+
+      {evalLoading && (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Card key={i}><CardContent className="py-4"><Skeleton className="h-20 w-full" /></CardContent></Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OmiInsightsTab() {
+  const { toast } = useToast();
+
+  const { data: omiStatus } = useQuery<any>({ queryKey: ["/api/omi/status"] });
+  const { data: memories, isLoading: memoriesLoading } = useQuery<any[]>({
+    queryKey: ["/api/omi/memories"],
+    enabled: omiStatus?.connected === true,
+  });
+  const { data: todos, isLoading: todosLoading } = useQuery<OmiTodo[]>({
+    queryKey: ["/api/omi/todos"],
+  });
+
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/omi/analyze");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/omi/todos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/omi/memories"] });
+      toast({ title: "Analysis complete", description: `${data.todos?.length || 0} todos extracted` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateTodoMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      await apiRequest("PATCH", `/api/omi/todos/${id}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/omi/todos"] });
+    },
+  });
+
+  const pendingTodos = (todos || []).filter(t => t.status === "pending");
+  const completedTodos = (todos || []).filter(t => t.status === "done");
+
+  if (!omiStatus?.configured) {
+    return (
+      <div className="text-center py-16">
+        <Mic className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <h3 className="text-lg font-medium mb-1">Omi Not Connected</h3>
+        <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+          Connect your Omi AI wearable to analyze conversations, extract todos, and get efficiency recommendations.
+        </p>
+        <div className="bg-muted/50 rounded-lg p-4 max-w-sm mx-auto text-left space-y-2">
+          <p className="text-xs font-medium">Setup Instructions:</p>
+          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+            <li>Open the Omi app on your phone</li>
+            <li>Go to Settings &rarr; Developer &rarr; Create Key</li>
+            <li>Copy your API key (starts with <code className="bg-muted px-1 rounded">omi_dev_</code>)</li>
+            <li>Add it as <code className="bg-muted px-1 rounded">OMI_API_KEY</code> in Replit Secrets</li>
+          </ol>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2" data-testid="text-omi-title">
+            <Mic className="h-5 w-5 text-blue-500" />
+            Omi Insights
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Conversations, todos, and efficiency recommendations from your Omi wearable
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={omiStatus?.connected ? "default" : "destructive"} className="text-xs" data-testid="badge-omi-status">
+            {omiStatus?.connected ? "Connected" : "Disconnected"}
+          </Badge>
+          <Button onClick={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending || !omiStatus?.connected} data-testid="button-analyze-omi">
+            {analyzeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+            {analyzeMutation.isPending ? "Analyzing..." : "Analyze Recent"}
+          </Button>
+        </div>
+      </div>
+
+      {analyzeMutation.isPending && (
+        <Card className="border-blue-500/20 bg-blue-500/5">
+          <CardContent className="py-8 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-500" />
+            <p className="text-sm font-medium">AI is analyzing your conversations...</p>
+            <p className="text-xs text-muted-foreground mt-1">Extracting todos and generating recommendations</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <ListTodo className="h-4 w-4" />
+            Todos ({pendingTodos.length} pending)
+          </h3>
+          {todosLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+          ) : pendingTodos.length === 0 ? (
+            <Card>
+              <CardContent className="py-6 text-center">
+                <p className="text-sm text-muted-foreground">No pending todos. Click "Analyze Recent" to extract tasks from your conversations.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {pendingTodos.map(todo => (
+                <Card key={todo.id} data-testid={`card-todo-${todo.id}`}>
+                  <CardContent className="py-3 flex items-start gap-3">
+                    <div className="flex gap-1 shrink-0 mt-0.5">
+                      <Button size="icon" variant="ghost" className="text-green-500" onClick={() => updateTodoMutation.mutate({ id: todo.id, status: "done" })} data-testid={`button-done-${todo.id}`}>
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="text-muted-foreground" onClick={() => updateTodoMutation.mutate({ id: todo.id, status: "dismissed" })} data-testid={`button-dismiss-${todo.id}`}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">{todo.content}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className={`text-[10px] ${todo.priority === "high" ? "border-red-500/30 text-red-500" : todo.priority === "low" ? "border-gray-500/30" : "border-yellow-500/30 text-yellow-600"}`}>
+                          {todo.priority}
+                        </Badge>
+                        {todo.sourceTitle && (
+                          <span className="text-[10px] text-muted-foreground truncate">{todo.sourceTitle}</span>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {completedTodos.length > 0 && (
+            <details className="mt-4">
+              <summary className="text-xs text-muted-foreground cursor-pointer">
+                {completedTodos.length} completed
+              </summary>
+              <div className="space-y-1 mt-2">
+                {completedTodos.slice(0, 10).map(todo => (
+                  <div key={todo.id} className="flex items-center gap-2 text-xs text-muted-foreground line-through py-1">
+                    <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                    {todo.content}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Recent Conversations
+          </h3>
+          {memoriesLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
+          ) : !memories || memories.length === 0 ? (
+            <Card>
+              <CardContent className="py-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {omiStatus?.connected ? "No recent conversations found." : "Connect Omi to see conversations."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+              {memories.slice(0, 20).map((mem: any, i: number) => (
+                <Card key={mem.id || i} data-testid={`card-memory-${i}`}>
+                  <CardContent className="py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {mem.structured?.title || mem.structured?.overview || `Conversation ${i + 1}`}
+                        </p>
+                        {mem.structured?.overview && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{mem.structured.overview}</p>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {mem.created_at ? formatTimestamp(mem.created_at) : ""}
+                      </span>
+                    </div>
+                    {mem.structured?.action_items && mem.structured.action_items.length > 0 && (
+                      <div className="mt-2 flex items-center gap-1">
+                        <ListTodo className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground">{mem.structured.action_items.length} action items</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReplitProjects() {
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
@@ -454,119 +829,124 @@ export default function ReplitProjects() {
           <Code2 className="h-6 w-6 text-muted-foreground" />
           <div>
             <h1 className="text-2xl font-bold" data-testid="text-replit-projects-title">Replit Projects</h1>
-            <p className="text-sm text-muted-foreground">Monitor and manage all your Replit projects</p>
+            <p className="text-sm text-muted-foreground">Monitor, prioritize, and manage all your projects</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setSyncDialogOpen(true)} data-testid="button-sync-replit">
-            <Upload className="h-4 w-4 mr-2" />
-            Import Projects
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => checkAllMutation.mutate()} disabled={checkAllMutation.isPending || !projects?.some((p) => p.deploymentUrl)} data-testid="button-check-all-deployments">
-            {checkAllMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
-            Check All
-          </Button>
-          <Button size="sm" onClick={() => setAddOpen(true)} data-testid="button-add-project">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Project
-          </Button>
-        </div>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap bg-muted/50 rounded-lg p-3" data-testid="bar-project-stats">
-        <div className="flex items-center gap-2">
-          <Code2 className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Total</span>
-          <span className="text-sm font-semibold" data-testid="stat-total-projects">{stats.total}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-          <span className="text-xs text-muted-foreground">Active</span>
-          <span className="text-sm font-semibold" data-testid="stat-active-projects">{stats.active}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-blue-500" />
-          <span className="text-xs text-muted-foreground">Deployed</span>
-          <span className="text-sm font-semibold" data-testid="stat-deployed-projects">{stats.deployed}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-green-500" />
-          <span className="text-xs text-muted-foreground">Healthy</span>
-          <span className="text-sm font-semibold" data-testid="stat-healthy-projects">{stats.healthy}</span>
-        </div>
-      </div>
+      <Tabs defaultValue="projects" className="w-full">
+        <TabsList data-testid="tabs-projects-main">
+          <TabsTrigger value="projects" data-testid="tab-projects">
+            <Code2 className="h-4 w-4 mr-1.5" /> Projects ({stats.total})
+          </TabsTrigger>
+          <TabsTrigger value="priority" data-testid="tab-priority">
+            <Brain className="h-4 w-4 mr-1.5" /> Time & Priority
+          </TabsTrigger>
+          <TabsTrigger value="omi" data-testid="tab-omi">
+            <Mic className="h-4 w-4 mr-1.5" /> Omi Insights
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search projects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-            data-testid="input-search-projects"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px]" data-testid="select-filter-status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="paused">Paused</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="archived">Archived</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isLoading ? (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-4 w-full mb-2" />
-                <Skeleton className="h-6 w-24" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <Code2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-1" data-testid="text-no-projects">
-            {projects?.length === 0 ? "No projects yet" : "No matching projects"}
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            {projects?.length === 0
-              ? "Add projects manually or sync from your Replit account."
-              : "Try a different search or filter."}
-          </p>
-          {projects?.length === 0 && (
-            <div className="flex items-center gap-2 justify-center">
-              <Button variant="outline" onClick={() => setSyncDialogOpen(true)} data-testid="button-empty-sync">
+        <TabsContent value="projects" className="mt-6 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-4 flex-wrap bg-muted/50 rounded-lg p-3 flex-1" data-testid="bar-project-stats">
+              <div className="flex items-center gap-2">
+                <Code2 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Total</span>
+                <span className="text-sm font-semibold" data-testid="stat-total-projects">{stats.total}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="text-xs text-muted-foreground">Active</span>
+                <span className="text-sm font-semibold" data-testid="stat-active-projects">{stats.active}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-blue-500" />
+                <span className="text-xs text-muted-foreground">Deployed</span>
+                <span className="text-sm font-semibold" data-testid="stat-deployed-projects">{stats.deployed}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-green-500" />
+                <span className="text-xs text-muted-foreground">Healthy</span>
+                <span className="text-sm font-semibold" data-testid="stat-healthy-projects">{stats.healthy}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSyncDialogOpen(true)} data-testid="button-sync-replit">
                 <Upload className="h-4 w-4 mr-2" />
-                Import Projects
+                Import
               </Button>
-              <Button onClick={() => setAddOpen(true)} data-testid="button-empty-add">
+              <Button variant="outline" size="sm" onClick={() => checkAllMutation.mutate()} disabled={checkAllMutation.isPending || !projects?.some((p) => p.deploymentUrl)} data-testid="button-check-all-deployments">
+                {checkAllMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
+                Check All
+              </Button>
+              <Button size="sm" onClick={() => setAddOpen(true)} data-testid="button-add-project">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Manually
+                Add
               </Button>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search projects..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" data-testid="input-search-projects" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-filter-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="paused">Paused</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isLoading ? (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card key={i}><CardHeader className="pb-2"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-3 w-1/2" /></CardHeader><CardContent><Skeleton className="h-4 w-full mb-2" /><Skeleton className="h-6 w-24" /></CardContent></Card>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16">
+              <Code2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-1" data-testid="text-no-projects">
+                {projects?.length === 0 ? "No projects yet" : "No matching projects"}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {projects?.length === 0 ? "Add projects manually or import from your Replit account." : "Try a different search or filter."}
+              </p>
+              {projects?.length === 0 && (
+                <div className="flex items-center gap-2 justify-center">
+                  <Button variant="outline" onClick={() => setSyncDialogOpen(true)} data-testid="button-empty-sync">
+                    <Upload className="h-4 w-4 mr-2" /> Import Projects
+                  </Button>
+                  <Button onClick={() => setAddOpen(true)} data-testid="button-empty-add">
+                    <Plus className="h-4 w-4 mr-2" /> Add Manually
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((project) => <ProjectCard key={project.id} project={project} />)}
+            </div>
           )}
-        </div>
-      ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="priority" className="mt-6">
+          <TimePriorityTab />
+        </TabsContent>
+
+        <TabsContent value="omi" className="mt-6">
+          <OmiInsightsTab />
+        </TabsContent>
+      </Tabs>
 
       <AddProjectDialog open={addOpen} onOpenChange={setAddOpen} />
 
@@ -586,20 +966,11 @@ export default function ReplitProjects() {
               </p>
               <div>
                 <Label>Replit Username</Label>
-                <Input
-                  value={syncUsername}
-                  onChange={(e) => setSyncUsername(e.target.value)}
-                  placeholder="your-replit-username"
-                  data-testid="input-sync-username"
-                />
+                <Input value={syncUsername} onChange={(e) => setSyncUsername(e.target.value)} placeholder="your-replit-username" data-testid="input-sync-username" />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setSyncDialogOpen(false)} data-testid="button-cancel-sync">Cancel</Button>
-                <Button
-                  onClick={() => syncMutation.mutate(syncUsername)}
-                  disabled={!syncUsername || syncMutation.isPending}
-                  data-testid="button-submit-sync"
-                >
+                <Button onClick={() => syncMutation.mutate(syncUsername)} disabled={!syncUsername || syncMutation.isPending} data-testid="button-submit-sync">
                   {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Sync Profile
                 </Button>
@@ -609,22 +980,12 @@ export default function ReplitProjects() {
               <p className="text-sm text-muted-foreground">
                 Paste a JSON array of projects. Each project needs at least a <code className="text-xs bg-muted px-1 py-0.5 rounded">title</code> or <code className="text-xs bg-muted px-1 py-0.5 rounded">slug</code>.
               </p>
-              <Textarea
-                value={bulkJson}
-                onChange={(e) => setBulkJson(e.target.value)}
-                placeholder={`[\n  { "title": "My App", "slug": "my-app", "url": "https://replit.com/@user/my-app", "language": "TypeScript" },\n  { "title": "Another App", "slug": "another-app", "language": "Python" }\n]`}
-                className="font-mono text-xs min-h-[160px]"
-                data-testid="input-bulk-json"
-              />
+              <Textarea value={bulkJson} onChange={(e) => setBulkJson(e.target.value)} placeholder={`[\n  { "title": "My App", "slug": "my-app", "language": "TypeScript" }\n]`} className="font-mono text-xs min-h-[160px]" data-testid="input-bulk-json" />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setSyncDialogOpen(false)}>Cancel</Button>
-                <Button
-                  onClick={() => bulkImportMutation.mutate(bulkJson)}
-                  disabled={!bulkJson.trim() || bulkImportMutation.isPending}
-                  data-testid="button-submit-bulk"
-                >
+                <Button onClick={() => bulkImportMutation.mutate(bulkJson)} disabled={!bulkJson.trim() || bulkImportMutation.isPending} data-testid="button-submit-bulk">
                   {bulkImportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                  Import Projects
+                  Import
                 </Button>
               </div>
             </TabsContent>

@@ -34,8 +34,13 @@ The application employs a client-server architecture.
     - **Bulk Node Operations**: Multi-select checkboxes on Nodes page with bulk restart, status update, and CSV export.
     - **Quick Stats Panel**: Real-time stats bar on Overview page showing active/offline nodes, uptime %, and last activity.
     - **WhatsApp Adaptive Polling**: Connected=15s, disconnected=60s, exponential backoff after 3 failures (max 5min).
-    - **Replit Projects**: Monitor all Replit projects with auto-sync via GraphQL API (`REPLIT_SID` + `REPLIT_USERNAME` env vars), manual tracking, progress bars, deployment health checks, tags, notes, and status filtering.
-- **Data Models**: Key models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, and `replit_projects`.
+    - **Replit Projects**: Monitor all Replit projects with auto-sync via profile scraping (`REPLIT_SID` + `REPLIT_USERNAME` env vars), bulk JSON import, manual tracking, progress bars, deployment health checks, tags, notes, and status filtering. The Replit Projects page uses a 3-tab layout:
+      - **Projects tab**: Project cards with search/filter, import dialog, deployment health checks.
+      - **Time & Priority tab**: AI-powered project prioritization via LLM. Evaluates each project on revenue potential (40%), personal brand impact (30%), and market inefficiency/trading edge (30%). Displays composite scores, per-project reasoning, time estimates, and recommended next actions. Results cached in `project_evaluations` table.
+      - **Omi Insights tab**: Integration with Omi AI wearable device (`OMI_API_KEY` env var). Fetches conversation transcripts/memories, extracts TODOs via LLM analysis, provides efficiency recommendations. Todos stored in `omi_todos` table with status management (pending/done/dismissed).
+    - **Omi Integration**: Backend module `server/omi.ts` communicates with Omi API (`https://api.omi.me/v1/dev`). Routes: `GET /api/omi/status`, `GET /api/omi/memories`, `GET /api/omi/action-items`, `POST /api/omi/analyze` (LLM extraction), `GET /api/omi/todos`, `PATCH /api/omi/todos/:id`.
+    - **AI Project Evaluator**: Routes `POST /api/replit-projects/evaluate` (runs LLM evaluation) and `GET /api/replit-projects/evaluation` (fetch cached result). Uses `chat()` from `server/bot/openrouter.ts`.
+- **Data Models**: Key models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, `replit_projects`, `project_evaluations`, and `omi_todos`.
 
 ## External Dependencies
 - **Database**: PostgreSQL (via Drizzle ORM)

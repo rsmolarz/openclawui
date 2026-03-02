@@ -7169,6 +7169,229 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
     }
   });
 
+  // ── Omi Integration ──
+  app.get("/api/omi/status", requireAuth, async (_req, res) => {
+    try {
+      const { isOmiConfigured, checkOmiConnection } = await import("./omi");
+      if (!isOmiConfigured()) {
+        return res.json({ configured: false, connected: false, error: "OMI_API_KEY not set" });
+      }
+      const status = await checkOmiConnection();
+      res.json({ configured: true, ...status });
+    } catch (error: any) {
+      res.json({ configured: false, connected: false, error: error.message });
+    }
+  });
+
+  app.get("/api/omi/memories", requireAuth, async (req, res) => {
+    try {
+      const { fetchOmiMemories, isOmiConfigured } = await import("./omi");
+      if (!isOmiConfigured()) return res.status(400).json({ error: "OMI_API_KEY not configured" });
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const memories = await fetchOmiMemories(limit, offset);
+      res.json(memories);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/omi/action-items", requireAuth, async (_req, res) => {
+    try {
+      const { fetchOmiActionItems, isOmiConfigured } = await import("./omi");
+      if (!isOmiConfigured()) return res.status(400).json({ error: "OMI_API_KEY not configured" });
+      const items = await fetchOmiActionItems();
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/omi/analyze", requireAuth, async (_req, res) => {
+    try {
+      const { fetchOmiMemories, isOmiConfigured } = await import("./omi");
+      if (!isOmiConfigured()) return res.status(400).json({ error: "OMI_API_KEY not configured" });
+
+      const memories = await fetchOmiMemories(30);
+      if (!memories || memories.length === 0) {
+        return res.json({ todos: [], recommendations: "No recent conversations found to analyze." });
+      }
+
+      const conversationSummaries = memories.map((m: any, i: number) => {
+        const title = m.structured?.title || m.structured?.overview || `Conversation ${i + 1}`;
+        const transcript = m.transcript_segments?.map((s: any) => `${s.speaker || "Speaker"}: ${s.text}`).join("\n") || m.structured?.overview || "";
+        const actionItems = m.structured?.action_items?.map((a: any) => `- ${a.description || a}`).join("\n") || "";
+        return `### ${title} (${m.created_at || "unknown date"})\n${transcript.substring(0, 500)}\n${actionItems ? `Action items:\n${actionItems}` : ""}`;
+      }).join("\n\n");
+
+      const { chat } = await import("./bot/openrouter");
+      const prompt = `You are a personal efficiency coach analyzing recent conversations from an AI wearable device. The user is a doctor/entrepreneur managing multiple tech projects.
+
+Here are the recent conversations:
+${conversationSummaries}
+
+Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact format:
+{
+  "todos": [
+    {"content": "task description", "priority": "high|medium|low", "source": "conversation title"}
+  ],
+  "recommendations": "3-5 bullet points on how to be more efficient based on what you see in these conversations",
+  "insights": "brief summary of patterns you notice (time usage, repeated topics, missed opportunities)"
+}`;
+
+      const response = await chat(prompt, "System", "omi-analyzer");
+      let parsed;
+      try {
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { todos: [], recommendations: response.text, insights: "" };
+      } catch {
+        parsed = { todos: [], recommendations: response.text, insights: "" };
+      }
+
+      for (const todo of (parsed.todos || [])) {
+        await storage.createOmiTodo({
+          content: todo.content,
+          source: todo.source || null,
+          sourceTitle: todo.source || null,
+          status: "pending",
+          priority: todo.priority || "medium",
+          completedAt: null,
+        });
+      }
+
+      res.json(parsed);
+    } catch (error: any) {
+      console.error("[Omi Analyze] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/omi/todos", requireAuth, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const todos = await storage.getOmiTodos(status);
+      res.json(todos);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch todos" });
+    }
+  });
+
+  app.patch("/api/omi/todos/:id", requireAuth, async (req, res) => {
+    try {
+      const validStatuses = ["pending", "done", "dismissed"];
+      const status = req.body.status;
+      if (!status || !validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+      }
+      const updates: any = { status };
+      if (status === "done") updates.completedAt = new Date();
+      const todo = await storage.updateOmiTodo(req.params.id, updates);
+      if (!todo) return res.status(404).json({ error: "Todo not found" });
+      res.json(todo);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update todo" });
+    }
+  });
+
+  // ── AI Project Evaluator ──
+  app.post("/api/replit-projects/evaluate", requireAuth, async (_req, res) => {
+    try {
+      const projects = await storage.getReplitProjects();
+      if (projects.length === 0) {
+        return res.status(400).json({ error: "No projects to evaluate" });
+      }
+
+      const projectList = projects.map(p => ({
+        title: p.title,
+        slug: p.slug,
+        description: p.description || "No description",
+        language: p.language || "Unknown",
+        status: p.status,
+        progress: p.progress,
+        isPrivate: p.isPrivate,
+        hasDeployment: !!p.deploymentUrl,
+        deploymentStatus: p.deploymentStatus || "none",
+        tags: p.tags || [],
+        notes: p.notes || "",
+      }));
+
+      const { chat } = await import("./bot/openrouter");
+      const prompt = `You are a strategic business advisor for a doctor/entrepreneur (J. Ryan Smolarz, M.D., M.B.A.) who builds tech products. Evaluate each of his Replit projects and help him prioritize his time.
+
+His key goals:
+1. REVENUE: Which projects can generate the most money (SaaS, tools, services)?
+2. PERSONAL BRAND: Which projects build his professional reputation fastest (as a doctor-entrepreneur)?
+3. MARKET INEFFICIENCY: Which projects help identify and exploit market inefficiencies for trading/investing?
+
+Here are his projects:
+${JSON.stringify(projectList, null, 2)}
+
+Respond with ONLY valid JSON (no markdown, no code blocks) in this exact format:
+{
+  "scores": [
+    {
+      "slug": "project-slug",
+      "title": "Project Title",
+      "revenue": {"score": 8, "reason": "brief reason"},
+      "brand": {"score": 6, "reason": "brief reason"},
+      "trading": {"score": 3, "reason": "brief reason"},
+      "timeEstimate": "5 hrs/week",
+      "composite": 7.2,
+      "nextActions": ["action 1", "action 2", "action 3"]
+    }
+  ],
+  "topPriority": "slug of highest priority project",
+  "timeAllocation": "Brief recommendation on how to split time across top 5 projects",
+  "overallStrategy": "2-3 sentence strategic recommendation"
+}
+
+Score each project 1-10 on revenue, brand, and trading. Composite = weighted average (revenue 40%, brand 30%, trading 30%). Sort scores by composite descending.`;
+
+      const response = await chat(prompt, "System", "project-evaluator");
+      let parsed;
+      try {
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      } catch {
+        parsed = null;
+      }
+
+      if (!parsed || !parsed.scores) {
+        return res.status(502).json({ error: "Failed to parse AI evaluation", raw: response.text });
+      }
+
+      const evaluation = await storage.createProjectEvaluation({
+        projectScores: JSON.stringify(parsed.scores),
+        recommendations: JSON.stringify({
+          topPriority: parsed.topPriority,
+          timeAllocation: parsed.timeAllocation,
+          overallStrategy: parsed.overallStrategy,
+        }),
+        evaluatedAt: new Date(),
+      });
+
+      logAudit(`AI evaluated ${projects.length} projects`, "replit_project", undefined, _req.session.userId);
+      res.json({ evaluation, parsed });
+    } catch (error: any) {
+      console.error("[Project Evaluate] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/replit-projects/evaluation", requireAuth, async (_req, res) => {
+    try {
+      const evaluation = await storage.getLatestProjectEvaluation();
+      if (!evaluation) return res.json(null);
+      res.json({
+        ...evaluation,
+        projectScores: JSON.parse(evaluation.projectScores),
+        recommendations: evaluation.recommendations ? JSON.parse(evaluation.recommendations) : null,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch evaluation" });
+    }
+  });
+
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
