@@ -69,6 +69,7 @@ const categoryIcons: Record<string, typeof MessageSquare> = {
   utilities: Monitor,
   hardware: Gamepad2,
   "node-control": Terminal,
+  "node-skill": Server,
   "smart-home": Home,
   devops: Server,
   general: Package,
@@ -83,6 +84,7 @@ const categoryColors: Record<string, string> = {
   utilities: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
   hardware: "bg-red-500/10 text-red-700 dark:text-red-400",
   "node-control": "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",
+  "node-skill": "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
   "smart-home": "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   devops: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
   general: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
@@ -102,6 +104,20 @@ export default function Marketplace() {
 
   const { data, isLoading, refetch, isRefetching } = useQuery<{ plugins: Plugin[]; sshConnected: boolean }>({
     queryKey: ["/api/marketplace/plugins", instanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/marketplace/plugins${instanceId ? `?instanceId=${instanceId}` : ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return res.json();
+    },
+  });
+
+  const { data: nodeSkills } = useQuery<{ skills: any[]; sshConnected?: boolean }>({
+    queryKey: ["/api/marketplace/node-skills/discover", instanceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/marketplace/node-skills/discover${instanceId ? `?instanceId=${instanceId}` : ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return res.json();
+    },
   });
 
   const { data: templates } = useQuery<SkillTemplate[]>({
@@ -174,8 +190,19 @@ export default function Marketplace() {
     },
   });
 
-  const plugins = data?.plugins || [];
+  const catalogPlugins = data?.plugins || [];
+  const vpsSkills = (nodeSkills?.skills || []).filter(
+    (ns: any) => !catalogPlugins.some((p) => p.name === ns.name)
+  );
+  const plugins = [...catalogPlugins, ...vpsSkills.map((s: any) => ({
+    name: s.name,
+    description: s.description || `${s.name} skill from VPS`,
+    category: s.category || "node-skill",
+    author: s.author || "node",
+    installed: true,
+  }))];
   const categories = Array.from(new Set(plugins.map((p) => p.category))).sort();
+  const nodeOnlyCount = vpsSkills.length;
 
   const filtered = plugins.filter((p) => {
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase());
@@ -217,18 +244,24 @@ export default function Marketplace() {
           <p className="text-sm text-muted-foreground mt-1" data-testid="text-marketplace-subtitle">
             Browse, install, and create OpenClaw skills
             {plugins.length > 0 && ` · ${installedCount}/${plugins.length} installed`}
+            {nodeOnlyCount > 0 && ` · ${nodeOnlyCount} from VPS`}
           </p>
         </div>
+        <div className="flex items-center gap-2">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => refetch()}
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/marketplace/node-skills/discover", instanceId] });
+            refetch();
+          }}
           disabled={isRefetching}
           data-testid="button-refresh-plugins"
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? "animate-spin" : ""}`} />
           Refresh
         </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

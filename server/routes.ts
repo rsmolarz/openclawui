@@ -6497,32 +6497,46 @@ def api_call(method: str, path: str, data: dict = None, headers: dict = None):
 
   app.get("/api/marketplace/plugins", requireAuth, async (req, res) => {
     try {
-      const { executeSSHCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
-      const instanceId = await resolveInstanceId(req);
-      let sshConfig;
-      if (instanceId) {
-        const vps = await storage.getVpsConnection(instanceId);
-        if (vps) sshConfig = buildSSHConfigFromVps(vps);
-      }
-      if (!sshConfig) sshConfig = getSSHConfig() || undefined;
-
-      const listResult = await executeSSHCommand("plugins-list", sshConfig);
-      const installedResult = await executeSSHCommand("plugins-installed", sshConfig);
-
       let plugins: any[] = [];
       let installed: string[] = [];
+      let sshConnected = false;
 
       try {
-        const parsed = JSON.parse(listResult.output || "[]");
-        if (Array.isArray(parsed)) plugins = parsed;
-      } catch {}
+        const { executeSSHCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+        const instanceId = await resolveInstanceId(req);
+        let sshConfig;
+        if (instanceId) {
+          const vps = await storage.getVpsConnection(instanceId);
+          if (vps) sshConfig = buildSSHConfigFromVps(vps);
+        }
+        if (!sshConfig) sshConfig = getSSHConfig() || undefined;
 
-      try {
-        const parsed = JSON.parse(installedResult.output || "[]");
-        if (Array.isArray(parsed)) installed = parsed.map((p: any) => typeof p === "string" ? p : p.name || p.id || "");
-      } catch {
-        const lines = (installedResult.output || "").split("\n").filter((l: string) => l.trim());
-        installed = lines;
+        if (sshConfig) {
+          const sshTimeout = new Promise<[any, any]>((_, reject) => setTimeout(() => reject(new Error("SSH timeout (5s)")), 5000));
+          const [listResult, installedResult] = await Promise.race([
+            Promise.all([
+              executeSSHCommand("plugins-list", sshConfig),
+              executeSSHCommand("plugins-installed", sshConfig),
+            ]),
+            sshTimeout,
+          ]);
+          sshConnected = listResult.success || installedResult.success;
+
+          try {
+            const parsed = JSON.parse(listResult.output || "[]");
+            if (Array.isArray(parsed)) plugins = parsed;
+          } catch {}
+
+          try {
+            const parsed = JSON.parse(installedResult.output || "[]");
+            if (Array.isArray(parsed)) installed = parsed.map((p: any) => typeof p === "string" ? p : p.name || p.id || "");
+          } catch {
+            const lines = (installedResult.output || "").split("\n").filter((l: string) => l.trim());
+            installed = lines;
+          }
+        }
+      } catch (sshErr: any) {
+        console.log("[Marketplace] SSH unavailable, using catalog:", sshErr.message?.slice(0, 80));
       }
 
       if (plugins.length === 0) {
@@ -6591,7 +6605,7 @@ def api_call(method: str, path: str, data: dict = None, headers: dict = None):
         };
       });
 
-      res.json({ plugins: pluginsWithStatus, sshConnected: listResult.success || installedResult.success });
+      res.json({ plugins: pluginsWithStatus, sshConnected });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to fetch plugins" });
     }
@@ -6735,6 +6749,59 @@ def api_call(method: str, path: str, data: dict = None, headers: dict = None):
       res.json({ skills, success: result.success });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to list node skills" });
+    }
+  });
+
+  app.get("/api/marketplace/node-skills/discover", requireAuth, async (req, res) => {
+    try {
+      const { executeSSHRawCommand, buildSSHConfigFromVps, getSSHConfig } = await import("./ssh");
+      const instanceId = await resolveInstanceId(req);
+      let sshConfig;
+      if (instanceId) {
+        const vps = await storage.getVpsConnection(instanceId);
+        if (vps) sshConfig = buildSSHConfigFromVps(vps);
+      }
+      if (!sshConfig) sshConfig = getSSHConfig() || undefined;
+      if (!sshConfig) return res.json({ skills: [], error: "No SSH connection available" });
+
+      const listResult = await executeSSHRawCommand(
+        `for d in /root/.openclaw/skills/*/; do
+          name=$(basename "$d");
+          desc="";
+          if [ -f "$d/SKILL.md" ]; then
+            desc=$(head -5 "$d/SKILL.md" | grep -i "description" | head -1 | sed 's/.*description[: ]*//' | tr -d '"' | head -c 200);
+          fi
+          if [ -z "$desc" ] && [ -f "$d/handler.py" ]; then
+            desc=$(head -3 "$d/handler.py" | grep '#' | head -1 | sed 's/^#\\s*//' | head -c 200);
+          fi
+          echo "$name|||$desc";
+        done 2>/dev/null || echo "NO_SKILLS"`,
+        sshConfig
+      );
+
+      if (!listResult.success || (listResult.output || "").includes("NO_SKILLS")) {
+        return res.json({ skills: [], sshConnected: true });
+      }
+
+      const skills = (listResult.output || "")
+        .split("\n")
+        .map((line: string) => line.trim())
+        .filter((line: string) => line && line.includes("|||"))
+        .map((line: string) => {
+          const [name, description] = line.split("|||");
+          return {
+            name: name.trim(),
+            description: (description || "").trim() || `${name.trim()} skill from VPS node`,
+            category: "node-skill",
+            author: "node",
+            installed: true,
+            source: "vps",
+          };
+        });
+
+      res.json({ skills, sshConnected: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to discover node skills" });
     }
   });
 
@@ -7208,46 +7275,150 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       if (!sid) {
         return res.status(400).json({ error: "REPLIT_SID environment variable not set. Add your Replit session cookie (connect.sid) as REPLIT_SID in Secrets." });
       }
-      const username = req.body.username || process.env.REPLIT_USERNAME;
+      let username = (req.body.username || process.env.REPLIT_USERNAME || "").trim();
       if (!username) {
         return res.status(400).json({ error: "Provide a username in the request body or set REPLIT_USERNAME in Secrets." });
       }
 
-      const headers = {
+      if (username.includes("replit.com/@")) {
+        const m = username.match(/@([a-zA-Z0-9_-]+)/);
+        if (m) username = m[1];
+      }
+      if (username.includes("replit.com/")) {
+        const parts = username.split("/").filter(Boolean);
+        username = parts[parts.length - 1];
+      }
+      if (username.includes("://") || username.includes(".")) {
+        return res.status(400).json({ error: `"${username}" looks like a URL, not a username. Enter just your Replit username (e.g. "rsmolarz").` });
+      }
+
+      const headers: Record<string, string> = {
         "Cookie": `connect.sid=${sid}`,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "text/html",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Origin": "https://replit.com",
+        "Referer": `https://replit.com/@${username}`,
       };
 
-      const profileRes = await fetch(`https://replit.com/@${username}`, { headers });
-      if (!profileRes.ok) {
-        return res.status(502).json({ error: `Failed to fetch profile: ${profileRes.status}` });
-      }
-      const html = await profileRes.text();
-      const match = html.match(/__NEXT_DATA__[^>]*>(.*?)<\/script>/);
-      if (!match) {
-        return res.status(502).json({ error: "Could not parse profile page data" });
-      }
-
-      const nextData = JSON.parse(match[1]);
-      const apollo = nextData?.props?.apolloState || {};
       const allRepls: any[] = [];
+      let after: string | null = null;
+      let pageCount = 0;
+      const MAX_PAGES = 10;
 
-      for (const [key, value] of Object.entries(apollo)) {
-        if (key.startsWith("Repl:") && typeof value === "object" && value !== null) {
-          const v = value as any;
+      while (pageCount < MAX_PAGES) {
+        pageCount++;
+        const gqlQuery = {
+          operationName: "ProfilePublicRepls",
+          variables: {
+            username,
+            after: after || "",
+            count: 20,
+            order: "Recent",
+          },
+          query: `query ProfilePublicRepls($username: String!, $after: String, $count: Int, $order: String) {
+            userByUsername(username: $username) {
+              id
+              publicRepls(after: $after, count: $count, order: $order) {
+                items {
+                  id
+                  slug
+                  title
+                  description
+                  url
+                  language
+                  imageUrl
+                  isPrivate
+                  deployment { id }
+                  hostedUrl
+                }
+                pageInfo {
+                  hasNextPage
+                  nextCursor
+                }
+              }
+            }
+          }`,
+        };
+
+        const gqlRes = await fetch("https://replit.com/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(gqlQuery),
+        });
+
+        if (!gqlRes.ok) {
+          const errText = await gqlRes.text().catch(() => "");
+          console.error(`[Replit Sync] GraphQL ${gqlRes.status}: ${errText.slice(0, 200)}`);
+          break;
+        }
+
+        const gqlData = await gqlRes.json();
+        const user = gqlData?.data?.userByUsername;
+        if (!user) {
+          if (allRepls.length === 0) {
+            return res.status(404).json({ error: `User "${username}" not found on Replit. Check the username and try again.` });
+          }
+          break;
+        }
+
+        const items = user.publicRepls?.items || [];
+        for (const r of items) {
           allRepls.push({
-            id: v.id || key.replace("Repl:", ""),
-            slug: v.slug,
-            title: v.title,
-            description: v.description,
-            url: v.url,
-            language: v.language,
-            imageUrl: v.imageUrl,
-            isPrivate: v.isPrivate,
-            deployment: v.deployment,
-            hostedUrl: v.hostedUrl,
+            id: r.id,
+            slug: r.slug,
+            title: r.title,
+            description: r.description,
+            url: r.url,
+            language: r.language,
+            imageUrl: r.imageUrl,
+            isPrivate: r.isPrivate,
+            deployment: r.deployment,
+            hostedUrl: r.hostedUrl,
           });
+        }
+
+        const pageInfo = user.publicRepls?.pageInfo;
+        if (!pageInfo?.hasNextPage || !pageInfo.nextCursor) break;
+        after = pageInfo.nextCursor;
+      }
+
+      if (allRepls.length === 0) {
+        const htmlHeaders = {
+          "Cookie": `connect.sid=${sid}`,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "text/html",
+        };
+        try {
+          const profileRes = await fetch(`https://replit.com/@${username}`, { headers: htmlHeaders });
+          if (profileRes.ok) {
+            const html = await profileRes.text();
+            const match = html.match(/__NEXT_DATA__[^>]*>(.*?)<\/script>/);
+            if (match) {
+              const nextData = JSON.parse(match[1]);
+              const apollo = nextData?.props?.apolloState || {};
+              for (const [key, value] of Object.entries(apollo)) {
+                if (key.startsWith("Repl:") && typeof value === "object" && value !== null) {
+                  const v = value as any;
+                  allRepls.push({
+                    id: v.id || key.replace("Repl:", ""),
+                    slug: v.slug,
+                    title: v.title,
+                    description: v.description,
+                    url: v.url,
+                    language: v.language,
+                    imageUrl: v.imageUrl,
+                    isPrivate: v.isPrivate,
+                    deployment: v.deployment,
+                    hostedUrl: v.hostedUrl,
+                  });
+                }
+              }
+            }
+          }
+        } catch (e: any) {
+          console.error("[Replit Sync] HTML fallback failed:", e.message);
         }
       }
 
@@ -7296,7 +7467,7 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       }
 
       logAudit(`Synced Replit projects from profile (${created} new, ${updated} updated)`, "replit_project", undefined, req.session.userId);
-      res.json({ total: allRepls.length, created, updated, source: "profile", note: allRepls.length === 0 ? "No public repls found on profile. Use bulk import to add projects manually." : undefined });
+      res.json({ total: allRepls.length, created, updated, source: "graphql", note: allRepls.length === 0 ? "No public repls found on profile. Use bulk import to add projects manually." : undefined });
     } catch (error: any) {
       console.error("[Replit Sync] Error:", error.message);
       res.status(500).json({ error: "Failed to sync from Replit", details: error.message });

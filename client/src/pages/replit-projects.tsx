@@ -962,11 +962,12 @@ export default function ReplitProjects() {
             </TabsList>
             <TabsContent value="sync" className="space-y-4 mt-4">
               <p className="text-sm text-muted-foreground">
-                Sync public projects from your Replit profile. Requires <code className="text-xs bg-muted px-1 py-0.5 rounded">REPLIT_SID</code> in Secrets.
+                Sync public projects from your Replit profile via GraphQL API. Requires <code className="text-xs bg-muted px-1 py-0.5 rounded">REPLIT_SID</code> in Secrets.
               </p>
               <div>
                 <Label>Replit Username</Label>
-                <Input value={syncUsername} onChange={(e) => setSyncUsername(e.target.value)} placeholder="your-replit-username" data-testid="input-sync-username" />
+                <Input value={syncUsername} onChange={(e) => setSyncUsername(e.target.value)} placeholder="rsmolarz" data-testid="input-sync-username" />
+                <p className="text-xs text-muted-foreground mt-1">Enter your username only (e.g. <strong>rsmolarz</strong>), not a URL</p>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setSyncDialogOpen(false)} data-testid="button-cancel-sync">Cancel</Button>
