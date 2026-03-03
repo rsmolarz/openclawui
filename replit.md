@@ -46,11 +46,11 @@ The application utilizes a client-server architecture.
     - **Gemini Anti-Gravity Proxy**: An OpenAI-compatible proxy for Google Gemini models, providing chat completions and embeddings, with admin settings for upstream configuration and rate limits.
     - **Automation Hub** (10 life automation features):
         - **Daily Briefing**: AI-generated morning action plan with node status, project summary, and motivational quote.
-        - **Health Tracker**: Daily health logging (sleep, water, exercise, mood, weight, energy) with weekly charts.
+        - **Health Tracker**: Daily health logging (sleep, water, exercise, mood, weight, energy) with weekly charts. Oura Ring integration panel (sleep score, readiness, activity, HRV) via `OURA_API_TOKEN`.
         - **Todo List**: Unified todo management powered by Omi AI wearable. "Pull from Omi" analyzes recent conversations and auto-extracts action items. Manual add, priority levels, dismiss/restore, and status filtering. Uses omi_todos table.
-        - **Financial Dashboard**: Income/expense tracking with category breakdown, monthly summary, and spending charts.
+        - **Financial Dashboard**: Multi-section (Personal, Business 1, Business 2) income/expense tracking with category breakdown, monthly summary, and spending charts. Placeholder integrations for QuickBooks, Stifel Wealth Tracker, and Voya Retirement.
         - **Habit Tracker**: Habit creation, daily completion tracking, streak counting, and 30-day visual completion grid. "Analyze from Omi" discovers routines from conversations and shows 15-minute time blocks of the user's daily patterns.
-        - **Home Automation**: Home Assistant integration via HASS_TOKEN/HASS_URL, device grouping by domain, toggle controls.
+        - **Home Automation**: Tabbed layout with Devices (Home Assistant via HASS_TOKEN/HASS_URL), Production (GoStream 192.168.0.108, ATEM Mini Pro ISO 192.168.0.226, Bitfocus Companion 169.254.83.107, StreamDeck placeholder), and Bridges (Home Assistant, Homebridge placeholders). Iframe panels with expand/external-link controls.
         - **Meeting Prep AI**: AI-generated meeting briefs with background, talking points, questions, and objection handling.
         - **SOP Library**: Reuses omi_sops table. Full CRUD with search/filter, plus AI SOP draft generation.
         - **Focus Timer**: Pomodoro timer with configurable work/break durations, SVG ring visualization, session history, and weekly focus charts.

@@ -8751,6 +8751,37 @@ Score each project 1-10 on revenue, brand, and trading. Composite = weighted ave
   // ===== AUTOMATION HUB ROUTES =====
 
   // Health Logs
+  app.get("/api/oura/daily-summary", requireAuth, async (_req, res) => {
+    try {
+      const token = process.env.OURA_API_TOKEN;
+      if (!token) {
+        return res.json({ configured: false });
+      }
+      const today = new Date().toISOString().split("T")[0];
+      const [sleepRes, readinessRes, activityRes] = await Promise.all([
+        fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${today}&end_date=${today}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${today}&end_date=${today}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${today}&end_date=${today}`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const [sleepData, readinessData, activityData] = await Promise.all([sleepRes.json(), readinessRes.json(), activityRes.json()]);
+      const sleep = sleepData?.data?.[0] || null;
+      const readiness = readinessData?.data?.[0] || null;
+      const activity = activityData?.data?.[0] || null;
+      let hrv = null;
+      try {
+        const hrvRes = await fetch(`https://api.ouraring.com/v2/usercollection/heartrate?start_date=${today}&end_date=${today}`, { headers: { Authorization: `Bearer ${token}` } });
+        const hrvData = await hrvRes.json();
+        if (hrvData?.data?.length) {
+          const bpms = hrvData.data.map((d: any) => d.bpm).filter(Boolean);
+          hrv = { average: bpms.length ? Math.round(bpms.reduce((a: number, b: number) => a + b, 0) / bpms.length) : null };
+        }
+      } catch {}
+      res.json({ configured: true, sleep: sleep ? { score: sleep.score } : null, readiness: readiness ? { score: readiness.score } : null, activity: activity ? { score: activity.score } : null, hrv });
+    } catch (e: any) {
+      res.json({ configured: true, error: e.message });
+    }
+  });
+
   app.get("/api/health-logs", requireAuth, async (_req, res) => {
     try { res.json(await storage.getHealthLogs()); } catch (e: any) { res.status(500).json({ error: e.message }); }
   });

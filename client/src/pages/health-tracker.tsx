@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Heart, Save } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Heart, Save, Moon, Zap, Activity, Settings } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -33,6 +34,11 @@ export default function HealthTracker() {
   const { data: logs, isLoading } = useQuery<any[]>({ queryKey: ["/api/health-logs"] });
   const { data: todayLog } = useQuery<any>({
     queryKey: [`/api/health-logs/date/${today}`],
+  });
+
+  const { data: ouraData, isLoading: ouraLoading } = useQuery<any>({
+    queryKey: ["/api/oura/daily-summary"],
+    retry: false,
   });
 
   const saveMutation = useMutation({
@@ -67,9 +73,57 @@ export default function HealthTracker() {
         <Heart className="h-6 w-6 text-red-500" /> Health Tracker
       </h1>
 
+      <Card data-testid="card-oura-ring">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Activity className="h-4 w-4 text-cyan-500" /> Oura Ring
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ouraData?.configured ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Moon className="h-5 w-5 mx-auto mb-1 text-indigo-400" />
+                <p className="text-xs text-muted-foreground">Sleep Score</p>
+                <p className="text-2xl font-bold" data-testid="text-oura-sleep">{ouraData?.sleep?.score ?? "--"}</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Zap className="h-5 w-5 mx-auto mb-1 text-green-400" />
+                <p className="text-xs text-muted-foreground">Readiness</p>
+                <p className="text-2xl font-bold" data-testid="text-oura-readiness">{ouraData?.readiness?.score ?? "--"}</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Activity className="h-5 w-5 mx-auto mb-1 text-orange-400" />
+                <p className="text-xs text-muted-foreground">Activity</p>
+                <p className="text-2xl font-bold" data-testid="text-oura-activity">{ouraData?.activity?.score ?? "--"}</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Heart className="h-5 w-5 mx-auto mb-1 text-red-400" />
+                <p className="text-xs text-muted-foreground">HRV</p>
+                <p className="text-2xl font-bold" data-testid="text-oura-hrv">{ouraData?.hrv?.average ?? "--"}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <Settings className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground mb-2">Connect your Oura Ring to see sleep, readiness, activity, and HRV data</p>
+              <Badge variant="outline" className="text-xs mb-2">Not Connected</Badge>
+              <div className="bg-muted p-3 rounded-lg text-xs text-muted-foreground max-w-sm mx-auto mt-3 text-left space-y-1">
+                <p className="font-medium">To connect:</p>
+                <ol className="list-decimal list-inside space-y-0.5">
+                  <li>Go to cloud.ouraring.com/personal-access-tokens</li>
+                  <li>Create a Personal Access Token</li>
+                  <li>Add it as <code className="bg-background px-1 rounded">OURA_API_TOKEN</code> secret</li>
+                </ol>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card data-testid="card-todays-entry">
         <CardHeader>
-          <CardTitle className="text-lg">Today's Entry — {today}</CardTitle>
+          <CardTitle className="text-lg">Today's Entry -- {today}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -115,7 +169,7 @@ export default function HealthTracker() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card data-testid="card-chart-sleep">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Sleep (hrs) — Last 7 Days</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Sleep (hrs) -- Last 7 Days</CardTitle></CardHeader>
           <CardContent>
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
               <ResponsiveContainer width="100%" height={150}>
@@ -125,7 +179,7 @@ export default function HealthTracker() {
           </CardContent>
         </Card>
         <Card data-testid="card-chart-water">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Water (glasses) — Last 7 Days</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Water (glasses) -- Last 7 Days</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" fontSize={10} /><YAxis fontSize={10} /><Tooltip /><Line type="monotone" dataKey="water" stroke="#82ca9d" strokeWidth={2} /></LineChart>
@@ -133,7 +187,7 @@ export default function HealthTracker() {
           </CardContent>
         </Card>
         <Card data-testid="card-chart-exercise">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Exercise (min) — Last 7 Days</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Exercise (min) -- Last 7 Days</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" fontSize={10} /><YAxis fontSize={10} /><Tooltip /><Line type="monotone" dataKey="exercise" stroke="#ffc658" strokeWidth={2} /></LineChart>
@@ -141,7 +195,7 @@ export default function HealthTracker() {
           </CardContent>
         </Card>
         <Card data-testid="card-chart-energy">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Energy Level — Last 7 Days</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Energy Level -- Last 7 Days</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" fontSize={10} /><YAxis fontSize={10} /><Tooltip /><Line type="monotone" dataKey="energy" stroke="#ff7300" strokeWidth={2} /></LineChart>

@@ -510,6 +510,7 @@ export const financialTransactions = pgTable("financial_transactions", {
   category: text("category").notNull(),
   description: text("description"),
   date: text("date").notNull(),
+  section: text("section").default("personal"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 export const insertFinancialTransactionSchema = createInsertSchema(financialTransactions).omit({ id: true, createdAt: true });
