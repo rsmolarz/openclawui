@@ -15,7 +15,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-type BrandAbbreviation = "DC" | "FS" | "BR" | "LM" | "DCL" | "ALL";
+type BrandAbbreviation = "DC" | "FS" | "BR" | "LM" | "DCL" | "ALL" | "HPG";
 
 interface FeatureSection {
   title: string;
@@ -51,6 +51,7 @@ const BRAND_COLORS: Record<BrandAbbreviation, string> = {
   LM: "bg-purple-500",
   DCL: "bg-rose-500",
   ALL: "bg-gray-600",
+  HPG: "bg-cyan-600",
 };
 
 const FEATURE_DOCS: FeatureDoc[] = [
@@ -265,6 +266,151 @@ const FEATURE_DOCS: FeatureDoc[] = [
     apiRoutes: ["GET /api/tours", "POST /api/tours/:id/progress", "GET /api/onboarding/status"],
     dependencies: ["React Joyride"],
   },
+  {
+    id: "warroom-ops-dashboard",
+    title: "War Room -- Operations Dashboard",
+    version: "2.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-10",
+    summary: "A read-only operations intelligence dashboard that aggregates KPI data, strategic insights, and board activity from Harbor Shoppers. Provides staff and admin users with a unified view of cross-portfolio operational health. Acts as the home tab for the War Room, housing real-time status panels for all connected apps (HPG, Harbor Shoppers 3.0, Doc Captain).",
+    sections: [
+      { title: "What It Is", content: "The War Room Operations Dashboard is the central nerve center of the Harbor Platform Group. It provides a real-time, read-only view of operational intelligence aggregated from all connected applications in the HPG ecosystem: HPG (Identity provider, wallet system, entitlements, portfolio management, audit logging, Knowledge Vault, App Factory, and monetization), Harbor Shoppers 3.0 (E-commerce operations, WooCommerce product management, order processing, inventory tracking, customer data, pricing, and analytics), Doc Captain (Maritime documentation management, vessel data, compliance tracking, certificate management, crew documentation, and vessel registry operations)." },
+      { title: "Architecture & Design", content: "The War Room is a single-page React component (war-room.tsx, ~4900 lines) with tabbed navigation: Operations Tab (KPI panels, app status cards, board activity feed), Agent Console Tab (Command mode for dispatching tasks to apps), Agent Cockpit Tab (Tri-pane per-app feed view with real-time monitoring), Engineering Chat Tab (Conversational multi-turn AI chat with all apps). HPG queries its own database directly. HS3 and DC3 data arrives via the Agent Console callback system." },
+      { title: "Connected Apps", content: "Three applications via a centralized app registry: HPG (self, localhost:5000), Harbor Shoppers 3.0 (HS3_BASE_URL_DEV), Doc Captain (DC3_BASE_URL_DEV). Each app must expose a POST /api/agent/inbox endpoint that accepts tasks and sends callbacks to HPG's callback URLs." },
+      { title: "Security & Authentication", content: "Inter-app communication secured with service tokens: HPG to HS3 (HPG_TO_HS3_SERVICE_TOKEN), HPG to DC3 (HPG_TO_DC3_SERVICE_TOKEN), HS3 to HPG callbacks (HS3_TO_HPG_SERVICE_TOKEN), DC3 to HPG callbacks (DC3_TO_HPG_SERVICE_TOKEN), HPG self-dispatch (WARROOM_SERVICE_TOKEN). All tokens sent in Authorization: Bearer header." },
+    ],
+    files: ["client/src/pages/portal/war-room.tsx", "server/routes.ts", "shared/schema.ts", "server/storage.ts"],
+    apiRoutes: ["POST /api/agent/tasks", "GET /api/agent/tasks", "GET /api/agent/feed/:app", "POST /api/agent/inbox"],
+    dependencies: ["OpenAI (gpt-4o-mini)", "Node.js fetch API", "Drizzle ORM"],
+  },
+  {
+    id: "warroom-agent-console",
+    title: "War Room -- Agent Console",
+    version: "2.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-10",
+    summary: "Command and Chat mode interface for cross-app task orchestration across HPG, Harbor Shoppers 3.0, and Doc Captain. Features handler selection, environment targeting (dev/staging/prod), idempotent task dispatch, auto-execution pipelines, and real-time response tracking with progress indicators.",
+    sections: [
+      { title: "Command Mode", content: "Select target apps (HPG, HS3, DC3) individually or all at once. Choose a handler/task type (e.g., health_check, list_config, or custom). Set environment (dev, staging, prod) with safety gates. Write a message and optional context JSON. Dispatch the task and view real-time responses as callbacks arrive." },
+      { title: "Chat Mode (Engineering Chat)", content: "Conversational multi-turn interface. Type a message and all target apps in the thread receive it simultaneously. Apps respond with AI-powered contextual answers using their own database data. Supports needs_info, cross_app_request, and normal responses. Full conversation history is maintained per thread." },
+      { title: "Task Dispatch Flow", content: "Admin composes message + selects target apps. HPG creates agent_console_task record, POSTs to each app's /api/agent/inbox. Apps respond HTTP 202 immediately, process asynchronously, then POST results back via callback. Tasks have unique taskRef (TSK-XXXXX-YYYYY format) and idempotencyKey. Supports parent-child relationships, Save as Template, and Plan & Split." },
+      { title: "Supported Handlers", content: "SAFE_HANDLERS (always auto-execute): health_check (system status), list_config (supported handlers metadata). PRIVILEGED_HANDLERS require local dispatch or explicit approval. Each handler has description, tags, inputHint, autoExec flag, and mutating flag." },
+      { title: "Database Schema", content: "agent_console_tasks (Central task registry with UUID, taskRef, targetApps, message, contextJson, environment, status, idempotencyKey). agent_task_responses (Per-app responses with appKey, status, responseText, responseJson). agent_task_attachments (File attachments with filename, mimeType, sizeBytes, storageKey). All tables use UUID primary keys." },
+    ],
+    files: ["client/src/pages/portal/war-room.tsx", "server/routes.ts", "shared/schema.ts", "server/storage.ts"],
+    apiRoutes: ["POST /api/agent/tasks", "GET /api/agent/tasks", "POST /api/agent/tasks/:taskId/callback", "POST /api/agent/inbox"],
+    dependencies: ["OpenAI (gpt-4o-mini)", "Node.js fetch API", "Drizzle ORM", "Zod"],
+  },
+  {
+    id: "warroom-agent-cockpit",
+    title: "War Room -- Agent Cockpit",
+    version: "2.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-10",
+    summary: "Tri-pane operations cockpit with per-app feeds (HPG, HS3, DC3), handler dispatch with environment selection, checkpoint safety metadata on mutating operations, parent-child task relationships, and real-time callback monitoring. Includes Save as Template and Plan & Split features for reusable task orchestration.",
+    sections: [
+      { title: "Tri-Pane Layout", content: "Three-column layout where each column shows the live task feed for one app (HPG, HS3, DC3). Gives the admin a bird's-eye view of all operations across the entire platform ecosystem simultaneously. Each pane shows recent tasks with status indicators (pending, dispatched, completed, failed)." },
+      { title: "Cockpit Features", content: "Save as Template: Save task configurations (handler, message, context JSON, target apps) as reusable templates stored with templateSlug. Plan & Split: Decompose complex tasks into multiple subtasks with parentTaskId linking. Broadcast (Radio icon, amber styled): Send a single message to all apps simultaneously in a new thread. Nudge: Re-dispatch messages to unresponsive apps with a nudge context flag." },
+      { title: "Feed API", content: "GET /api/agent/feed/:app returns the most recent tasks dispatched to that app, including task metadata (taskRef, status, environment, handler), response data, timing, and parent-child relationships. The cockpit polls this endpoint at regular intervals." },
+    ],
+    files: ["client/src/pages/portal/war-room.tsx", "server/routes.ts", "shared/schema.ts"],
+    apiRoutes: ["GET /api/agent/feed/:app", "POST /api/agent/tasks", "GET /api/agent/chat/:parentId/children"],
+    dependencies: ["Drizzle ORM", "React (TanStack Query)"],
+  },
+  {
+    id: "warroom-context-json",
+    title: "War Room -- Context JSON Editor",
+    version: "1.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-10",
+    summary: "Structured context editor for agent task inputs with live JSON validation, green/red validity indicators, handler-specific presets (auto-fill templates), and server-side fallback that auto-extracts JSON-in-message. Mutating handlers require valid context JSON with optional notes, preventing stuck tasks from mixed text and JSON.",
+    sections: [
+      { title: "Live JSON Validation", content: "As you type, the editor validates JSON in real-time with a green (valid) or red (invalid) border indicator. Handler presets auto-fill with the handler's expected input template (inputHint). Mixed input protection enforces valid JSON for mutating handlers." },
+      { title: "Context JSON Contract", content: "Reserved fields HPG injects automatically: chatMode (boolean), threadId (UUID), conversationHistory (array), replyToNeedsInfo (boolean), originalQuestion (string), crossAppRequest (boolean), crossAppForward (boolean), nudge (boolean), environment (dev/staging/prod). Custom fields from the admin's context editor are merged alongside these." },
+      { title: "Server-Side Fallback", content: "If the admin accidentally puts JSON in the message field instead of the context editor, the server extracts it and moves it to contextJson automatically. Notes field allows optional text annotations to accompany the JSON context." },
+    ],
+    files: ["client/src/pages/portal/war-room.tsx", "server/routes.ts"],
+    apiRoutes: [],
+    dependencies: [],
+  },
+  {
+    id: "warroom-engineering-chat",
+    title: "War Room -- Engineering Chat Mode",
+    version: "2.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-12",
+    summary: "Thread-based persistent conversations with all connected apps. Supports conversational multi-turn interactions where apps respond with AI-powered contextual answers. Features shared conversation history, callback-to-thread integration, environment safety gates, CockpitChatPanel with tri-pane grouped message view, full-screen chat expansion, and per-response and bulk copy-to-clipboard for sharing.",
+    sections: [
+      { title: "How It Works", content: "Admin creates a chat thread, selecting target apps. Types a message dispatched to all target apps at once. Each app receives the message with full conversation history, uses OpenAI + its own database to generate contextual responses. Responses appear in real-time as callbacks arrive." },
+      { title: "Thread & Message Schema", content: "agent_chat_threads: id (UUID), threadRef (THR-XXXXX-YYYYY), title, createdBy, targetApps (text[]), environment, status (active/archived/closed), metadata (JSONB). agent_chat_messages: id (UUID), threadId (FK), senderType (user/app/system), senderAppKey, content, messageType (normal/needs_info/cross_app_request/cross_app_response/admin_reply/forwarded), taskId, metadata (JSONB)." },
+      { title: "AI-Powered Responses", content: "HPG uses gpt-4o-mini with system prompt describing all HPG capabilities. External apps have two paths: Real AI handler (preferred, app queries own DB and uses OpenAI) or AI proxy fallback (HPG generates response on behalf of apps that only send processing acks)." },
+      { title: "Message Deduplication", content: "Multiple strategies: idempotency key check, task-based dedup, auto-delivered message updates (placeholders updated with real content), single callback pattern for self-dispatch." },
+      { title: "Full-Screen & Copy Features", content: "Toggle button expands chat to fill entire viewport, Escape key dismisses. Per-response copy: clipboard icon on hover copies single response. Copy All Responses: button copies all responses since last user message, formatted with app labels (=== Harbor Shoppers 3.0 === etc)." },
+    ],
+    files: ["client/src/pages/portal/war-room.tsx", "server/routes.ts", "shared/schema.ts", "server/storage.ts"],
+    apiRoutes: ["GET /api/agent/chat/threads", "POST /api/agent/chat/threads", "GET /api/agent/chat/threads/:threadId", "GET /api/agent/chat/threads/:threadId/messages", "POST /api/agent/chat/threads/:threadId/messages", "PATCH /api/agent/chat/threads/:threadId", "POST /api/agent/chat/threads/:threadId/nudge", "POST /api/agent/chat/callback"],
+    dependencies: ["OpenAI (gpt-4o-mini)", "Drizzle ORM", "TanStack React Query"],
+  },
+  {
+    id: "warroom-cross-app",
+    title: "War Room -- Cross-App Communication",
+    version: "1.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-13",
+    summary: "Admin-mediated cross-app communication system where apps can request data from each other. Supports needs_info workflows (apps ask admin clarifying questions), cross_app_request workflows (apps request data from other apps with admin approval/deny/edit), and forwarded answers back to requesting apps.",
+    sections: [
+      { title: "needs_info Workflow", content: "App receives a task and doesn't have enough information. Sends a needs_info callback with a clarifying question. Question appears in chat with inline reply UI. Admin types a reply, dispatched back to app with replyToNeedsInfo: true context. App processes reply with original context and sends completed response." },
+      { title: "cross_app_request Workflow", content: "App A receives a task requiring data from App B. Sends cross_app_request callback specifying target apps and question. Request appears in chat with Approve/Deny/Edit buttons. Admin approves (optionally editing). HPG dispatches question to App B, forwards answer back to App A." },
+      { title: "Request Lifecycle", content: "States: pending, approved, denied, dispatched, answered, forwarded. Fields: requestingApp, targetApps, question, status, approvedBy, editedQuestion, responseMessageId, sourceTaskId, sourceMessageId, forwardedAt, metadata (JSONB)." },
+      { title: "Message Types", content: "Six types: normal (standard), needs_info (clarifying question with inline reply UI), cross_app_request (data request with Approve/Deny/Edit buttons), cross_app_response (target app's response), admin_reply (admin's reply to needs_info), forwarded (answer forwarded to requesting app)." },
+    ],
+    files: ["client/src/pages/portal/war-room.tsx", "server/routes.ts", "shared/schema.ts", "server/storage.ts"],
+    apiRoutes: ["POST /api/agent/chat/threads/:threadId/reply-needs-info", "POST /api/agent/chat/cross-app-requests/:requestId/approve", "POST /api/agent/chat/cross-app-requests/:requestId/deny", "POST /api/agent/chat/cross-app-requests/:requestId/dispatch", "POST /api/agent/chat/cross-app-requests/:requestId/forward", "GET /api/agent/chat/threads/:threadId/cross-app-requests"],
+    dependencies: ["Drizzle ORM", "Node.js fetch API"],
+  },
+  {
+    id: "warroom-settings-snapshots",
+    title: "War Room -- Settings Snapshots",
+    version: "1.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-16",
+    summary: "Backup, diff, restore, and export system for War Room infrastructure configuration. Captures app URLs, service token presence flags (never secrets), OS contract state, and agent templates into immutable snapshots. Supports lock/unlock, visual diff comparison against live settings, automated restore with OS contract reactivation, manual checklist generation, and export to external apps for disaster recovery.",
+    sections: [
+      { title: "Capabilities", content: "Capture: Take a snapshot of all app URLs, token presence, OS contract state, and saved templates. Lock: Freeze a snapshot so it cannot be accidentally deleted. Diff: Compare a snapshot against current live settings, highlighting every change. Restore: Re-apply a snapshot's OS contract automatically with manual checklist for token/env var fixes. Export: Send a snapshot to HS3 or DC3 as a backup payload. Delete: Remove unlocked snapshots." },
+      { title: "Snapshot Schema", content: "warroom_snapshots: id (UUID), name, description, payload (JSONB with appUrls, tokenPresence booleans, osContract, templates, capturedAt), checksum (SHA-256), locked (boolean), createdBy, timestamps. warroom_snapshot_exports: id, snapshotId, targetApp, status (pending/sent/failed), responseData (JSONB), exportedBy, exportedAt." },
+      { title: "Deterministic Checksums", content: "SHA-256 checksums from deterministically serialized payload. stableStringify deep-sorts all object keys recursively before JSON.stringify. Same logical payload always produces same checksum regardless of key insertion order." },
+      { title: "Diff & Restore Flow", content: "Diff: Reads current app URLs, checks token presence, fetches active OS contract, loads templates. Produces field-by-field comparison: { field, snapshot, current, match }. Restore: Identifies OS contract version, reactivates if different, generates manual checklist for env var/token fixes. Shows green checkmarks for auto-applied changes, amber for manual fixes." },
+      { title: "Security", content: "Snapshots NEVER store actual secrets or tokens. Only boolean presence flags (e.g., 'HS3 token: configured' vs 'HS3 token: missing') and URLs. No sensitive data leaks even if a snapshot is exported." },
+    ],
+    files: ["client/src/pages/portal/war-room.tsx", "server/routes.ts", "shared/schema.ts", "server/storage.ts"],
+    apiRoutes: ["GET /api/agent/snapshots", "POST /api/agent/snapshots", "PATCH /api/agent/snapshots/:id", "DELETE /api/agent/snapshots/:id", "POST /api/agent/snapshots/:id/diff", "POST /api/agent/snapshots/:id/restore", "POST /api/agent/snapshots/:id/export"],
+    dependencies: ["Drizzle ORM", "Node.js crypto (SHA-256)"],
+  },
+  {
+    id: "warroom-integration-guide",
+    title: "War Room -- External App Integration Guide",
+    version: "2.0",
+    brand: "HPG",
+    status: "complete",
+    published: "2026-02-14",
+    summary: "Complete integration guide for connecting external Replit apps (Harbor Shoppers, Doc Captain, or new apps) to HPG's War Room. Includes the full inbox handler contract, callback patterns, AI-powered response setup, authentication, and copy-paste instructions for the Replit Agent.",
+    sections: [
+      { title: "Inbox Handler Contract", content: "External app MUST implement POST /api/agent/inbox. Incoming payload includes: taskId, taskRef, appKey, message, context_json (with chatMode, threadId, conversationHistory, replyToNeedsInfo, crossAppRequest, crossAppForward, nudge), callbackUrl, chatCallbackUrl, environment, mode. Required behavior: validate Bearer token, respond HTTP 202, process asynchronously, send result via callback." },
+      { title: "Callback Response Patterns", content: "Three types: 1) Normal completed response (status: completed, responseText, idempotencyKey). 2) needs_info (status: needs_info, clarifying question). 3) cross_app_request (status: cross_app_request, crossAppQuestion, crossAppTargetApps, crossAppContext). IMPORTANT: Send callbacks to callbackUrl only, HPG's handler automatically writes to chat thread." },
+      { title: "AI-Powered Response Setup", content: "Receive task at POST /api/agent/inbox, respond HTTP 202 immediately, process asynchronously: extract message, extract conversation history, query own database if needed, call OpenAI (gpt-4o-mini) with app-specific system prompt and conversation history, send completed callback." },
+      { title: "Authentication Setup", content: "Matching service tokens on both sides. For HS3: HPG sets HPG_TO_HS3_SERVICE_TOKEN, HS3 sets HS3_TO_HPG_SERVICE_TOKEN (same value). For new apps: Generate strong random token (32+ chars), store on HPG as HPG_TO_{APP}_SERVICE_TOKEN, on app as {APP}_TO_HPG_SERVICE_TOKEN. Validate Authorization: Bearer header in inbox handler." },
+    ],
+    files: ["server/routes.ts"],
+    apiRoutes: ["POST /api/agent/inbox"],
+    dependencies: ["OpenAI (gpt-4o-mini)", "Node.js fetch API", "Service tokens (Bearer auth)"],
+  },
 ];
 
 const FEATURE_BUNDLES: FeatureBundle[] = [
@@ -278,6 +424,7 @@ const FEATURE_BUNDLES: FeatureBundle[] = [
   { id: "listing-workflow", name: "Listing Maker Workflow", description: "AI-powered listing creation and syndication", mainFeature: "listing-maker", supportingFeatures: ["doc-generation", "dcl-marketing"] },
   { id: "admin-ops", name: "Admin & Operations", description: "Settings, marketplace, and operational tools", mainFeature: "membership-subscription", supportingFeatures: ["promo-codes", "overage-billing"] },
   { id: "onboarding", name: "User Onboarding & Engagement", description: "Tours, demos, and feature discovery", mainFeature: "demo-tour", supportingFeatures: ["survey-system"] },
+  { id: "warroom-command-suite", name: "War Room Command Suite", description: "Complete cross-app operations command center with real-time dashboards, AI-powered agent console, tri-pane cockpit, conversational engineering chat, cross-app communication workflows, settings backup/restore snapshots, and full external app integration guide", mainFeature: "warroom-ops-dashboard", supportingFeatures: ["warroom-agent-console", "warroom-agent-cockpit", "warroom-context-json", "warroom-engineering-chat", "warroom-cross-app", "warroom-settings-snapshots", "warroom-integration-guide"] },
 ];
 
 function generateFeatureMarkdown(doc: FeatureDoc): string {
