@@ -44,6 +44,7 @@ The application utilizes a client-server architecture.
     - **Node Heartbeat System**: Machines report status via a lightweight agent to `POST /api/node/heartbeat`, updating `lastSeen` timestamps.
     - **Periodic Skill Discovery**: Automatic hourly checks for new skills with manual trigger and UI notifications.
     - **Gemini Anti-Gravity Proxy**: An OpenAI-compatible proxy for Google Gemini models, providing chat completions and embeddings, with admin settings for upstream configuration and rate limits.
+    - **Feature Documentation System**: Admin tab with 12+ feature docs across 6 brands (DC, FS, BR, LM, DCL, ALL). Features/Bundles toggle view, search/filter by brand, detail view with markdown export, email sharing via Gmail, and Replit project sharing. 10 feature bundles grouping related capabilities. Component: `client/src/components/admin/AdminFeatureDocs.tsx`.
     - **Automation Hub** (10 life automation features):
         - **Daily Briefing**: AI-generated morning action plan with node status, project summary, and motivational quote.
         - **Health Tracker**: Daily health logging (sleep, water, exercise, mood, weight, energy) with weekly charts. Oura Ring integration panel (sleep score, readiness, activity, HRV) via `OURA_API_TOKEN`.

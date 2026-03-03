@@ -36,8 +36,10 @@ import {
   KeyRound,
   Globe,
   Timer,
+  FileText,
 } from "lucide-react";
 import type { GuardianLog, FeatureProposal } from "@shared/schema";
+import AdminFeatureDocs from "@/components/admin/AdminFeatureDocs";
 
 function severityColor(severity: string) {
   switch (severity) {
@@ -884,6 +886,10 @@ export default function AdminPage() {
             <Code className="h-4 w-4 mr-2" />
             Code Upgrade
           </TabsTrigger>
+          <TabsTrigger value="feature-docs" data-testid="tab-feature-docs">
+            <FileText className="h-4 w-4 mr-2" />
+            Feature Docs
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="guardian" className="mt-6">
@@ -896,6 +902,10 @@ export default function AdminPage() {
 
         <TabsContent value="upgrades" className="mt-6">
           <CodeUpgradeTab />
+        </TabsContent>
+
+        <TabsContent value="feature-docs" className="mt-6">
+          <AdminFeatureDocs />
         </TabsContent>
       </Tabs>
     </div>

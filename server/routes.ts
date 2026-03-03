@@ -6175,6 +6175,58 @@ setInterval(sendHeartbeat, INTERVAL_MS);
     }
   });
 
+  app.post("/api/admin/feature-docs/send-email", requireAuth, async (req, res) => {
+    try {
+      const { to, subject, body } = req.body;
+      if (!to || !subject || !body) {
+        return res.status(400).json({ error: "Missing to, subject, or body" });
+      }
+      const { getUncachableGmailClient } = await import("./gmail");
+      const gmail = await getUncachableGmailClient();
+      const raw = Buffer.from(
+        `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`
+      ).toString("base64url");
+      await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/feature-docs/send-replit", requireAuth, async (req, res) => {
+    try {
+      const { slug, featureMarkdown, featureTitle } = req.body;
+      if (!slug || !featureMarkdown) {
+        return res.status(400).json({ error: "Missing slug or featureMarkdown" });
+      }
+      const filename = featureTitle
+        ? featureTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") + "-feature-doc.md"
+        : "feature-doc.md";
+      const replitProject = await storage.getReplitProjects?.();
+      const matchedProject = replitProject?.find((p: any) =>
+        p.slug?.includes(slug) || p.url?.includes(slug) || p.replitId === slug
+      );
+      if (matchedProject && matchedProject.replitId) {
+        res.json({
+          success: true,
+          method: "reference",
+          message: `Feature doc "${featureTitle}" prepared for project ${slug}. Copy the markdown file to the target project's feature-docs/ directory.`,
+          filename,
+          projectId: matchedProject.replitId,
+        });
+      } else {
+        res.json({
+          success: true,
+          method: "manual",
+          message: `Feature doc "${featureTitle}" ready. Save the downloaded file to the target project at feature-docs/${filename}`,
+          filename,
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/telegram/status", requireAuth, async (_req, res) => {
     try {
       const { getTelegramStatus } = await import("./bot/telegram");
