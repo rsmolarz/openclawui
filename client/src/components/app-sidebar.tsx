@@ -67,6 +67,7 @@ const settingsItems = [
   { title: "Notifications", url: "/settings/notifications", icon: Bell },
   { title: "Nodes", url: "/settings/machines", icon: Cpu },
   { title: "API Keys", url: "/settings/api-keys", icon: KeyRound },
+  { title: "Secrets Inventory", url: "/secrets", icon: Shield },
   { title: "Appearance", url: "/settings/appearance", icon: Palette },
 ];
 

@@ -40,6 +40,7 @@ import SettingsGeminiProxy from "@/pages/settings-gemini-proxy";
 import ActivityLog from "@/pages/activity-log";
 import ReplitProjects from "@/pages/replit-projects";
 import VoiceChat from "@/pages/voice-chat";
+import SecretsInventory from "@/pages/secrets-inventory";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { Loader2 } from "lucide-react";
 
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/activity-log" component={ActivityLog} />
       <Route path="/replit-projects" component={ReplitProjects} />
       <Route path="/voice-chat" component={VoiceChat} />
+      <Route path="/secrets" component={SecretsInventory} />
       <Route component={NotFound} />
     </Switch>
   );

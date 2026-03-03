@@ -8164,6 +8164,103 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
     }
   });
 
+  // ── Secrets Inventory ──
+  app.get("/api/secrets/inventory", requireAuth, async (_req, res) => {
+    try {
+      const secrets = [
+        { key: "DATABASE_URL", category: "core", label: "PostgreSQL Database", usedBy: ["Database connections", "Session store"], required: true },
+        { key: "SESSION_SECRET", category: "core", label: "Session Encryption Secret", usedBy: ["Express session encryption"], required: true },
+        { key: "APP_BASE_URL", category: "core", label: "Application Base URL", usedBy: ["OAuth callbacks", "Webhook URLs"], required: false },
+
+        { key: "OPENCLAW_DID_BASE_URL", category: "auth", label: "MedInvest DID Base URL", usedBy: ["OAuth 2.0 login"], required: true },
+        { key: "OPENCLAW_DID_CLIENT_ID", category: "auth", label: "MedInvest DID Client ID", usedBy: ["OAuth 2.0 login"], required: true },
+        { key: "OPENCLAW_DID_SECRET", category: "auth", label: "MedInvest DID Client Secret", usedBy: ["OAuth 2.0 login"], required: true },
+
+        { key: "OPENROUTER_API_KEY", category: "ai", label: "OpenRouter API Key", usedBy: ["LLM chat", "AI Task Runner", "SOP Generator", "Voice Chat"], required: true },
+        { key: "OPENAI_API_KEY", category: "ai", label: "OpenAI API Key", usedBy: ["Whisper STT", "TTS voice", "DALL-E images", "Code analysis"], required: true },
+        { key: "GEMINI_API_KEY", category: "ai", label: "Google Gemini API Key", usedBy: ["Gemini Proxy", "Image generation fallback"], required: false },
+        { key: "ANTHROPIC_API_KEY", category: "ai", label: "Anthropic API Key", usedBy: ["Claude models via OpenRouter"], required: false },
+        { key: "PERPLEXITY_API_KEY", category: "ai", label: "Perplexity API Key", usedBy: ["Search-augmented LLM"], required: false },
+        { key: "GROQ_API_KEY", category: "ai", label: "Groq API Key", usedBy: ["Fast inference models"], required: false },
+        { key: "ELEVENLABS_API_KEY", category: "ai", label: "ElevenLabs API Key", usedBy: ["Voice synthesis"], required: false },
+
+        { key: "GEMINI_PROXY_API_KEY", category: "proxy", label: "Gemini Proxy Auth Token", usedBy: ["Gemini Anti-Gravity Proxy authentication"], required: false },
+        { key: "GOOGLE_CLOUD_PROJECT", category: "proxy", label: "Google Cloud Project ID", usedBy: ["Vertex AI endpoint"], required: false },
+        { key: "GOOGLE_CLOUD_LOCATION", category: "proxy", label: "Google Cloud Location", usedBy: ["Vertex AI region"], required: false },
+        { key: "GCP_SERVICE_ACCOUNT_JSON", category: "proxy", label: "GCP Service Account JSON", usedBy: ["Vertex AI authentication"], required: false },
+
+        { key: "TELEGRAM_BOT_TOKEN", category: "messaging", label: "Telegram Bot Token", usedBy: ["Telegram bot"], required: false },
+        { key: "TWILIO_ACCOUNT_SID", category: "messaging", label: "Twilio Account SID", usedBy: ["SMS/WhatsApp via Twilio"], required: false },
+        { key: "TWILIO_AUTH_TOKEN", category: "messaging", label: "Twilio Auth Token", usedBy: ["SMS/WhatsApp via Twilio"], required: false },
+        { key: "RESEND_API_KEY", category: "messaging", label: "Resend API Key", usedBy: ["Email delivery"], required: false },
+
+        { key: "HOSTINGER_API_KEY", category: "infra", label: "Hostinger API Key", usedBy: ["VPS monitoring", "Firewall management"], required: false },
+        { key: "VPS_ROOT_PASSWORD", category: "infra", label: "VPS Root Password", usedBy: ["SSH tunnel agent", "Direct SSH access"], required: false },
+        { key: "OPENCLAW_API_KEY", category: "infra", label: "OpenClaw Gateway API Key", usedBy: ["Node heartbeat auth", "Agent script"], required: false },
+        { key: "OPENCLAW_GATEWAY_TOKEN", category: "infra", label: "OpenClaw Gateway Token", usedBy: ["Gateway proxy auth"], required: false },
+
+        { key: "REPLIT_SID", category: "replit", label: "Replit Session ID", usedBy: ["Replit project sync", "GraphQL API"], required: false },
+        { key: "REPLIT_USERNAME", category: "replit", label: "Replit Username", usedBy: ["Replit project sync", "Profile URL"], required: false },
+        { key: "OMI_API_KEY", category: "replit", label: "Omi Wearable API Key", usedBy: ["Omi memories", "SOP Generator", "Todo extraction"], required: false },
+
+        { key: "OPENCLAW_GITHUB_TOKEN", category: "integrations", label: "GitHub Token (OpenClaw)", usedBy: ["GitHub webhooks", "Repo access"], required: false },
+        { key: "GITHUB_TOKEN", category: "integrations", label: "GitHub Token (Fallback)", usedBy: ["GitHub API fallback"], required: false },
+        { key: "GITHUB_WEBHOOK_SECRET", category: "integrations", label: "GitHub Webhook Secret", usedBy: ["Webhook signature verification"], required: false },
+        { key: "NOTION_API_KEY", category: "integrations", label: "Notion API Key", usedBy: ["Notion integration"], required: false },
+        { key: "LINEAR_API_KEY", category: "integrations", label: "Linear API Key", usedBy: ["Linear issue tracking"], required: false },
+        { key: "HUGGINGFACE_TOKEN", category: "integrations", label: "Hugging Face Token", usedBy: ["Model inference"], required: false },
+        { key: "PINECONE_API_KEY", category: "integrations", label: "Pinecone API Key", usedBy: ["Vector database"], required: false },
+        { key: "SUPABASE_KEY", category: "integrations", label: "Supabase Key", usedBy: ["Supabase backend"], required: false },
+        { key: "AIRTABLE_API_KEY", category: "integrations", label: "Airtable API Key", usedBy: ["Airtable integration"], required: false },
+        { key: "ZAPIER_API_KEY", category: "integrations", label: "Zapier API Key", usedBy: ["Zapier automation"], required: false },
+
+        { key: "AWS_ACCESS_KEY_ID", category: "cloud", label: "AWS Access Key ID", usedBy: ["AWS services"], required: false },
+        { key: "AWS_SECRET_ACCESS_KEY", category: "cloud", label: "AWS Secret Access Key", usedBy: ["AWS services"], required: false },
+        { key: "CLOUDFLARE_API_TOKEN", category: "cloud", label: "Cloudflare API Token", usedBy: ["DNS/CDN management"], required: false },
+      ];
+
+      const inventory = secrets.map(s => ({
+        ...s,
+        isSet: !!process.env[s.key],
+        maskedPreview: process.env[s.key]
+          ? `${process.env[s.key]!.substring(0, 4)}${"•".repeat(Math.min(20, process.env[s.key]!.length - 4))}`
+          : null,
+      }));
+
+      const categories = {
+        core: "Core Infrastructure",
+        auth: "Authentication",
+        ai: "AI / LLM Providers",
+        proxy: "Gemini Proxy",
+        messaging: "Messaging & Communication",
+        infra: "VPS & Infrastructure",
+        replit: "Replit & Wearables",
+        integrations: "Third-Party Integrations",
+        cloud: "Cloud Providers",
+      };
+
+      const totalSet = inventory.filter(s => s.isSet).length;
+      const totalRequired = inventory.filter(s => s.required).length;
+      const requiredSet = inventory.filter(s => s.required && s.isSet).length;
+      const missingRequired = inventory.filter(s => s.required && !s.isSet);
+
+      res.json({
+        inventory,
+        categories,
+        summary: {
+          total: inventory.length,
+          configured: totalSet,
+          missing: inventory.length - totalSet,
+          requiredTotal: totalRequired,
+          requiredConfigured: requiredSet,
+          missingRequired: missingRequired.map(s => s.key),
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch secrets inventory" });
+    }
+  });
+
   // ── Omi SOPs ──
   function safeParseJsonArray(val: string | null | undefined): string[] {
     if (!val) return [];
