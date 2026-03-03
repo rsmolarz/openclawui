@@ -1171,6 +1171,117 @@ def pause(seconds: float):
     time.sleep(seconds)
     return {"status": "paused", "seconds": seconds}`,
     },
+    "gohighlevel": {
+      skillMd: `---
+name: gohighlevel
+description: GoHighLevel CRM integration — manage contacts, calendars, conversations, opportunities, pipelines, payments, blogs, email templates, and social media posts via GHL API.
+tools:
+  - get_contacts
+  - create_contact
+  - update_contact
+  - get_contact
+  - get_calendar_events
+  - search_conversations
+  - send_message
+  - get_opportunities
+  - get_pipelines
+  - update_opportunity
+  - get_blogs
+  - create_blog_post
+  - list_transactions
+  - create_social_post
+---
+
+GoHighLevel CRM skill for OpenClaw. Manage your entire GHL sub-account from any node — contacts, calendar events, conversations, opportunities, payments, blogs, and social media.
+
+Requires GHL_API_KEY and GHL_LOCATION_ID environment variables.`,
+      handlerPy: `import os
+import json
+import urllib.request
+import urllib.parse
+
+GHL_BASE = "https://services.leadconnectorhq.com"
+API_KEY = os.environ.get("GHL_API_KEY", "")
+LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")
+
+def _headers():
+    return {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+        "Version": "2021-07-28",
+    }
+
+def _request(method, path, data=None, params=None):
+    url = f"{GHL_BASE}{path}"
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    body = json.dumps(data).encode() if data else None
+    req = urllib.request.Request(url, data=body, headers=_headers(), method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_contacts(query="", limit=20):
+    return _request("GET", "/contacts/", params={"locationId": LOCATION_ID, "query": query, "limit": limit})
+
+def create_contact(first_name="", last_name="", email="", phone="", tags=None):
+    body = {"locationId": LOCATION_ID, "firstName": first_name, "lastName": last_name}
+    if email: body["email"] = email
+    if phone: body["phone"] = phone
+    if tags: body["tags"] = tags
+    return _request("POST", "/contacts/", data=body)
+
+def update_contact(contact_id, **fields):
+    return _request("PUT", f"/contacts/{contact_id}", data=fields)
+
+def get_contact(contact_id):
+    return _request("GET", f"/contacts/{contact_id}")
+
+def get_calendar_events(start_time, end_time, calendar_id=None):
+    params = {"locationId": LOCATION_ID, "startTime": start_time, "endTime": end_time}
+    if calendar_id: params["calendarId"] = calendar_id
+    return _request("GET", "/calendars/events", params=params)
+
+def search_conversations(contact_id):
+    return _request("GET", "/conversations/search", params={"locationId": LOCATION_ID, "contactId": contact_id})
+
+def send_message(contact_id, message, message_type="SMS"):
+    return _request("POST", "/conversations/messages", data={"type": message_type, "contactId": contact_id, "message": message})
+
+def get_opportunities(pipeline_id=None, query=""):
+    params = {"locationId": LOCATION_ID}
+    if pipeline_id: params["pipelineId"] = pipeline_id
+    if query: params["q"] = query
+    return _request("GET", "/opportunities/search", params=params)
+
+def get_pipelines():
+    return _request("GET", "/opportunities/pipelines", params={"locationId": LOCATION_ID})
+
+def update_opportunity(opportunity_id, **fields):
+    return _request("PUT", f"/opportunities/{opportunity_id}", data=fields)
+
+def get_blogs(limit=20):
+    return _request("GET", "/blogs/site/all", params={"locationId": LOCATION_ID, "limit": limit, "skip": 0})
+
+def create_blog_post(blog_id, title, raw_html, description="", status="DRAFT"):
+    return _request("POST", "/blogs/posts", data={
+        "locationId": LOCATION_ID, "blogId": blog_id, "title": title,
+        "rawHTML": raw_html, "description": description, "status": status,
+        "author": "", "categories": [], "imageUrl": "", "imageAltText": "",
+        "urlSlug": title.lower().replace(" ", "-"), "publishedAt": "",
+    })
+
+def list_transactions(limit=20):
+    return _request("GET", "/payments/transactions", params={"locationId": LOCATION_ID, "limit": limit})
+
+def create_social_post(account_id, post_type, media_url="", content=""):
+    return _request("POST", "/social-media-posting/post", data={
+        "accountId": account_id, "type": post_type,
+        "mediaUrls": [media_url] if media_url else [], "content": content,
+    })`,
+    },
   };
   return skills[skillName] || null;
 }
@@ -6591,6 +6702,7 @@ def api_call(method: str, path: str, data: dict = None, headers: dict = None):
           { name: "ssh-agent", description: "SSH remote control — execute commands on remote machines, transfer files, and manage tunnels", category: "devops", author: "openclaw" },
           { name: "mqtt-agent", description: "MQTT IoT device control — publish/subscribe to topics for smart home and sensor automation", category: "smart-home", author: "openclaw" },
           { name: "companion-agent", description: "Bitfocus Companion integration — control Stream Deck buttons, pages, and actions via Companion API", category: "hardware", author: "openclaw" },
+          { name: "gohighlevel", description: "GoHighLevel CRM — contacts, calendars, conversations, opportunities, pipelines, payments, blogs, email templates, and social media posting", category: "crm", author: "openclaw" },
         ];
       }
 
