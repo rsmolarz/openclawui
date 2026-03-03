@@ -955,6 +955,7 @@ export default function ReplitProjects() {
   const [syncUsername, setSyncUsername] = useState("");
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [bulkJson, setBulkJson] = useState("");
+  const [quickImportText, setQuickImportText] = useState("");
 
   const { data: projects, isLoading } = useQuery<ReplitProject[]>({
     queryKey: ["/api/replit-projects"],
@@ -974,6 +975,22 @@ export default function ReplitProjects() {
     },
     onError: (err: any) => {
       toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const quickImportMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await apiRequest("POST", "/api/replit-projects/bulk-import", { text });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/replit-projects"] });
+      toast({ title: "Import complete", description: `${data.created} projects imported, ${data.skipped} skipped` });
+      setSyncDialogOpen(false);
+      setQuickImportText("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -1159,15 +1176,40 @@ export default function ReplitProjects() {
           <DialogHeader>
             <DialogTitle>Import Projects</DialogTitle>
           </DialogHeader>
-          <Tabs defaultValue="sync">
+          <Tabs defaultValue="quick">
             <TabsList className="w-full">
-              <TabsTrigger value="sync" className="flex-1">Profile Sync</TabsTrigger>
-              <TabsTrigger value="bulk" className="flex-1">Bulk Import</TabsTrigger>
+              <TabsTrigger value="quick" className="flex-1" data-testid="tab-quick-import">Quick Import</TabsTrigger>
+              <TabsTrigger value="sync" className="flex-1" data-testid="tab-profile-sync">Profile Sync</TabsTrigger>
+              <TabsTrigger value="bulk" className="flex-1" data-testid="tab-json-import">JSON</TabsTrigger>
             </TabsList>
-            <TabsContent value="sync" className="space-y-4 mt-4">
+            <TabsContent value="quick" className="space-y-4 mt-4">
               <p className="text-sm text-muted-foreground">
-                Sync public projects from your Replit profile via GraphQL API. Requires <code className="text-xs bg-muted px-1 py-0.5 rounded">REPLIT_SID</code> in Secrets.
+                Enter project names, Replit URLs, or deployment URLs — one per line. The easiest way to add your projects.
               </p>
+              <Textarea
+                value={quickImportText}
+                onChange={(e) => setQuickImportText(e.target.value)}
+                placeholder={`My Cool App\nhttps://replit.com/@rsmolarz/openclaw-dashboard\nmy-api-server\nhttps://my-app.replit.app`}
+                className="font-mono text-xs min-h-[180px]"
+                data-testid="input-quick-import"
+              />
+              <p className="text-xs text-muted-foreground">
+                Accepts: project names, <code className="bg-muted px-1 py-0.5 rounded">replit.com/@user/slug</code> URLs, or <code className="bg-muted px-1 py-0.5 rounded">*.replit.app</code> deployment URLs
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSyncDialogOpen(false)}>Cancel</Button>
+                <Button onClick={() => quickImportMutation.mutate(quickImportText)} disabled={!quickImportText.trim() || quickImportMutation.isPending} data-testid="button-submit-quick-import">
+                  {quickImportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                  Import {quickImportText.trim().split("\n").filter(l => l.trim()).length} Project{quickImportText.trim().split("\n").filter(l => l.trim()).length !== 1 ? "s" : ""}
+                </Button>
+              </div>
+            </TabsContent>
+            <TabsContent value="sync" className="space-y-4 mt-4">
+              <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3">
+                <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                  Replit's API now requires persisted query hashes, so auto-sync may not find all projects. Use Quick Import instead for reliable results.
+                </p>
+              </div>
               <div>
                 <Label>Replit Username</Label>
                 <Input value={syncUsername} onChange={(e) => setSyncUsername(e.target.value)} placeholder="rsmolarz" data-testid="input-sync-username" />
@@ -1177,7 +1219,7 @@ export default function ReplitProjects() {
                 <Button variant="outline" onClick={() => setSyncDialogOpen(false)} data-testid="button-cancel-sync">Cancel</Button>
                 <Button onClick={() => syncMutation.mutate(syncUsername)} disabled={!syncUsername || syncMutation.isPending} data-testid="button-submit-sync">
                   {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Sync Profile
+                  Try Sync
                 </Button>
               </div>
             </TabsContent>

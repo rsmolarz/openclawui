@@ -1,50 +1,50 @@
 # OpenClaw Dashboard - Settings Management
 
 ## Overview
-The OpenClaw Dashboard is a professional settings management platform for OpenClaw AI agent gateways. It offers multi-user authentication and the capability to manage multiple OpenClaw instances concurrently. Its core purpose is to streamline the management and configuration of OpenClaw agents, providing tools for instance-specific configurations, VPS connections, Docker service management, and comprehensive settings across various operational aspects. Key features include a Documentation Hub, a Node Setup Wizard, native dashboard integration, VPS connection logs, and a Quick Start Onboarding process. The platform also provides live VPS monitoring, an AI Task Runner for conversational server management, and a complete OpenClaw CLI reference.
+The OpenClaw Dashboard is a professional settings management platform designed to streamline the management and configuration of OpenClaw AI agent gateways. It supports multi-user authentication and the concurrent management of multiple OpenClaw instances. Key capabilities include instance-specific configurations, VPS connections, Docker service management, and comprehensive operational settings. The platform integrates a Documentation Hub, Node Setup Wizard, live VPS monitoring, an AI Task Runner for conversational server management, and a complete OpenClaw CLI reference. Its ambition is to provide a unified, efficient interface for developers and teams managing OpenClaw deployments.
 
 ## User Preferences
 I prefer iterative development, with a focus on delivering core features first and then refining them. When making changes, please ask before implementing major architectural shifts or complex features. I value clear, concise communication and prefer detailed explanations for significant decisions or complex code sections. Do not make changes to files outside the `client/src` and `server/` directories unless explicitly instructed.
 
 ## System Architecture
-The application employs a client-server architecture.
-- **Frontend**: Developed with React and TypeScript, leveraging Vite, Shadcn UI for components, `wouter` for routing, and TanStack Query for data management. Tailwind CSS manages styling, supporting dark/light themes.
-- **Backend**: An Express.js REST API layer that interfaces with a PostgreSQL database via Drizzle ORM.
-- **Authentication**: Utilizes MedInvest DID OAuth 2.0 (Authorization Code flow) with `express-session` and `connect-pg-simple`.
-- **Multi-Instance Management**: The frontend uses an `InstanceContext`/`InstanceProvider` pattern for selecting and managing OpenClaw instances, with backend queries scoped by `instanceId`.
-- **UI/UX Decisions**: Features a responsive design with sidebar navigation for easy access to various sections. The design prioritizes clarity and user-friendliness for managing complex configurations.
+The application utilizes a client-server architecture.
+- **Frontend**: Built with React and TypeScript, using Vite, Shadcn UI for components, `wouter` for routing, and TanStack Query for data management. Styling is handled by Tailwind CSS, supporting dark/light themes.
+- **Backend**: An Express.js REST API layer interacts with a PostgreSQL database through Drizzle ORM.
+- **Authentication**: Implemented using MedInvest DID OAuth 2.0 (Authorization Code flow) with `express-session` and `connect-pg-simple`.
+- **Multi-Instance Management**: The frontend employs an `InstanceContext`/`InstanceProvider` pattern to manage selected OpenClaw instances, with backend queries scoped by `instanceId`.
+- **UI/UX Decisions**: The design is responsive, featuring sidebar navigation and prioritizing clarity for managing complex configurations.
 - **Feature Specifications**:
-    - **Documentation Hub**: Supports CRUD operations for markdown documentation, including categories, tags, pinning, search, and filtering.
-    - **Node Setup Wizard**: A guided 5-step process for OpenClaw gateway setup.
-    - **Hostinger VPS Monitoring**: Provides real-time VPS monitoring, Docker project management, firewall configuration, and backup listing.
-    - **OpenClaw Commands**: A comprehensive CLI reference with quick start guides, troubleshooting, and auto-generated SSH commands.
+    - **Documentation Hub**: CRUD operations for markdown documentation with categories, tags, pinning, search, and filtering.
+    - **Node Setup Wizard**: A guided, multi-step process for OpenClaw gateway setup.
+    - **Hostinger VPS Monitoring**: Real-time VPS monitoring, Docker project management, firewall configuration, and backup listing.
+    - **OpenClaw Commands**: A comprehensive CLI reference including quick start guides and troubleshooting.
     - **AI Task Runner**: Conversational LLM interface for executing whitelisted SSH commands on the VPS.
-    - **Code Guardian**: AI agent for scanning VPS health, proactively detecting and suggesting fixes for issues.
+    - **Code Guardian**: AI agent for VPS health scanning and proactive issue detection/suggestion.
     - **Feature Proposals**: AI agent for generating feature improvement suggestions.
     - **Code Upgrade Agent**: AI-powered code analysis for improvements, refactors, and optimizations.
-    - **System Monitor**: Real-time charts for CPU, Memory, Disk, and Network usage.
-    - **Automation**: Cron job scheduler with templates for various tasks.
-    - **File Manager**: VPS file browser via SSH.
-    - **Metrics**: Analytics dashboard for message volume, API calls, node uptime, and guardian results.
-    - **Marketplace**: Skill plugin catalog with installation, uninstallation, and deployment capabilities for node skills.
+    - **System Monitor**: Real-time charts for system resource usage (CPU, Memory, Disk, Network).
+    - **Automation**: Cron job scheduler with task templates.
+    - **File Manager**: VPS file browsing via SSH.
+    - **Metrics**: Analytics dashboard for key operational data.
+    - **Marketplace**: Skill plugin catalog with installation, uninstallation, and deployment capabilities.
     - **Custom Skill Builder**: Allows deployment of private skills to the VPS via SSH.
-    - **Email Workflows**: Database-backed automation for email patterns with preset templates and actions.
-    - **Voice Chat**: 2-way voice conversation with OpenClaw agent. Uses browser Web Speech API for speech recognition (STT) and OpenAI TTS API for natural-sounding voice responses. Features: push-to-talk mic button, 6 selectable voices (alloy/echo/fable/onyx/nova/shimmer), auto-speak toggle, conversation history with replay buttons, real-time transcript display. Falls back to browser SpeechSynthesis if OpenAI TTS unavailable. **Continuous Conversation Mode**: hands-free back-and-forth — agent auto-listens after speaking, silence auto-sends, creating a natural conversation loop. Toggle via Radio button or "Start Continuous Conversation" button. Phase indicator shows current state (Listening/Thinking/Speaking). Stop button exits continuous mode. Routes: `POST /api/voice/chat` (LLM conversation), `POST /api/voice/tts` (text-to-speech via OpenAI). Page: `client/src/pages/voice-chat.tsx`, route `/voice-chat`.
-    - **Voice Streaming API (Watch App Ready)**: Endpoints for future Apple Watch or mobile app integration. All support Bearer token auth via `POST /api/voice/token` (generates 24h tokens). Endpoints: `GET /api/voice/session` (capabilities check), `POST /api/voice/stt` (audio upload → Whisper transcription), `POST /api/voice/stream-chat` (full pipeline: audio → STT → LLM → TTS, returns JSON with transcript + response + audioUrl), `GET /api/voice/audio/:audioId` (cached TTS audio, 5min TTL). Uses `multer` for multipart file uploads. Auth: session cookie, voice token, or instance API key.
-- **Activity Audit Log**: Tracks all mutation actions (machine/API key/settings changes) in `audit_logs` table with paginated API and dedicated Activity Log page.
-    - **Keyboard Shortcuts**: Global Ctrl+K command palette, Ctrl+N (new node), Ctrl+R (refresh all), ? (help dialog).
-    - **Bulk Node Operations**: Multi-select checkboxes on Nodes page with bulk restart, status update, and CSV export.
-    - **Quick Stats Panel**: Real-time stats bar on Overview page showing active/offline nodes, uptime %, and last activity.
-    - **WhatsApp Adaptive Polling**: Connected=15s, disconnected=60s, exponential backoff after 3 failures (max 5min).
-    - **Replit Projects**: Monitor all Replit projects with bulk import, manual tracking, progress bars, deployment health checks, tags, notes, and status filtering. Auto-sync attempts GraphQL (`profileRepls` field) then HTML scraping, but Replit's GraphQL now requires persisted query hashes — so bulk import is the primary import method. Route ordering: `GET /api/replit-projects/evaluation` is registered BEFORE `GET /api/replit-projects/:id` to avoid wildcard shadowing. The Replit Projects page uses a 3-tab layout:
-      - **Projects tab**: Project cards with search/filter, import dialog, deployment health checks.
-      - **Time & Priority tab**: AI-powered project prioritization via LLM. Evaluates each project on revenue potential (40%), personal brand impact (30%), and market inefficiency/trading edge (30%). Displays composite scores, per-project reasoning, time estimates, and recommended next actions. Results cached in `project_evaluations` table.
-      - **Omi Insights tab**: Integration with Omi AI wearable device (`OMI_API_KEY` env var). Fetches conversation transcripts/memories, extracts TODOs via LLM analysis, provides efficiency recommendations. Todos stored in `omi_todos` table with status management (pending/done/dismissed).
-    - **Omi Integration**: Backend module `server/omi.ts` communicates with Omi API (`https://api.omi.me/v1/dev`). Routes: `GET /api/omi/status`, `GET /api/omi/memories`, `GET /api/omi/action-items`, `POST /api/omi/analyze` (LLM extraction), `GET /api/omi/todos`, `PATCH /api/omi/todos/:id`.
-    - **SOP Generator**: Generates Standard Operating Procedures from Omi wearable conversation data. LLM analyzes up to 100 memories, identifies recurring processes/workflows, and generates structured SOPs with title, category, overview, steps, triggers, frequency, tools, and tips. SOPs stored in `omi_sops` table with draft/active/archived status. Routes: `GET /api/omi/sops`, `GET /api/omi/sops/:id`, `POST /api/omi/sops/generate`, `PATCH /api/omi/sops/:id`, `DELETE /api/omi/sops/:id`. UI in Omi Insights tab of Replit Projects page.
-    - **AI Project Evaluator**: Routes `POST /api/replit-projects/evaluate` (runs LLM evaluation) and `GET /api/replit-projects/evaluation` (fetch cached result). Uses `chat()` from `server/bot/openrouter.ts`.
-    - **Secrets Inventory**: Comprehensive dashboard for tracking all API keys, tokens, and credentials. Shows configured/missing status (never exposes full values — only first 4 chars masked). Organized by category (Core, Auth, AI, Messaging, Infrastructure, Replit, Integrations, Cloud). Summary cards show required secret health, overall coverage, and missing alerts. Toggle to show masked previews. Route: `GET /api/secrets/inventory`. Page: `client/src/pages/secrets-inventory.tsx`, route `/secrets`. Sidebar: Settings section.
-- **Data Models**: Key models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, `replit_projects`, `project_evaluations`, `omi_todos`, and `omi_sops`.
+    - **Email Workflows**: Database-backed automation for email patterns with templates and actions.
+    - **Voice Chat**: 2-way voice conversation with OpenClaw agent using browser Web Speech API and OpenAI TTS. Features include push-to-talk, selectable voices, conversation history, and a continuous conversation mode.
+    - **Voice Streaming API**: Endpoints for future mobile app integration, supporting audio upload (Whisper STT), LLM interaction, and TTS streaming.
+    - **Activity Audit Log**: Tracks all mutation actions in a paginated log.
+    - **Keyboard Shortcuts**: Global command palette and quick actions.
+    - **Bulk Node Operations**: Multi-select actions for nodes (restart, status update, CSV export).
+    - **Quick Stats Panel**: Real-time statistics bar for node status.
+    - **WhatsApp Adaptive Polling**: Polling mechanism for WhatsApp connections with exponential backoff.
+    - **Replit Projects**: Monitoring of Replit projects with Quick Import (text-based: names, URLs, deployment URLs), bulk JSON import, deployment health checks, and status filtering. Includes AI-powered prioritization and Omi Insights integration. Note: Replit GraphQL profile sync is limited due to persisted query hash requirements.
+    - **Omi Integration**: Backend module for communicating with the Omi API, fetching memories, and extracting TODOs/SOPs via LLM analysis.
+    - **AI Project Evaluator**: LLM-based evaluation of Replit projects for potential and next steps.
+    - **Secrets Inventory**: Dashboard for tracking API keys and credentials, showing configured/missing status without exposing full values.
+    - **WhatsApp Persistent Memory**: Conversation history maintained per phone number using `ai_conversations` and `ai_messages` tables.
+    - **Node Heartbeat System**: Machines report status via a lightweight agent to `POST /api/node/heartbeat`, updating `lastSeen` timestamps.
+    - **Periodic Skill Discovery**: Automatic hourly checks for new skills with manual trigger and UI notifications.
+    - **Gemini Anti-Gravity Proxy**: An OpenAI-compatible proxy for Google Gemini models, providing chat completions and embeddings, with admin settings for upstream configuration and rate limits.
+- **Data Models**: Key data models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, `replit_projects`, `project_evaluations`, `omi_todos`, and `omi_sops`.
 
 ## External Dependencies
 - **Database**: PostgreSQL (via Drizzle ORM)
@@ -55,49 +55,5 @@ The application employs a client-server architecture.
 - **Networking**: Tailscale
 - **UI Component Library**: Shadcn UI
 - **Data Fetching/State Management**: TanStack Query
-- **Image Generation**: OpenAI DALL-E 3 / Google Gemini (via Nano Banana Pro skill)
-
-## Nano Banana Pro (Image Generation)
-The WhatsApp and Telegram bots support AI image generation via the "Nano Banana Pro" skill. The implementation works as follows:
-- **`server/bot/openrouter.ts`**: Contains `generateImage()` function (tries OpenAI DALL-E 3 first, falls back to Gemini). The `chat()` function returns a `ChatResponse` object with `text` and optional `imagePrompt` fields. The system prompt instructs the LLM to output `[GENERATE_IMAGE: prompt]` tags when the user requests visual content.
-- **`server/bot/whatsapp.ts`**: Has `sendImage()` method that sends image buffers via Baileys. The `handleMessage()` flow detects `imagePrompt` in the chat response and generates/sends images.
-- **`server/bot/telegram.ts`**: Uses Telegram's `sendPhoto` API to deliver generated images.
-- **`server/routes.ts`**: The home-bot API endpoint returns `imageBase64` and `imagePrompt` fields for remote bot image delivery.
-- **Requires**: `OPENAI_API_KEY` or `GEMINI_API_KEY` environment variable to be set.
-
-## WhatsApp Persistent Memory
-The WhatsApp bot maintains conversation history per phone number using the `ai_conversations` and `ai_messages` database tables.
-- **`server/routes.ts`**: The `home-bot-message` route creates a conversation per phone number (userId = `whatsapp:{phone}`), loads up to 20 recent messages as history, and saves both user and assistant messages after each exchange.
-- **`server/bot/openrouter.ts`**: The `chat()` function accepts an optional `history` parameter (array of past user/assistant messages) which is injected between the system prompt and the current user message.
-- History is capped at the last 20 message pairs to keep token usage manageable.
-
-## Node Heartbeat System
-Machines report their status via a lightweight heartbeat agent:
-- **`server/routes.ts`**: `POST /api/node/heartbeat` accepts `{hostname, displayName, os, ipAddress}` with `X-API-Key` auth. Creates or updates machine records, sets status to "connected" with `lastSeen` timestamp.
-- **Persistent connection**: All tracked nodes are set to "connected" on server startup, so they stay online across restarts without needing an agent running.
-- **`GET /api/node/agent-script`**: Serves the downloadable agent script.
-- **`home-bot/openclaw-agent.js`**: Standalone Node.js agent that sends heartbeats every 30 seconds. Requires `OPENCLAW_API_KEY` env var.
-- **Install Agent Dialog**: UI in `settings-machines.tsx` provides one-liner commands and download instructions for Windows/Linux/macOS.
-
-## Periodic Skill Discovery
-The platform automatically checks for new skills every hour:
-- **Automatic checks**: Runs `checkForNewSkills()` on a `setInterval` every 1h, plus 30s after startup.
-- **What it does**: Compares installed skills against the catalog, runs `openclaw skills list` and `clawhub sync --all` on VPS via SSH.
-- **Manual trigger**: `POST /api/skills/check-now` starts an immediate check; `GET /api/skills/check-status` returns last/next check times + new skill count/names.
-- **New skill count endpoint**: `GET /api/skills/new-count` returns `{count, names, lastCheck}` for sidebar badge display.
-- **Sidebar badges**: Red notification badges appear on "Marketplace" and "Skills" nav items showing the count of uninstalled skills. Badges update every 60s via polling.
-- **Toast notifications**: When the new skill count increases between polls, a toast notification fires showing how many new skills appeared and their names.
-- **Files**: `server/routes.ts` (periodic check logic), `client/src/components/app-sidebar.tsx` (badges + toast), `client/src/pages/settings-skills.tsx` (UI).
-
-## Gemini Anti-Gravity Proxy
-An OpenAI-compatible proxy for Google Gemini models, integrated directly into the Express server:
-- **Server modules**: `server/gemini/upstream.ts` (routing to Gemini Developer API or Vertex AI with token caching), `server/gemini/settings.ts` (file-based settings at `.data/gemini-proxy-settings.json`), `server/gemini/vertex-auth.ts` (writes GCP service account from env to disk for ADC)
-- **Proxy routes** in `server/routes.ts`:
-  - `POST /api/gemini-proxy/v1/chat/completions` — OpenAI-compatible chat completions (Bearer auth + rate limiting + model allowlist + token clamping)
-  - `POST /api/gemini-proxy/v1/embeddings` — embeddings pass-through
-  - `GET /api/gemini-proxy/v1/models` — model listing
-  - `GET /api/gemini-proxy/health` — public health check
-  - `GET/POST /api/gemini-proxy/settings` — admin settings (session auth required)
-  - `POST /api/gemini-proxy/test` — test completion through proxy
-- **Dashboard page**: `client/src/pages/settings-gemini-proxy.tsx` at `/settings/gemini-proxy` — configure upstream, models, rate limits, test connection
-- **Environment variables**: `GEMINI_API_KEY` (Developer API), `GEMINI_PROXY_API_KEY` (proxy auth token), optional: `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GCP_SERVICE_ACCOUNT_JSON` (for Vertex AI)
+- **Image Generation**: OpenAI DALL-E 3 / Google Gemini
+- **AI/LLM**: OpenAI API, Google Gemini Developer API, Google Cloud Vertex AI

@@ -7676,18 +7676,53 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
 
   app.post("/api/replit-projects/bulk-import", requireAuth, async (req, res) => {
     try {
-      const { projects } = req.body;
-      if (!Array.isArray(projects) || projects.length === 0) {
-        return res.status(400).json({ error: "Provide a 'projects' array with at least one project" });
+      const { projects, text } = req.body;
+      const username = req.body.username || process.env.REPLIT_USERNAME || "user";
+      const existingProjects = await storage.getReplitProjects();
+
+      let parsedProjects: any[] = [];
+
+      if (text && typeof text === "string") {
+        const lines = text.split("\n").map((l: string) => l.trim()).filter((l: string) => l && !l.startsWith("#") && !l.startsWith("//"));
+        for (const line of lines) {
+          const urlMatch = line.match(/replit\.com\/@([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)/);
+          if (urlMatch) {
+            const slug = urlMatch[2];
+            const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+            parsedProjects.push({ slug, title, url: line.startsWith("http") ? line : `https://${line}`, language: null });
+          } else if (line.includes(".replit.app")) {
+            const appMatch = line.match(/([a-zA-Z0-9_-]+)\.replit\.app/);
+            if (appMatch) {
+              const slug = appMatch[1];
+              const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+              parsedProjects.push({ slug, title, url: `https://replit.com/@${username}/${slug}`, deploymentUrl: line.startsWith("http") ? line : `https://${line}`, language: null });
+            }
+          } else {
+            const slug = line.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+            if (slug) {
+              parsedProjects.push({ slug, title: line, url: `https://replit.com/@${username}/${slug}`, language: null });
+            }
+          }
+        }
+      } else if (Array.isArray(projects) && projects.length > 0) {
+        parsedProjects = projects;
+      } else {
+        return res.status(400).json({ error: "Provide either 'text' (one project per line) or 'projects' array" });
       }
 
+      if (parsedProjects.length === 0) {
+        return res.status(400).json({ error: "No valid projects found in input" });
+      }
+
+      const seenSlugs = new Set<string>();
       let created = 0;
       let skipped = 0;
 
-      for (const proj of projects) {
+      for (const proj of parsedProjects) {
         if (!proj.title && !proj.slug) { skipped++; continue; }
         const slug = proj.slug || proj.title.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-");
-        const existingProjects = await storage.getReplitProjects();
+        if (seenSlugs.has(slug)) { skipped++; continue; }
+        seenSlugs.add(slug);
         const exists = existingProjects.find(p => p.slug === slug || (proj.replitId && p.replitId === String(proj.replitId)));
         if (exists) { skipped++; continue; }
 
@@ -7695,7 +7730,7 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
           slug,
           title: proj.title || slug,
           description: proj.description || null,
-          url: proj.url || `https://replit.com/@${req.body.username || process.env.REPLIT_USERNAME || "user"}/${slug}`,
+          url: proj.url || `https://replit.com/@${username}/${slug}`,
           language: proj.language || null,
           imageUrl: proj.imageUrl || null,
           isPrivate: proj.isPrivate ?? false,
@@ -7712,7 +7747,7 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       }
 
       logAudit(`Bulk imported ${created} Replit projects (${skipped} skipped)`, "replit_project", undefined, req.session.userId);
-      res.json({ created, skipped, total: projects.length });
+      res.json({ created, skipped, total: parsedProjects.length });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to bulk import", details: error.message });
     }
