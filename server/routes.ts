@@ -8828,6 +8828,195 @@ Score each project 1-10 on revenue, brand, and trading. Composite = weighted ave
     try { await storage.deleteHabitCompletion(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  app.post("/api/habits/analyze-omi", requireAuth, async (_req, res) => {
+    try {
+      const { fetchOmiMemories, isOmiConfigured } = await import("./omi");
+      if (!isOmiConfigured()) return res.status(400).json({ error: "OMI_API_KEY not configured" });
+      const memories = await fetchOmiMemories(50);
+      if (!memories || memories.length === 0) return res.json({ habits: [], timeBlocks: [], insights: "" });
+
+      const conversationSummaries = memories.map((m: any, i: number) => {
+        const title = m.structured?.title || m.structured?.overview || `Conversation ${i + 1}`;
+        const transcript = m.transcript_segments?.map((s: any) => `${s.speaker || "Speaker"}: ${s.text}`).join("\n") || m.structured?.overview || "";
+        const duration = m.structured?.duration_minutes || "";
+        const startTime = m.started_at || m.created_at || "";
+        return `### ${title} (${startTime}${duration ? `, ~${duration}min` : ""})\n${transcript.substring(0, 600)}`;
+      }).join("\n\n");
+
+      const { chat } = await import("./bot/openrouter");
+      const prompt = `You are analyzing conversations from an AI wearable device to identify the user's daily routines and habits. Break down what they do in 15-minute increments where possible.
+
+Here are the recent conversations:
+${conversationSummaries}
+
+Respond with ONLY valid JSON (no markdown, no code blocks):
+{
+  "habits": [
+    {"name": "habit description", "frequency": "daily|weekly", "category": "health|work|social|personal|routine", "timeOfDay": "morning|afternoon|evening|night", "confidence": "high|medium|low"}
+  ],
+  "timeBlocks": [
+    {"time": "HH:MM", "duration": 15, "activity": "what they do", "category": "health|work|social|personal|routine"}
+  ],
+  "insights": "2-3 sentences about patterns noticed in their daily routine"
+}`;
+
+      const response = await chat(prompt, "System", "habit-analyzer");
+      let parsed;
+      try {
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { habits: [], timeBlocks: [], insights: "" };
+      } catch {
+        parsed = { habits: [], timeBlocks: [], insights: response.text };
+      }
+
+      const created = [];
+      for (const h of (parsed.habits || [])) {
+        const existing = await storage.getHabits();
+        const alreadyExists = existing.some(e => e.name.toLowerCase() === h.name.toLowerCase());
+        if (!alreadyExists) {
+          const habit = await storage.createHabit({
+            name: h.name,
+            frequency: h.frequency || "daily",
+            category: h.category || "routine",
+            target: 1,
+          });
+          created.push(habit);
+        }
+      }
+
+      res.json({ ...parsed, createdCount: created.length });
+    } catch (e: any) {
+      console.error("[Habits] Omi analysis error:", e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Google Calendar
+  app.get("/api/google-calendar/events", requireAuth, async (req, res) => {
+    try {
+      const { getUpcomingEvents } = await import("./googleCalendar");
+      const maxResults = parseInt(req.query.maxResults as string) || 20;
+      const events = await getUpcomingEvents(maxResults);
+      res.json(events);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/google-calendar/today", requireAuth, async (_req, res) => {
+    try {
+      const { getTodayEvents } = await import("./googleCalendar");
+      const events = await getTodayEvents();
+      res.json(events);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/google-calendar/range", requireAuth, async (req, res) => {
+    try {
+      const { getEventsForRange } = await import("./googleCalendar");
+      const timeMin = req.query.timeMin as string;
+      const timeMax = req.query.timeMax as string;
+      if (!timeMin || !timeMax) return res.status(400).json({ error: "timeMin and timeMax required" });
+      const events = await getEventsForRange(timeMin, timeMax);
+      res.json(events);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/google-calendar/sync-to-life-events", requireAuth, async (_req, res) => {
+    try {
+      const { getUpcomingEvents } = await import("./googleCalendar");
+      const events = await getUpcomingEvents(50);
+      const existingLifeEvents = await storage.getLifeEvents();
+      let synced = 0;
+      for (const gcalEvent of events) {
+        const title = gcalEvent.summary || "Untitled Event";
+        const start = gcalEvent.start?.dateTime || gcalEvent.start?.date || "";
+        const dateStr = start.substring(0, 10);
+        const alreadyExists = existingLifeEvents.some(
+          (e: any) => e.title === title && e.date === dateStr
+        );
+        if (!alreadyExists && dateStr) {
+          await storage.createLifeEvent({
+            title,
+            description: gcalEvent.description || "",
+            date: dateStr,
+            endDate: gcalEvent.end?.dateTime?.substring(0, 10) || gcalEvent.end?.date || null,
+            category: "work",
+            color: null,
+          });
+          synced++;
+        }
+      }
+      res.json({ synced, total: events.length });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/meeting-reminder", requireAuth, async (req, res) => {
+    try {
+      const { meetingTitle, meetingTime, methods, wifePhone } = req.body;
+      if (!meetingTitle) return res.status(400).json({ error: "meetingTitle required" });
+      const results: { method: string; status: string; error?: string }[] = [];
+
+      if (methods?.includes("whatsapp") && wifePhone) {
+        try {
+          const { whatsappBot } = await import("./bot/whatsapp");
+          const jid = wifePhone.replace("+", "") + "@s.whatsapp.net";
+          await whatsappBot.sendMessage(
+            jid,
+            `Hey! Just a reminder - Ryan has a meeting: "${meetingTitle}" at ${meetingTime || "soon"}. Can you make sure he's ready?`
+          );
+          results.push({ method: "whatsapp", status: "sent" });
+        } catch (e: any) {
+          results.push({ method: "whatsapp", status: "failed", error: e.message });
+        }
+      }
+
+      if (methods?.includes("email")) {
+        try {
+          const { getUncachableGmailClient } = await import("./gmail");
+          const gmail = await getUncachableGmailClient();
+          const userEmail = "rsmolarz@rsmolarz.com";
+          const raw = Buffer.from(
+            `From: ${userEmail}\r\nTo: ${userEmail}\r\nSubject: Meeting Reminder: ${meetingTitle}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nReminder: You have a meeting "${meetingTitle}" at ${meetingTime || "soon"}. Don't forget!`
+          ).toString("base64url");
+          await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+          results.push({ method: "email", status: "sent" });
+        } catch (e: any) {
+          results.push({ method: "email", status: "failed", error: e.message });
+        }
+      }
+
+      if (methods?.includes("whatsapp_self")) {
+        try {
+          const { whatsappBot } = await import("./bot/whatsapp");
+          const status = whatsappBot.getStatus();
+          if (status.phone) {
+            const selfJid = status.phone.replace("+", "") + "@s.whatsapp.net";
+            await whatsappBot.sendMessage(
+              selfJid,
+              `MEETING REMINDER: "${meetingTitle}" at ${meetingTime || "soon"}. Get ready!`
+            );
+            results.push({ method: "whatsapp_self", status: "sent" });
+          } else {
+            results.push({ method: "whatsapp_self", status: "failed", error: "WhatsApp not connected" });
+          }
+        } catch (e: any) {
+          results.push({ method: "whatsapp_self", status: "failed", error: e.message });
+        }
+      }
+
+      res.json({ results });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Meeting Preps
   app.get("/api/meeting-preps", requireAuth, async (_req, res) => {
     try { res.json(await storage.getMeetingPreps()); } catch (e: any) { res.status(500).json({ error: e.message }); }

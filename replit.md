@@ -49,12 +49,12 @@ The application utilizes a client-server architecture.
         - **Health Tracker**: Daily health logging (sleep, water, exercise, mood, weight, energy) with weekly charts.
         - **Todo List**: Unified todo management powered by Omi AI wearable. "Pull from Omi" analyzes recent conversations and auto-extracts action items. Manual add, priority levels, dismiss/restore, and status filtering. Uses omi_todos table.
         - **Financial Dashboard**: Income/expense tracking with category breakdown, monthly summary, and spending charts.
-        - **Habit Tracker**: Habit creation, daily completion tracking, streak counting, and 30-day visual completion grid.
+        - **Habit Tracker**: Habit creation, daily completion tracking, streak counting, and 30-day visual completion grid. "Analyze from Omi" discovers routines from conversations and shows 15-minute time blocks of the user's daily patterns.
         - **Home Automation**: Home Assistant integration via HASS_TOKEN/HASS_URL, device grouping by domain, toggle controls.
         - **Meeting Prep AI**: AI-generated meeting briefs with background, talking points, questions, and objection handling.
         - **SOP Library**: Reuses omi_sops table. Full CRUD with search/filter, plus AI SOP draft generation.
         - **Focus Timer**: Pomodoro timer with configurable work/break durations, SVG ring visualization, session history, and weekly focus charts.
-        - **Life Calendar**: Month grid and list views for life events with category colors, countdown to next event.
+        - **Life Calendar**: Month grid, list, and Google Calendar views. Syncs events from Google Calendar. Multi-channel meeting reminders (WhatsApp to wife, WhatsApp to self, email). Uses Replit Google Calendar integration (`server/googleCalendar.ts`).
 - **Data Models**: Key data models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, `replit_projects`, `project_evaluations`, `omi_todos`, `omi_sops`, `health_logs`, `grocery_items`, `financial_transactions`, `habits`, `habit_completions`, `meeting_preps`, `focus_sessions`, and `life_events`.
 
 ## External Dependencies
