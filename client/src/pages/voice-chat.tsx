@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Mic, Volume2, VolumeX, Square, Loader2,
   AudioWaveform, Bot, User, Trash2, Send, RotateCcw,
-  Keyboard, Download,
+  Keyboard, Download, Radio, CircleStop,
 } from "lucide-react";
 
 interface VoiceMessage {
@@ -19,6 +19,8 @@ interface VoiceMessage {
   timestamp: Date;
   audioBlobUrl?: string;
 }
+
+type ConversationPhase = "idle" | "listening" | "processing" | "speaking";
 
 const VOICES = [
   { id: "alloy", label: "Alloy", desc: "Neutral" },
@@ -133,14 +135,14 @@ function useSpeechRecognition(onSilenceRef: React.MutableRefObject<(() => void) 
   };
 }
 
-function WaveformAnimation({ isActive }: { isActive: boolean }) {
+function WaveformAnimation({ isActive, color = "bg-red-400" }: { isActive: boolean; color?: string }) {
   if (!isActive) return null;
   return (
     <div className="flex items-end gap-[3px] h-5" aria-hidden>
       {[0, 1, 2, 3, 4].map((i) => (
         <div
           key={i}
-          className="w-[3px] bg-red-400 rounded-full animate-pulse"
+          className={`w-[3px] ${color} rounded-full animate-pulse`}
           style={{
             height: `${8 + Math.random() * 12}px`,
             animationDelay: `${i * 0.15}s`,
@@ -148,6 +150,35 @@ function WaveformAnimation({ isActive }: { isActive: boolean }) {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function PhaseIndicator({ phase, continuousMode }: { phase: ConversationPhase; continuousMode: boolean }) {
+  if (!continuousMode || phase === "idle") return null;
+
+  const config = {
+    listening: { label: "Listening", color: "bg-green-500", pulseColor: "bg-green-400", icon: Mic },
+    processing: { label: "Thinking", color: "bg-yellow-500", pulseColor: "bg-yellow-400", icon: Loader2 },
+    speaking: { label: "Speaking", color: "bg-blue-500", pulseColor: "bg-blue-400", icon: Volume2 },
+  };
+
+  const c = config[phase] || config.listening;
+  const Icon = c.icon;
+
+  return (
+    <div className="flex justify-center mb-3" data-testid="indicator-phase">
+      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/80 backdrop-blur-sm border shadow-sm">
+        <div className="relative">
+          <div className={`h-2.5 w-2.5 rounded-full ${c.color}`} />
+          <div className={`absolute inset-0 h-2.5 w-2.5 rounded-full ${c.pulseColor} animate-ping`} />
+        </div>
+        <Icon className={`h-3.5 w-3.5 ${phase === "processing" ? "animate-spin" : ""}`} />
+        <span className="text-xs font-medium">{c.label}</span>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-primary/30 text-primary">
+          Continuous
+        </Badge>
+      </div>
     </div>
   );
 }
@@ -167,15 +198,22 @@ export default function VoiceChat() {
   const [selectedVoice, setSelectedVoice] = useState(() => localStorage.getItem("voice-chat-voice") || "nova");
   const [autoSpeak, setAutoSpeak] = useState(() => localStorage.getItem("voice-chat-autospeak") !== "false");
   const [silenceAutoSend, setSilenceAutoSend] = useState(() => localStorage.getItem("voice-chat-silence-send") !== "false");
+  const [continuousMode, setContinuousMode] = useState(() => localStorage.getItem("voice-chat-continuous") === "true");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [typedInput, setTypedInput] = useState("");
+  const [conversationPhase, setConversationPhase] = useState<ConversationPhase>("idle");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlsRef = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const continuousModeRef = useRef(continuousMode);
+  continuousModeRef.current = continuousMode;
+  const autoSpeakRef = useRef(autoSpeak);
+  autoSpeakRef.current = autoSpeak;
+  const shouldAutoListenRef = useRef(false);
 
   const silenceCallbackRef = useRef<(() => void) | null>(null);
 
@@ -188,6 +226,13 @@ export default function VoiceChat() {
   useEffect(() => {
     localStorage.setItem("voice-chat-silence-send", String(silenceAutoSend));
   }, [silenceAutoSend]);
+  useEffect(() => {
+    localStorage.setItem("voice-chat-continuous", String(continuousMode));
+    if (continuousMode) {
+      setSilenceAutoSend(true);
+      setAutoSpeak(true);
+    }
+  }, [continuousMode]);
 
   useEffect(() => {
     try {
@@ -215,6 +260,15 @@ export default function VoiceChat() {
   transcriptRef.current = transcript;
   const isProcessingRef = useRef(isProcessing);
   isProcessingRef.current = isProcessing;
+  const isSpeakingRef = useRef(isSpeaking);
+  isSpeakingRef.current = isSpeaking;
+
+  useEffect(() => {
+    if (isListening) setConversationPhase("listening");
+    else if (isProcessing) setConversationPhase("processing");
+    else if (isSpeaking) setConversationPhase("speaking");
+    else setConversationPhase("idle");
+  }, [isListening, isProcessing, isSpeaking]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -226,6 +280,18 @@ export default function VoiceChat() {
     URL.revokeObjectURL(url);
     blobUrlsRef.current.delete(url);
   }, []);
+
+  const triggerAutoListen = useCallback(() => {
+    if (continuousModeRef.current && !isProcessingRef.current && !isListeningRef.current) {
+      shouldAutoListenRef.current = true;
+      setTimeout(() => {
+        if (shouldAutoListenRef.current && continuousModeRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
+          startListening();
+        }
+        shouldAutoListenRef.current = false;
+      }, 400);
+    }
+  }, [startListening]);
 
   const playAudio = useCallback(async (text: string, messageId?: string) => {
     setIsSpeaking(true);
@@ -241,12 +307,19 @@ export default function VoiceChat() {
         const fallback = window.speechSynthesis;
         if (fallback) {
           const utterance = new SpeechSynthesisUtterance(text);
-          utterance.onend = () => setIsSpeaking(false);
-          utterance.onerror = () => setIsSpeaking(false);
+          utterance.onend = () => {
+            setIsSpeaking(false);
+            triggerAutoListen();
+          };
+          utterance.onerror = () => {
+            setIsSpeaking(false);
+            triggerAutoListen();
+          };
           fallback.speak(utterance);
           return;
         }
         setIsSpeaking(false);
+        triggerAutoListen();
         return;
       }
 
@@ -268,13 +341,20 @@ export default function VoiceChat() {
 
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => setIsSpeaking(false);
-      audio.onerror = () => setIsSpeaking(false);
+      audio.onended = () => {
+        setIsSpeaking(false);
+        triggerAutoListen();
+      };
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        triggerAutoListen();
+      };
       await audio.play();
     } catch {
       setIsSpeaking(false);
+      triggerAutoListen();
     }
-  }, [selectedVoice, revokeBlobUrl]);
+  }, [selectedVoice, revokeBlobUrl, triggerAutoListen]);
 
   const replayAudio = useCallback(async (msg: VoiceMessage) => {
     if (msg.audioBlobUrl) {
@@ -304,6 +384,14 @@ export default function VoiceChat() {
     window.speechSynthesis?.cancel();
     setIsSpeaking(false);
   }, []);
+
+  const stopContinuous = useCallback(() => {
+    shouldAutoListenRef.current = false;
+    stopAudio();
+    stopListening();
+    setContinuousMode(false);
+    setConversationPhase("idle");
+  }, [stopAudio, stopListening]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isProcessingRef.current) return;
@@ -340,15 +428,21 @@ export default function VoiceChat() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
-      if (autoSpeak) {
+      setIsProcessing(false);
+
+      if (autoSpeakRef.current) {
         await playAudio(data.text, assistantId);
+      } else {
+        triggerAutoListen();
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
       setIsProcessing(false);
+      if (continuousModeRef.current) {
+        triggerAutoListen();
+      }
     }
-  }, [resetTranscript, autoSpeak, playAudio, toast]);
+  }, [resetTranscript, playAudio, toast, triggerAutoListen]);
 
   silenceCallbackRef.current = silenceAutoSend ? () => {
     if (transcriptRef.current.trim() && !isProcessingRef.current) {
@@ -368,6 +462,14 @@ export default function VoiceChat() {
       startListening();
     }
   }, [isListening, transcript, stopListening, startListening, sendMessage, stopAudio]);
+
+  const startContinuousConversation = useCallback(() => {
+    setContinuousMode(true);
+    setAutoSpeak(true);
+    setSilenceAutoSend(true);
+    stopAudio();
+    setTimeout(() => startListening(), 200);
+  }, [stopAudio, startListening]);
 
   const handleTextSend = useCallback(() => {
     const text = isListening ? transcript : typedInput;
@@ -444,7 +546,9 @@ export default function VoiceChat() {
           </div>
           <div>
             <h1 className="text-2xl font-bold" data-testid="text-voice-chat-title">Voice Chat</h1>
-            <p className="text-sm text-muted-foreground">Conversation with OpenClaw — speak or type</p>
+            <p className="text-sm text-muted-foreground">
+              {continuousMode ? "Continuous conversation — hands-free" : "Conversation with OpenClaw — speak or type"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -530,6 +634,8 @@ export default function VoiceChat() {
         </Card>
       )}
 
+      <PhaseIndicator phase={conversationPhase} continuousMode={continuousMode} />
+
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 min-h-0 px-1" data-testid="container-messages">
         {messages.length === 0 && !transcript && !interimTranscript && (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
@@ -539,7 +645,7 @@ export default function VoiceChat() {
             </div>
             <h3 className="text-lg font-semibold mb-2">Ready to talk</h3>
             <p className="text-sm text-muted-foreground max-w-md mb-6">
-              Press the microphone button or hold spacebar to speak. You can also type messages directly.
+              Press the microphone button, hold spacebar, or start continuous mode for a hands-free conversation.
             </p>
             <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground max-w-sm">
               <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
@@ -551,14 +657,26 @@ export default function VoiceChat() {
                 <span>Hold Space to talk</span>
               </div>
               <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-                <Volume2 className="h-3.5 w-3.5 shrink-0" />
-                <span>AI speaks response</span>
+                <Radio className="h-3.5 w-3.5 shrink-0" />
+                <span>Continuous = hands-free</span>
               </div>
               <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
                 <Send className="h-3.5 w-3.5 shrink-0" />
                 <span>Enter to send text</span>
               </div>
             </div>
+
+            {isSupported && (
+              <Button
+                className="mt-6 gap-2"
+                size="lg"
+                onClick={startContinuousConversation}
+                data-testid="button-start-continuous"
+              >
+                <Radio className="h-4 w-4" />
+                Start Continuous Conversation
+              </Button>
+            )}
           </div>
         )}
 
@@ -663,7 +781,7 @@ export default function VoiceChat() {
           </div>
         )}
 
-        {isSpeaking && (
+        {isSpeaking && !continuousMode && (
           <div className="flex justify-center">
             <Badge variant="outline" className="animate-pulse gap-1.5 py-1 px-3" data-testid="badge-speaking">
               <WaveformAnimation isActive />
@@ -685,69 +803,124 @@ export default function VoiceChat() {
       </div>
 
       <div className="flex items-center gap-3 pt-4 border-t">
-        <div className="flex-1 relative">
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder={isListening ? "Listening... tap mic or release Space to send" : "Type a message or tap the mic..."}
-            className="w-full rounded-full border bg-background px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-            value={inputValue}
-            onChange={(e) => {
-              if (isListening) {
-                setTranscriptManual(e.target.value);
-              } else {
-                setTypedInput(e.target.value);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !isProcessing) {
-                e.preventDefault();
-                handleTextSend();
-              }
-            }}
-            disabled={isProcessing}
-            data-testid="input-voice-message"
-          />
-          {(typedInput.trim() || (isListening && transcript.trim())) && !isProcessing && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-primary hover:text-primary"
-              onClick={handleTextSend}
-              data-testid="button-send-text"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-
-        <Button
-          size="lg"
-          className={`rounded-full h-14 w-14 shrink-0 transition-all duration-200 ${
-            isListening
-              ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25"
-              : isProcessing
-              ? "bg-muted cursor-not-allowed"
-              : "bg-primary hover:bg-primary/90 hover:shadow-lg"
-          }`}
-          onClick={handleMicToggle}
-          disabled={isProcessing || !isSupported}
-          data-testid="button-mic-toggle"
-        >
-          {isProcessing ? (
-            <Loader2 className="h-6 w-6 animate-spin" />
-          ) : isListening ? (
-            <div className="relative">
-              <Square className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-white animate-ping" />
+        {continuousMode && (conversationPhase !== "idle" || isListening || isProcessing || isSpeaking) ? (
+          <div className="flex-1 flex items-center justify-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="relative">
+                <Radio className="h-4 w-4 text-primary" />
+                <div className="absolute inset-0 animate-ping">
+                  <Radio className="h-4 w-4 text-primary opacity-30" />
+                </div>
+              </div>
+              <span>
+                {conversationPhase === "listening" && "Listening — speak naturally..."}
+                {conversationPhase === "processing" && "Processing your message..."}
+                {conversationPhase === "speaking" && "Agent is responding..."}
+                {conversationPhase === "idle" && "Continuous mode active"}
+              </span>
             </div>
-          ) : (
-            <Mic className="h-6 w-6" />
-          )}
-        </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="gap-1.5"
+              onClick={stopContinuous}
+              data-testid="button-stop-continuous"
+            >
+              <CircleStop className="h-3.5 w-3.5" />
+              Stop
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 relative">
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder={isListening ? "Listening... tap mic or release Space to send" : "Type a message or tap the mic..."}
+                className="w-full rounded-full border bg-background px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                value={inputValue}
+                onChange={(e) => {
+                  if (isListening) {
+                    setTranscriptManual(e.target.value);
+                  } else {
+                    setTypedInput(e.target.value);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !isProcessing) {
+                    e.preventDefault();
+                    handleTextSend();
+                  }
+                }}
+                disabled={isProcessing}
+                data-testid="input-voice-message"
+              />
+              {(typedInput.trim() || (isListening && transcript.trim())) && !isProcessing && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-primary hover:text-primary"
+                  onClick={handleTextSend}
+                  data-testid="button-send-text"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={continuousMode ? "default" : "outline"}
+                    size="icon"
+                    className={`rounded-full h-10 w-10 shrink-0 ${continuousMode ? "bg-green-600 hover:bg-green-700 text-white" : ""}`}
+                    onClick={() => {
+                      if (continuousMode) {
+                        stopContinuous();
+                      } else {
+                        startContinuousConversation();
+                      }
+                    }}
+                    disabled={!isSupported}
+                    data-testid="button-toggle-continuous"
+                  >
+                    <Radio className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{continuousMode ? "Stop continuous mode" : "Start continuous conversation"}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <Button
+              size="lg"
+              className={`rounded-full h-14 w-14 shrink-0 transition-all duration-200 ${
+                isListening
+                  ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25"
+                  : isProcessing
+                  ? "bg-muted cursor-not-allowed"
+                  : "bg-primary hover:bg-primary/90 hover:shadow-lg"
+              }`}
+              onClick={handleMicToggle}
+              disabled={isProcessing || !isSupported}
+              data-testid="button-mic-toggle"
+            >
+              {isProcessing ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : isListening ? (
+                <div className="relative">
+                  <Square className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-white animate-ping" />
+                </div>
+              ) : (
+                <Mic className="h-6 w-6" />
+              )}
+            </Button>
+          </>
+        )}
       </div>
 
-      {isListening && (
+      {isListening && !continuousMode && (
         <div className="flex justify-center mt-2">
           <span className="text-xs text-muted-foreground animate-pulse">
             Recording — tap the button or release Space to send

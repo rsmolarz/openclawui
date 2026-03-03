@@ -4,6 +4,66 @@ import { storage } from "./storage";
 import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema, insertReplitProjectSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
+import multer from "multer";
+import { writeFileSync, unlinkSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { join } from "path";
+
+const voiceTokens = new Map<string, { userId: string; expiresAt: number }>();
+
+const voiceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["audio/webm", "audio/mp4", "audio/wav", "audio/mpeg", "audio/ogg", "audio/x-m4a", "audio/mp3", "video/webm", "application/octet-stream"];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
+
+const TMP_AUDIO_DIR = join(process.cwd(), ".tmp-audio");
+if (!existsSync(TMP_AUDIO_DIR)) {
+  mkdirSync(TMP_AUDIO_DIR, { recursive: true });
+}
+
+const ttsAudioCache = new Map<string, { buffer: Buffer; expiresAt: number }>();
+
+function requireAuthOrVoiceToken(req: Request, res: Response, next: NextFunction) {
+  if (req.session.userId) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      const voiceSession = voiceTokens.get(token);
+      if (voiceSession && voiceSession.expiresAt > Date.now()) {
+        (req as any).voiceTokenUserId = voiceSession.userId;
+        return next();
+      }
+      storage.getInstanceByApiKey(token).then(instance => {
+        if (instance) {
+          (req as any).apiTokenInstanceId = instance.id;
+          return next();
+        }
+        return res.status(401).json({ error: "Invalid or expired token" });
+      }).catch(() => {
+        return res.status(401).json({ error: "Authentication failed" });
+      });
+      return;
+    }
+  }
+
+  storage.getAllUsers().then(users => {
+    if (users.length === 1) {
+      req.session.userId = users[0].id;
+      req.session.save(() => next());
+    } else {
+      return res.status(401).json({ error: "Not authenticated. Provide a session cookie or Bearer token." });
+    }
+  }).catch(() => {
+    return res.status(401).json({ error: "Authentication failed" });
+  });
+}
 
 async function getWhatsappBot() {
   const { whatsappBot } = await import("./bot/whatsapp");
@@ -7781,6 +7841,203 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
         res.end();
       }
     }
+  });
+
+  // ── Streaming Voice API (Watch App) ──
+
+  app.get("/api/voice/session", requireAuthOrVoiceToken, async (req, res) => {
+    try {
+      const voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+      const hasOpenAI = !!process.env.OPENAI_API_KEY;
+      const hasLLM = hasOpenAI || !!process.env.OPENROUTER_API_KEY || !!process.env.GEMINI_API_KEY;
+      res.json({
+        authenticated: true,
+        userId: req.session.userId || (req as any).voiceTokenUserId || null,
+        voices,
+        capabilities: {
+          stt: hasOpenAI,
+          tts: hasOpenAI,
+          chat: hasLLM,
+        },
+        status: "ready",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/voice/token", requireAuth, async (req, res) => {
+    try {
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+      const userId = req.session.userId || "unknown";
+      voiceTokens.set(token, { userId: String(userId), expiresAt });
+
+      Array.from(voiceTokens.entries()).forEach(([k, v]) => {
+        if (v.expiresAt < Date.now()) voiceTokens.delete(k);
+      });
+
+      logAudit("Voice API token generated", "voice_token", undefined, req.session.userId);
+      res.json({ token, expiresAt: new Date(expiresAt).toISOString(), expiresIn: "24h" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/voice/stt", requireAuthOrVoiceToken, voiceUpload.single("audio"), async (req, res) => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "OpenAI API key not configured for STT" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No audio file provided. Send as multipart with field name 'audio'." });
+      }
+
+      const formData = new FormData();
+      const audioBlob = new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" });
+      const ext = req.file.originalname?.split(".").pop() || "webm";
+      formData.append("file", audioBlob, `audio.${ext}`);
+      formData.append("model", "whisper-1");
+      formData.append("language", (req.body?.language as string) || "en");
+
+      const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}` },
+        body: formData,
+      });
+
+      if (!whisperRes.ok) {
+        const errText = await whisperRes.text();
+        console.error("[STT] Whisper error:", errText);
+        return res.status(502).json({ error: "Speech-to-text failed", details: errText });
+      }
+
+      const result = await whisperRes.json() as any;
+      logAudit("Voice STT transcription", "voice_stt", undefined, req.session.userId || (req as any).voiceTokenUserId);
+      res.json({ transcript: result.text });
+    } catch (error: any) {
+      console.error("[STT] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/voice/stream-chat", requireAuthOrVoiceToken, voiceUpload.single("audio"), async (req, res) => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "OpenAI API key not configured" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No audio file provided. Send as multipart with field name 'audio'." });
+      }
+
+      const formData = new FormData();
+      const audioBlob = new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" });
+      const ext = req.file.originalname?.split(".").pop() || "webm";
+      formData.append("file", audioBlob, `audio.${ext}`);
+      formData.append("model", "whisper-1");
+      formData.append("language", (req.body?.language as string) || "en");
+
+      const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}` },
+        body: formData,
+      });
+
+      if (!whisperRes.ok) {
+        const errText = await whisperRes.text();
+        console.error("[StreamChat] Whisper error:", errText);
+        return res.status(502).json({ error: "Speech-to-text failed", details: errText });
+      }
+
+      const whisperResult = await whisperRes.json() as any;
+      const transcript = whisperResult.text;
+
+      if (!transcript || !transcript.trim()) {
+        return res.json({ transcript: "", response: "", audioUrl: null });
+      }
+
+      let chatHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
+      if (req.body?.history) {
+        try {
+          const parsed = typeof req.body.history === "string" ? JSON.parse(req.body.history) : req.body.history;
+          chatHistory = (parsed || []).map((m: any) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          }));
+        } catch {}
+      }
+
+      const { chat } = await import("./bot/openrouter");
+      const llmResponse = await chat(transcript, "Watch User", "voice-stream", chatHistory);
+
+      const voice = (req.body?.voice as string) || "nova";
+      const validVoices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+      const selectedVoice = validVoices.includes(voice) ? voice : "nova";
+
+      const audioId = randomBytes(8).toString("hex");
+      let audioUrl: string | null = null;
+
+      try {
+        const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "tts-1",
+            input: llmResponse.text.substring(0, 4096),
+            voice: selectedVoice,
+            response_format: "mp3",
+          }),
+        });
+
+        if (ttsRes.ok) {
+          const audioBuffer = Buffer.from(await ttsRes.arrayBuffer());
+          ttsAudioCache.set(audioId, {
+            buffer: audioBuffer,
+            expiresAt: Date.now() + 5 * 60 * 1000,
+          });
+
+          Array.from(ttsAudioCache.entries()).forEach(([k, v]) => {
+            if (v.expiresAt < Date.now()) ttsAudioCache.delete(k);
+          });
+
+          const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+          const host = req.headers["x-forwarded-host"] || req.headers.host;
+          audioUrl = `${protocol}://${host}/api/voice/audio/${audioId}`;
+        }
+      } catch (ttsErr: any) {
+        console.error("[StreamChat] TTS error:", ttsErr.message);
+      }
+
+      logAudit("Voice stream-chat", "voice_stream", undefined, req.session.userId || (req as any).voiceTokenUserId);
+      res.json({
+        transcript,
+        response: llmResponse.text,
+        audioUrl,
+        imagePrompt: llmResponse.imagePrompt || null,
+      });
+    } catch (error: any) {
+      console.error("[StreamChat] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/voice/audio/:audioId", requireAuthOrVoiceToken, async (req, res) => {
+    const entry = ttsAudioCache.get(req.params.audioId);
+    if (!entry || entry.expiresAt < Date.now()) {
+      ttsAudioCache.delete(req.params.audioId);
+      return res.status(404).json({ error: "Audio not found or expired" });
+    }
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Content-Length", entry.buffer.length.toString());
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.send(entry.buffer);
   });
 
   // ── Omi Integration ──
