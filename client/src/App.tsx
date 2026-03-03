@@ -41,6 +41,16 @@ import ActivityLog from "@/pages/activity-log";
 import ReplitProjects from "@/pages/replit-projects";
 import VoiceChat from "@/pages/voice-chat";
 import SecretsInventory from "@/pages/secrets-inventory";
+import DailyBriefing from "@/pages/daily-briefing";
+import HealthTracker from "@/pages/health-tracker";
+import GroceryList from "@/pages/grocery-list";
+import Finance from "@/pages/finance";
+import Habits from "@/pages/habits";
+import HomeAutomation from "@/pages/home-automation";
+import MeetingPrep from "@/pages/meeting-prep";
+import SopLibrary from "@/pages/sop-library";
+import FocusTimer from "@/pages/focus-timer";
+import LifeCalendar from "@/pages/life-calendar";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { Loader2 } from "lucide-react";
 
@@ -77,6 +87,16 @@ function Router() {
       <Route path="/replit-projects" component={ReplitProjects} />
       <Route path="/voice-chat" component={VoiceChat} />
       <Route path="/secrets" component={SecretsInventory} />
+      <Route path="/daily-briefing" component={DailyBriefing} />
+      <Route path="/health-tracker" component={HealthTracker} />
+      <Route path="/grocery-list" component={GroceryList} />
+      <Route path="/finance" component={Finance} />
+      <Route path="/habits" component={Habits} />
+      <Route path="/home-automation" component={HomeAutomation} />
+      <Route path="/meeting-prep" component={MeetingPrep} />
+      <Route path="/sop-library" component={SopLibrary} />
+      <Route path="/focus-timer" component={FocusTimer} />
+      <Route path="/life-calendar" component={LifeCalendar} />
       <Route component={NotFound} />
     </Switch>
   );

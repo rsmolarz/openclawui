@@ -30,6 +30,16 @@ import {
   History,
   Code2,
   AudioWaveform,
+  Sun,
+  Heart,
+  ShoppingCart,
+  DollarSign,
+  Target,
+  Home,
+  Users,
+  BookOpen,
+  Timer,
+  CalendarDays,
 } from "lucide-react";
 import {
   Sidebar,
@@ -84,6 +94,19 @@ const infraItems = [
   { title: "Skills", url: "/settings/skills", icon: Zap },
   { title: "Integrations", url: "/settings/integrations", icon: Plug },
   { title: "Gemini Proxy", url: "/settings/gemini-proxy", icon: Sparkles },
+];
+
+const automationItems = [
+  { title: "Daily Briefing", url: "/daily-briefing", icon: Sun },
+  { title: "Health Tracker", url: "/health-tracker", icon: Heart },
+  { title: "Grocery List", url: "/grocery-list", icon: ShoppingCart },
+  { title: "Finance", url: "/finance", icon: DollarSign },
+  { title: "Habits", url: "/habits", icon: Target },
+  { title: "Home Automation", url: "/home-automation", icon: Home },
+  { title: "Meeting Prep AI", url: "/meeting-prep", icon: Users },
+  { title: "SOP Library", url: "/sop-library", icon: BookOpen },
+  { title: "Focus Timer", url: "/focus-timer", icon: Timer },
+  { title: "Life Calendar", url: "/life-calendar", icon: CalendarDays },
 ];
 
 export function AppSidebar() {
@@ -177,6 +200,14 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {infraItems.map(renderNavItem)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Automation Hub</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {automationItems.map(renderNavItem)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

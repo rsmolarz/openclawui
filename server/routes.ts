@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema, insertReplitProjectSchema } from "@shared/schema";
+import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema, insertReplitProjectSchema, insertHealthLogSchema, insertGroceryItemSchema, insertFinancialTransactionSchema, insertHabitSchema, insertHabitCompletionSchema, insertMeetingPrepSchema, insertFocusSessionSchema, insertLifeEventSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import multer from "multer";
@@ -8719,6 +8719,217 @@ Score each project 1-10 on revenue, brand, and trading. Composite = weighted ave
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch audit logs" });
     }
+  });
+
+  // ===== AUTOMATION HUB ROUTES =====
+
+  // Health Logs
+  app.get("/api/health-logs", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getHealthLogs()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/health-logs/date/:date", requireAuth, async (req, res) => {
+    try { const log = await storage.getHealthLogByDate(req.params.date); res.json(log || null); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/health-logs", requireAuth, async (req, res) => {
+    try { const data = insertHealthLogSchema.parse(req.body); res.json(await storage.createHealthLog(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.patch("/api/health-logs/:id", requireAuth, async (req, res) => {
+    try { const data = insertHealthLogSchema.partial().parse(req.body); const log = await storage.updateHealthLog(req.params.id, data); if (!log) return res.status(404).json({ error: "Not found" }); res.json(log); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  // Grocery Items
+  app.get("/api/grocery-items", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getGroceryItems()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/grocery-items", requireAuth, async (req, res) => {
+    try { const data = insertGroceryItemSchema.parse(req.body); res.json(await storage.createGroceryItem(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.patch("/api/grocery-items/:id", requireAuth, async (req, res) => {
+    try { const data = insertGroceryItemSchema.partial().parse(req.body); const item = await storage.updateGroceryItem(req.params.id, data); if (!item) return res.status(404).json({ error: "Not found" }); res.json(item); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/grocery-items/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteGroceryItem(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/grocery-items/ai-suggest", requireAuth, async (req, res) => {
+    try {
+      const { mealPlan } = req.body;
+      if (!mealPlan) return res.status(400).json({ error: "mealPlan required" });
+      const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "No AI API key configured" });
+      const isOpenRouter = !process.env.OPENAI_API_KEY;
+      const response = await fetch(isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: isOpenRouter ? "openai/gpt-4o-mini" : "gpt-4o-mini", messages: [{ role: "system", content: "Generate a grocery list from this meal plan. Return ONLY a JSON array of objects with {name, quantity, category}. Categories: Produce, Dairy, Meat, Bakery, Frozen, Pantry, Beverages, Other." }, { role: "user", content: mealPlan }], temperature: 0.3 }),
+      });
+      const result = await response.json();
+      const text = result.choices?.[0]?.message?.content || "[]";
+      const match = text.match(/\[[\s\S]*\]/);
+      const items = match ? JSON.parse(match[0]) : [];
+      res.json(items);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Financial Transactions
+  app.get("/api/financial-transactions", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getFinancialTransactions()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/financial-transactions", requireAuth, async (req, res) => {
+    try { const data = insertFinancialTransactionSchema.parse(req.body); res.json(await storage.createFinancialTransaction(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/financial-transactions/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteFinancialTransaction(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Habits
+  app.get("/api/habits", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getHabits()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/habits", requireAuth, async (req, res) => {
+    try { const data = insertHabitSchema.parse(req.body); res.json(await storage.createHabit(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/habits/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteHabit(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/habit-completions", requireAuth, async (req, res) => {
+    try { const habitId = req.query.habitId as string | undefined; res.json(await storage.getHabitCompletions(habitId)); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/habit-completions", requireAuth, async (req, res) => {
+    try { const data = insertHabitCompletionSchema.parse(req.body); res.json(await storage.createHabitCompletion(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/habit-completions/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteHabitCompletion(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Meeting Preps
+  app.get("/api/meeting-preps", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getMeetingPreps()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/meeting-preps/:id", requireAuth, async (req, res) => {
+    try { const prep = await storage.getMeetingPrep(req.params.id); if (!prep) return res.status(404).json({ error: "Not found" }); res.json(prep); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/meeting-preps", requireAuth, async (req, res) => {
+    try { const data = insertMeetingPrepSchema.parse(req.body); res.json(await storage.createMeetingPrep(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/meeting-preps/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteMeetingPrep(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/meeting-preps/generate", requireAuth, async (req, res) => {
+    try {
+      const { subject, attendeeName, attendeeCompany } = req.body;
+      if (!subject) return res.status(400).json({ error: "subject required" });
+      const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "No AI API key configured" });
+      const isOpenRouter = !process.env.OPENAI_API_KEY;
+      const response = await fetch(isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: isOpenRouter ? "openai/gpt-4o-mini" : "gpt-4o-mini", messages: [{ role: "system", content: "Generate a meeting preparation brief. Return JSON: {backgroundBrief: string, talkingPoints: string[], questions: string[], objections: [{objection: string, response: string}]}" }, { role: "user", content: `Meeting: ${subject}${attendeeName ? `\nAttendee: ${attendeeName}` : ""}${attendeeCompany ? ` from ${attendeeCompany}` : ""}` }], temperature: 0.5 }),
+      });
+      const result = await response.json();
+      const text = result.choices?.[0]?.message?.content || "{}";
+      const match = text.match(/\{[\s\S]*\}/);
+      const parsed = match ? JSON.parse(match[0]) : {};
+      const prep = await storage.createMeetingPrep({
+        subject,
+        attendeeName: attendeeName || null,
+        attendeeCompany: attendeeCompany || null,
+        backgroundBrief: parsed.backgroundBrief || "",
+        talkingPoints: JSON.stringify(parsed.talkingPoints || []),
+        questions: JSON.stringify(parsed.questions || []),
+        objections: JSON.stringify(parsed.objections || []),
+      });
+      res.json(prep);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Focus Sessions
+  app.get("/api/focus-sessions", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getFocusSessions()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/focus-sessions", requireAuth, async (req, res) => {
+    try { const data = insertFocusSessionSchema.parse(req.body); res.json(await storage.createFocusSession(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  // Life Events
+  app.get("/api/life-events", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getLifeEvents()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/life-events", requireAuth, async (req, res) => {
+    try { const data = insertLifeEventSchema.parse(req.body); res.json(await storage.createLifeEvent(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.patch("/api/life-events/:id", requireAuth, async (req, res) => {
+    try { const data = insertLifeEventSchema.partial().parse(req.body); const event = await storage.updateLifeEvent(req.params.id, data); if (!event) return res.status(404).json({ error: "Not found" }); res.json(event); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/life-events/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteLifeEvent(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Home Automation (Home Assistant proxy)
+  app.get("/api/home-automation/states", requireAuth, async (_req, res) => {
+    try {
+      const hassToken = process.env.HASS_TOKEN;
+      const hassUrl = process.env.HASS_URL || "http://homeassistant.local:8123";
+      if (!hassToken) return res.json({ configured: false, states: [] });
+      const response = await fetch(`${hassUrl}/api/states`, { headers: { Authorization: `Bearer ${hassToken}`, "Content-Type": "application/json" } });
+      if (!response.ok) return res.status(response.status).json({ error: "Home Assistant returned " + response.status });
+      const states = await response.json();
+      res.json({ configured: true, states });
+    } catch (e: any) { res.json({ configured: false, error: e.message, states: [] }); }
+  });
+  app.post("/api/home-automation/toggle", requireAuth, async (req, res) => {
+    try {
+      const { entityId } = req.body;
+      const hassToken = process.env.HASS_TOKEN;
+      const hassUrl = process.env.HASS_URL || "http://homeassistant.local:8123";
+      if (!hassToken) return res.status(400).json({ error: "HASS_TOKEN not configured" });
+      const domain = entityId.split(".")[0];
+      const response = await fetch(`${hassUrl}/api/services/${domain}/toggle`, { method: "POST", headers: { Authorization: `Bearer ${hassToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ entity_id: entityId }) });
+      if (!response.ok) return res.status(response.status).json({ error: "Toggle failed" });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // SOP Library AI generate
+  app.post("/api/sop-library/generate", requireAuth, async (req, res) => {
+    try {
+      const { title, description } = req.body;
+      if (!title) return res.status(400).json({ error: "title required" });
+      const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "No AI API key configured" });
+      const isOpenRouter = !process.env.OPENAI_API_KEY;
+      const response = await fetch(isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: isOpenRouter ? "openai/gpt-4o-mini" : "gpt-4o-mini", messages: [{ role: "system", content: "Generate a Standard Operating Procedure (SOP). Return JSON: {title: string, category: string, overview: string, steps: [{step: number, title: string, description: string}]}" }, { role: "user", content: `SOP Title: ${title}${description ? `\nDescription: ${description}` : ""}` }], temperature: 0.4 }),
+      });
+      const result = await response.json();
+      const text = result.choices?.[0]?.message?.content || "{}";
+      const match = text.match(/\{[\s\S]*\}/);
+      const parsed = match ? JSON.parse(match[0]) : {};
+      res.json(parsed);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Daily Briefing
+  app.get("/api/daily-briefing", requireAuth, async (_req, res) => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.json({ actionPlan: "Configure an AI API key to get your daily briefing.", quote: "The journey of a thousand miles begins with a single step." });
+      const isOpenRouter = !process.env.OPENAI_API_KEY;
+      const [machines, projects] = await Promise.all([storage.getMachines(), storage.getReplitProjects()]);
+      const context = `Machines: ${machines.length} nodes (${machines.filter(m => m.status === "online").length} online). Projects: ${projects.length} total. Date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
+      const response = await fetch(isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: isOpenRouter ? "openai/gpt-4o-mini" : "gpt-4o-mini", messages: [{ role: "system", content: "Generate a short morning briefing for an AI agent operator. Return JSON: {actionPlan: string (3-5 action items as numbered list), quote: string (motivational quote)}" }, { role: "user", content: context }], temperature: 0.7 }),
+      });
+      const result = await response.json();
+      const text = result.choices?.[0]?.message?.content || "{}";
+      const match = text.match(/\{[\s\S]*\}/);
+      const parsed = match ? JSON.parse(match[0]) : { actionPlan: "Start your day strong!", quote: "Every expert was once a beginner." };
+      res.json(parsed);
+    } catch (e: any) { res.json({ actionPlan: "Error generating briefing: " + e.message, quote: "Keep going." }); }
   });
 
   return httpServer;

@@ -44,7 +44,18 @@ The application utilizes a client-server architecture.
     - **Node Heartbeat System**: Machines report status via a lightweight agent to `POST /api/node/heartbeat`, updating `lastSeen` timestamps.
     - **Periodic Skill Discovery**: Automatic hourly checks for new skills with manual trigger and UI notifications.
     - **Gemini Anti-Gravity Proxy**: An OpenAI-compatible proxy for Google Gemini models, providing chat completions and embeddings, with admin settings for upstream configuration and rate limits.
-- **Data Models**: Key data models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, `replit_projects`, `project_evaluations`, `omi_todos`, and `omi_sops`.
+    - **Automation Hub** (10 life automation features):
+        - **Daily Briefing**: AI-generated morning action plan with node status, project summary, and motivational quote.
+        - **Health Tracker**: Daily health logging (sleep, water, exercise, mood, weight, energy) with weekly charts.
+        - **Smart Grocery List**: Categorized grocery items with completion tracking and AI meal-plan-to-grocery-list generation.
+        - **Financial Dashboard**: Income/expense tracking with category breakdown, monthly summary, and spending charts.
+        - **Habit Tracker**: Habit creation, daily completion tracking, streak counting, and 30-day visual completion grid.
+        - **Home Automation**: Home Assistant integration via HASS_TOKEN/HASS_URL, device grouping by domain, toggle controls.
+        - **Meeting Prep AI**: AI-generated meeting briefs with background, talking points, questions, and objection handling.
+        - **SOP Library**: Reuses omi_sops table. Full CRUD with search/filter, plus AI SOP draft generation.
+        - **Focus Timer**: Pomodoro timer with configurable work/break durations, SVG ring visualization, session history, and weekly focus charts.
+        - **Life Calendar**: Month grid and list views for life events with category colors, countdown to next event.
+- **Data Models**: Key data models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, `replit_projects`, `project_evaluations`, `omi_todos`, `omi_sops`, `health_logs`, `grocery_items`, `financial_transactions`, `habits`, `habit_completions`, `meeting_preps`, `focus_sessions`, and `life_events`.
 
 ## External Dependencies
 - **Database**: PostgreSQL (via Drizzle ORM)

@@ -473,3 +473,106 @@ export const omiSops = pgTable("omi_sops", {
 export const insertOmiSopSchema = createInsertSchema(omiSops).omit({ id: true, createdAt: true, updatedAt: true });
 export type OmiSop = typeof omiSops.$inferSelect;
 export type InsertOmiSop = z.infer<typeof insertOmiSopSchema>;
+
+export const healthLogs = pgTable("health_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  date: text("date").notNull(),
+  sleepHours: real("sleep_hours"),
+  waterGlasses: integer("water_glasses"),
+  exerciseMinutes: integer("exercise_minutes"),
+  mood: integer("mood"),
+  weight: real("weight"),
+  energyLevel: integer("energy_level"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export const insertHealthLogSchema = createInsertSchema(healthLogs).omit({ id: true, createdAt: true, updatedAt: true });
+export type HealthLog = typeof healthLogs.$inferSelect;
+export type InsertHealthLog = z.infer<typeof insertHealthLogSchema>;
+
+export const groceryItems = pgTable("grocery_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  quantity: text("quantity"),
+  category: text("category").notNull().default("Other"),
+  completed: boolean("completed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertGroceryItemSchema = createInsertSchema(groceryItems).omit({ id: true, createdAt: true });
+export type GroceryItem = typeof groceryItems.$inferSelect;
+export type InsertGroceryItem = z.infer<typeof insertGroceryItemSchema>;
+
+export const financialTransactions = pgTable("financial_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  amount: real("amount").notNull(),
+  type: text("type").notNull(),
+  category: text("category").notNull(),
+  description: text("description"),
+  date: text("date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertFinancialTransactionSchema = createInsertSchema(financialTransactions).omit({ id: true, createdAt: true });
+export type FinancialTransaction = typeof financialTransactions.$inferSelect;
+export type InsertFinancialTransaction = z.infer<typeof insertFinancialTransactionSchema>;
+
+export const habits = pgTable("habits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  frequency: text("frequency").notNull().default("daily"),
+  category: text("category"),
+  target: integer("target").default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertHabitSchema = createInsertSchema(habits).omit({ id: true, createdAt: true });
+export type Habit = typeof habits.$inferSelect;
+export type InsertHabit = z.infer<typeof insertHabitSchema>;
+
+export const habitCompletions = pgTable("habit_completions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  habitId: varchar("habit_id").notNull(),
+  date: text("date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertHabitCompletionSchema = createInsertSchema(habitCompletions).omit({ id: true, createdAt: true });
+export type HabitCompletion = typeof habitCompletions.$inferSelect;
+export type InsertHabitCompletion = z.infer<typeof insertHabitCompletionSchema>;
+
+export const meetingPreps = pgTable("meeting_preps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subject: text("subject").notNull(),
+  attendeeName: text("attendee_name"),
+  attendeeCompany: text("attendee_company"),
+  backgroundBrief: text("background_brief"),
+  talkingPoints: text("talking_points"),
+  questions: text("questions"),
+  objections: text("objections"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertMeetingPrepSchema = createInsertSchema(meetingPreps).omit({ id: true, createdAt: true });
+export type MeetingPrep = typeof meetingPreps.$inferSelect;
+export type InsertMeetingPrep = z.infer<typeof insertMeetingPrepSchema>;
+
+export const focusSessions = pgTable("focus_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskName: text("task_name").notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  completedAt: timestamp("completed_at").notNull().defaultNow(),
+});
+export const insertFocusSessionSchema = createInsertSchema(focusSessions).omit({ id: true, completedAt: true });
+export type FocusSession = typeof focusSessions.$inferSelect;
+export type InsertFocusSession = z.infer<typeof insertFocusSessionSchema>;
+
+export const lifeEvents = pgTable("life_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  date: text("date").notNull(),
+  endDate: text("end_date"),
+  category: text("category").notNull().default("personal"),
+  color: text("color"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertLifeEventSchema = createInsertSchema(lifeEvents).omit({ id: true, createdAt: true });
+export type LifeEvent = typeof lifeEvents.$inferSelect;
+export type InsertLifeEvent = z.infer<typeof insertLifeEventSchema>;

@@ -28,11 +28,20 @@ import {
   type ProjectEvaluation, type InsertProjectEvaluation,
   type OmiTodo, type InsertOmiTodo,
   type OmiSop, type InsertOmiSop,
+  type HealthLog, type InsertHealthLog,
+  type GroceryItem, type InsertGroceryItem,
+  type FinancialTransaction, type InsertFinancialTransaction,
+  type Habit, type InsertHabit,
+  type HabitCompletion, type InsertHabitCompletion,
+  type MeetingPrep, type InsertMeetingPrep,
+  type FocusSession, type InsertFocusSession,
+  type LifeEvent, type InsertLifeEvent,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
   auditLogs, replitProjects, projectEvaluations, omiTodos, omiSops,
+  healthLogs, groceryItems, financialTransactions, habits, habitCompletions, meetingPreps, focusSessions, lifeEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -188,6 +197,42 @@ export interface IStorage {
   createOmiSop(data: InsertOmiSop): Promise<OmiSop>;
   updateOmiSop(id: string, data: Partial<InsertOmiSop>): Promise<OmiSop | undefined>;
   deleteOmiSop(id: string): Promise<void>;
+
+  getHealthLogs(): Promise<HealthLog[]>;
+  getHealthLogByDate(date: string): Promise<HealthLog | undefined>;
+  createHealthLog(data: InsertHealthLog): Promise<HealthLog>;
+  updateHealthLog(id: string, data: Partial<InsertHealthLog>): Promise<HealthLog | undefined>;
+
+  getGroceryItems(): Promise<GroceryItem[]>;
+  createGroceryItem(data: InsertGroceryItem): Promise<GroceryItem>;
+  updateGroceryItem(id: string, data: Partial<InsertGroceryItem>): Promise<GroceryItem | undefined>;
+  deleteGroceryItem(id: string): Promise<void>;
+
+  getFinancialTransactions(): Promise<FinancialTransaction[]>;
+  createFinancialTransaction(data: InsertFinancialTransaction): Promise<FinancialTransaction>;
+  deleteFinancialTransaction(id: string): Promise<void>;
+
+  getHabits(): Promise<Habit[]>;
+  createHabit(data: InsertHabit): Promise<Habit>;
+  updateHabit(id: string, data: Partial<InsertHabit>): Promise<Habit | undefined>;
+  deleteHabit(id: string): Promise<void>;
+  getHabitCompletions(habitId?: string): Promise<HabitCompletion[]>;
+  createHabitCompletion(data: InsertHabitCompletion): Promise<HabitCompletion>;
+  deleteHabitCompletion(id: string): Promise<void>;
+
+  getMeetingPreps(): Promise<MeetingPrep[]>;
+  getMeetingPrep(id: string): Promise<MeetingPrep | undefined>;
+  createMeetingPrep(data: InsertMeetingPrep): Promise<MeetingPrep>;
+  updateMeetingPrep(id: string, data: Partial<InsertMeetingPrep>): Promise<MeetingPrep | undefined>;
+  deleteMeetingPrep(id: string): Promise<void>;
+
+  getFocusSessions(): Promise<FocusSession[]>;
+  createFocusSession(data: InsertFocusSession): Promise<FocusSession>;
+
+  getLifeEvents(): Promise<LifeEvent[]>;
+  createLifeEvent(data: InsertLifeEvent): Promise<LifeEvent>;
+  updateLifeEvent(id: string, data: Partial<InsertLifeEvent>): Promise<LifeEvent | undefined>;
+  deleteLifeEvent(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -941,6 +986,116 @@ export class DatabaseStorage implements IStorage {
 
   async deleteOmiSop(id: string): Promise<void> {
     await db.delete(omiSops).where(eq(omiSops.id, id));
+  }
+
+  async getHealthLogs(): Promise<HealthLog[]> {
+    return db.select().from(healthLogs).orderBy(desc(healthLogs.date));
+  }
+  async getHealthLogByDate(date: string): Promise<HealthLog | undefined> {
+    const [log] = await db.select().from(healthLogs).where(eq(healthLogs.date, date));
+    return log;
+  }
+  async createHealthLog(data: InsertHealthLog): Promise<HealthLog> {
+    const [log] = await db.insert(healthLogs).values(data).returning();
+    return log;
+  }
+  async updateHealthLog(id: string, data: Partial<InsertHealthLog>): Promise<HealthLog | undefined> {
+    const [log] = await db.update(healthLogs).set({ ...data, updatedAt: new Date() }).where(eq(healthLogs.id, id)).returning();
+    return log;
+  }
+
+  async getGroceryItems(): Promise<GroceryItem[]> {
+    return db.select().from(groceryItems).orderBy(desc(groceryItems.createdAt));
+  }
+  async createGroceryItem(data: InsertGroceryItem): Promise<GroceryItem> {
+    const [item] = await db.insert(groceryItems).values(data).returning();
+    return item;
+  }
+  async updateGroceryItem(id: string, data: Partial<InsertGroceryItem>): Promise<GroceryItem | undefined> {
+    const [item] = await db.update(groceryItems).set(data).where(eq(groceryItems.id, id)).returning();
+    return item;
+  }
+  async deleteGroceryItem(id: string): Promise<void> {
+    await db.delete(groceryItems).where(eq(groceryItems.id, id));
+  }
+
+  async getFinancialTransactions(): Promise<FinancialTransaction[]> {
+    return db.select().from(financialTransactions).orderBy(desc(financialTransactions.date));
+  }
+  async createFinancialTransaction(data: InsertFinancialTransaction): Promise<FinancialTransaction> {
+    const [tx] = await db.insert(financialTransactions).values(data).returning();
+    return tx;
+  }
+  async deleteFinancialTransaction(id: string): Promise<void> {
+    await db.delete(financialTransactions).where(eq(financialTransactions.id, id));
+  }
+
+  async getHabits(): Promise<Habit[]> {
+    return db.select().from(habits).orderBy(desc(habits.createdAt));
+  }
+  async createHabit(data: InsertHabit): Promise<Habit> {
+    const [habit] = await db.insert(habits).values(data).returning();
+    return habit;
+  }
+  async updateHabit(id: string, data: Partial<InsertHabit>): Promise<Habit | undefined> {
+    const [habit] = await db.update(habits).set(data).where(eq(habits.id, id)).returning();
+    return habit;
+  }
+  async deleteHabit(id: string): Promise<void> {
+    await db.delete(habits).where(eq(habits.id, id));
+  }
+  async getHabitCompletions(habitId?: string): Promise<HabitCompletion[]> {
+    if (habitId) return db.select().from(habitCompletions).where(eq(habitCompletions.habitId, habitId)).orderBy(desc(habitCompletions.date));
+    return db.select().from(habitCompletions).orderBy(desc(habitCompletions.date));
+  }
+  async createHabitCompletion(data: InsertHabitCompletion): Promise<HabitCompletion> {
+    const [c] = await db.insert(habitCompletions).values(data).returning();
+    return c;
+  }
+  async deleteHabitCompletion(id: string): Promise<void> {
+    await db.delete(habitCompletions).where(eq(habitCompletions.id, id));
+  }
+
+  async getMeetingPreps(): Promise<MeetingPrep[]> {
+    return db.select().from(meetingPreps).orderBy(desc(meetingPreps.createdAt));
+  }
+  async getMeetingPrep(id: string): Promise<MeetingPrep | undefined> {
+    const [prep] = await db.select().from(meetingPreps).where(eq(meetingPreps.id, id));
+    return prep;
+  }
+  async createMeetingPrep(data: InsertMeetingPrep): Promise<MeetingPrep> {
+    const [prep] = await db.insert(meetingPreps).values(data).returning();
+    return prep;
+  }
+  async updateMeetingPrep(id: string, data: Partial<InsertMeetingPrep>): Promise<MeetingPrep | undefined> {
+    const [prep] = await db.update(meetingPreps).set(data).where(eq(meetingPreps.id, id)).returning();
+    return prep;
+  }
+  async deleteMeetingPrep(id: string): Promise<void> {
+    await db.delete(meetingPreps).where(eq(meetingPreps.id, id));
+  }
+
+  async getFocusSessions(): Promise<FocusSession[]> {
+    return db.select().from(focusSessions).orderBy(desc(focusSessions.completedAt));
+  }
+  async createFocusSession(data: InsertFocusSession): Promise<FocusSession> {
+    const [session] = await db.insert(focusSessions).values(data).returning();
+    return session;
+  }
+
+  async getLifeEvents(): Promise<LifeEvent[]> {
+    return db.select().from(lifeEvents).orderBy(desc(lifeEvents.date));
+  }
+  async createLifeEvent(data: InsertLifeEvent): Promise<LifeEvent> {
+    const [event] = await db.insert(lifeEvents).values(data).returning();
+    return event;
+  }
+  async updateLifeEvent(id: string, data: Partial<InsertLifeEvent>): Promise<LifeEvent | undefined> {
+    const [event] = await db.update(lifeEvents).set(data).where(eq(lifeEvents.id, id)).returning();
+    return event;
+  }
+  async deleteLifeEvent(id: string): Promise<void> {
+    await db.delete(lifeEvents).where(eq(lifeEvents.id, id));
   }
 }
 
