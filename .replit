@@ -57,3 +57,6 @@ REPLIT_USERNAME = "rsmolarz"
 
 [userenv.production]
 APP_BASE_URL = "https://claw-settings.replit.app"
+
+[agent]
+integrations = ["google-mail:1.0.0"]
