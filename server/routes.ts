@@ -8261,6 +8261,149 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
     }
   });
 
+  app.post("/api/secrets/scan-gmail", requireAuth, async (_req, res) => {
+    try {
+      const { isGmailConfigured, scanEmailsForSecrets } = await import("./gmail");
+      if (!isGmailConfigured()) {
+        return res.status(400).json({ error: "Gmail integration not configured. Connect Gmail in Replit integrations." });
+      }
+
+      const secrets = await scanEmailsForSecrets(50);
+
+      const safe = secrets.map(s => ({
+        service: s.service,
+        maskedValue: s.maskedValue,
+        emailSubject: s.emailSubject,
+        emailFrom: s.emailFrom,
+        emailDate: s.emailDate,
+        emailSnippet: s.emailSnippet,
+        messageId: s.messageId,
+      }));
+
+      logAudit(`Gmail scan found ${safe.length} potential secrets`, "secrets_scan", undefined, req.session.userId);
+      res.json({ found: safe.length, secrets: safe });
+    } catch (error: any) {
+      console.error("[Gmail Scan] Error:", error.message);
+      if (error.message?.includes("not connected") || error.message?.includes("Token")) {
+        return res.status(400).json({ error: "Gmail not connected. Please reconnect the Gmail integration." });
+      }
+      res.status(500).json({ error: "Failed to scan Gmail", details: error.message });
+    }
+  });
+
+  app.get("/api/secrets/gmail-secret/:messageId", requireAuth, async (req, res) => {
+    try {
+      const { scanEmailsForSecrets } = await import("./gmail");
+      const allSecrets = await scanEmailsForSecrets(100);
+      const matching = allSecrets.filter(s => s.messageId === req.params.messageId);
+      if (matching.length === 0) {
+        return res.status(404).json({ error: "Secret not found in that email" });
+      }
+      res.json(matching.map(s => ({
+        service: s.service,
+        value: s.fullValue,
+        maskedValue: s.maskedValue,
+      })));
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch secret details" });
+    }
+  });
+
+  app.get("/api/secrets/replit-envs", requireAuth, async (_req, res) => {
+    try {
+      const sid = process.env.REPLIT_SID;
+      const username = process.env.REPLIT_USERNAME;
+      if (!sid || !username) {
+        return res.status(400).json({ error: "REPLIT_SID and REPLIT_USERNAME secrets required for Replit env scanning" });
+      }
+
+      const replsResponse = await fetch("https://replit.com/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `connect.sid=${sid}`,
+          "X-Requested-With": "XMLHttpRequest",
+          "User-Agent": "Mozilla/5.0",
+        },
+        body: JSON.stringify({
+          query: `query GetUserRepls($username: String!, $after: String) {
+            userByUsername(username: $username) {
+              repls(after: $after, count: 50) {
+                items {
+                  id
+                  title
+                  slug
+                  language
+                  url
+                }
+              }
+            }
+          }`,
+          variables: { username },
+        }),
+      });
+
+      if (!replsResponse.ok) {
+        return res.status(502).json({ error: "Failed to reach Replit API" });
+      }
+
+      const replsData = await replsResponse.json();
+      const repls = replsData?.data?.userByUsername?.repls?.items || [];
+
+      const results: any[] = [];
+      for (const repl of repls.slice(0, 30)) {
+        try {
+          const envResponse = await fetch("https://replit.com/graphql", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Cookie: `connect.sid=${sid}`,
+              "X-Requested-With": "XMLHttpRequest",
+              "User-Agent": "Mozilla/5.0",
+            },
+            body: JSON.stringify({
+              query: `query GetReplSecrets($id: String!) {
+                repl(id: $id) {
+                  id
+                  title
+                  secrets {
+                    key
+                  }
+                }
+              }`,
+              variables: { id: repl.id },
+            }),
+          });
+
+          if (envResponse.ok) {
+            const envData = await envResponse.json();
+            const secrets = envData?.data?.repl?.secrets || [];
+            if (secrets.length > 0) {
+              results.push({
+                id: repl.id,
+                title: repl.title,
+                slug: repl.slug,
+                language: repl.language,
+                url: repl.url,
+                secretKeys: secrets.map((s: any) => s.key),
+                secretCount: secrets.length,
+              });
+            }
+          }
+        } catch {}
+      }
+
+      res.json({
+        totalRepls: repls.length,
+        replsWithSecrets: results.length,
+        repls: results,
+      });
+    } catch (error: any) {
+      console.error("[Replit Envs] Error:", error.message);
+      res.status(500).json({ error: "Failed to scan Replit secrets", details: error.message });
+    }
+  });
+
   // ── Omi SOPs ──
   function safeParseJsonArray(val: string | null | undefined): string[] {
     if (!val) return [];
