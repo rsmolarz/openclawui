@@ -32,7 +32,7 @@ import {
   AudioWaveform,
   Sun,
   Heart,
-  ShoppingCart,
+  ListTodo,
   DollarSign,
   Target,
   Home,
@@ -99,7 +99,7 @@ const infraItems = [
 const automationItems = [
   { title: "Daily Briefing", url: "/daily-briefing", icon: Sun },
   { title: "Health Tracker", url: "/health-tracker", icon: Heart },
-  { title: "Grocery List", url: "/grocery-list", icon: ShoppingCart },
+  { title: "Todo List", url: "/todo-list", icon: ListTodo },
   { title: "Finance", url: "/finance", icon: DollarSign },
   { title: "Habits", url: "/habits", icon: Target },
   { title: "Home Automation", url: "/home-automation", icon: Home },

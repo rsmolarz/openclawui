@@ -47,7 +47,7 @@ The application utilizes a client-server architecture.
     - **Automation Hub** (10 life automation features):
         - **Daily Briefing**: AI-generated morning action plan with node status, project summary, and motivational quote.
         - **Health Tracker**: Daily health logging (sleep, water, exercise, mood, weight, energy) with weekly charts.
-        - **Smart Grocery List**: Categorized grocery items with completion tracking and AI meal-plan-to-grocery-list generation.
+        - **Todo List**: Unified todo management powered by Omi AI wearable. "Pull from Omi" analyzes recent conversations and auto-extracts action items. Manual add, priority levels, dismiss/restore, and status filtering. Uses omi_todos table.
         - **Financial Dashboard**: Income/expense tracking with category breakdown, monthly summary, and spending charts.
         - **Habit Tracker**: Habit creation, daily completion tracking, streak counting, and 30-day visual completion grid.
         - **Home Automation**: Home Assistant integration via HASS_TOKEN/HASS_URL, device grouping by domain, toggle controls.

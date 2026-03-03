@@ -191,6 +191,7 @@ export interface IStorage {
   getOmiTodos(status?: string): Promise<OmiTodo[]>;
   createOmiTodo(data: InsertOmiTodo): Promise<OmiTodo>;
   updateOmiTodo(id: string, data: Partial<InsertOmiTodo>): Promise<OmiTodo | undefined>;
+  deleteOmiTodo(id: string): Promise<void>;
 
   getOmiSops(): Promise<OmiSop[]>;
   getOmiSop(id: string): Promise<OmiSop | undefined>;
@@ -963,6 +964,10 @@ export class DatabaseStorage implements IStorage {
   async updateOmiTodo(id: string, data: Partial<InsertOmiTodo>): Promise<OmiTodo | undefined> {
     const [todo] = await db.update(omiTodos).set(data).where(eq(omiTodos.id, id)).returning();
     return todo;
+  }
+
+  async deleteOmiTodo(id: string): Promise<void> {
+    await db.delete(omiTodos).where(eq(omiTodos.id, id));
   }
 
   async getOmiSops(): Promise<OmiSop[]> {

@@ -8182,6 +8182,24 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
     }
   });
 
+  app.post("/api/omi/todos", requireAuth, async (req, res) => {
+    try {
+      const { content, priority, source, sourceTitle } = req.body;
+      if (!content?.trim()) return res.status(400).json({ error: "Content is required" });
+      const todo = await storage.createOmiTodo({
+        content: content.trim(),
+        priority: priority || "medium",
+        source: source || "manual",
+        sourceTitle: sourceTitle || null,
+        status: "pending",
+        completedAt: null,
+      });
+      res.json(todo);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create todo" });
+    }
+  });
+
   app.patch("/api/omi/todos/:id", requireAuth, async (req, res) => {
     try {
       const validStatuses = ["pending", "done", "dismissed"];
@@ -8196,6 +8214,15 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
       res.json(todo);
     } catch (error) {
       res.status(500).json({ error: "Failed to update todo" });
+    }
+  });
+
+  app.delete("/api/omi/todos/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteOmiTodo(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete todo" });
     }
   });
 

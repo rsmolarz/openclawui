@@ -43,7 +43,7 @@ import VoiceChat from "@/pages/voice-chat";
 import SecretsInventory from "@/pages/secrets-inventory";
 import DailyBriefing from "@/pages/daily-briefing";
 import HealthTracker from "@/pages/health-tracker";
-import GroceryList from "@/pages/grocery-list";
+import TodoList from "@/pages/grocery-list";
 import Finance from "@/pages/finance";
 import Habits from "@/pages/habits";
 import HomeAutomation from "@/pages/home-automation";
@@ -89,7 +89,8 @@ function Router() {
       <Route path="/secrets" component={SecretsInventory} />
       <Route path="/daily-briefing" component={DailyBriefing} />
       <Route path="/health-tracker" component={HealthTracker} />
-      <Route path="/grocery-list" component={GroceryList} />
+      <Route path="/todo-list" component={TodoList} />
+      <Route path="/grocery-list" component={TodoList} />
       <Route path="/finance" component={Finance} />
       <Route path="/habits" component={Habits} />
       <Route path="/home-automation" component={HomeAutomation} />
