@@ -170,6 +170,7 @@ export interface IStorage {
   getReplitProjects(): Promise<ReplitProject[]>;
   getReplitProject(id: string): Promise<ReplitProject | undefined>;
   getReplitProjectByReplitId(replitId: string): Promise<ReplitProject | undefined>;
+  getReplitProjectBySlug(slug: string): Promise<ReplitProject | undefined>;
   createReplitProject(data: InsertReplitProject): Promise<ReplitProject>;
   updateReplitProject(id: string, data: Partial<InsertReplitProject> & { lastSynced?: Date; updatedAt?: Date }): Promise<ReplitProject | undefined>;
   deleteReplitProject(id: string): Promise<void>;
@@ -863,6 +864,11 @@ export class DatabaseStorage implements IStorage {
 
   async getReplitProjectByReplitId(replitId: string): Promise<ReplitProject | undefined> {
     const [project] = await db.select().from(replitProjects).where(eq(replitProjects.replitId, replitId));
+    return project;
+  }
+
+  async getReplitProjectBySlug(slug: string): Promise<ReplitProject | undefined> {
+    const [project] = await db.select().from(replitProjects).where(eq(replitProjects.slug, slug));
     return project;
   }
 

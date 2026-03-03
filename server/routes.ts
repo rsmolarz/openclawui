@@ -7336,6 +7336,20 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
     }
   });
 
+  app.get("/api/replit-projects/evaluation", requireAuth, async (_req, res) => {
+    try {
+      const evaluation = await storage.getLatestProjectEvaluation();
+      if (!evaluation) return res.json(null);
+      res.json({
+        ...evaluation,
+        projectScores: JSON.parse(evaluation.projectScores),
+        recommendations: evaluation.recommendations ? JSON.parse(evaluation.recommendations) : null,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch evaluation" });
+    }
+  });
+
   app.get("/api/replit-projects/:id", requireAuth, async (req, res) => {
     try {
       const project = await storage.getReplitProject(req.params.id);
@@ -7383,11 +7397,7 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
 
   app.post("/api/replit-projects/sync", requireAuth, async (req, res) => {
     try {
-      const sid = process.env.REPLIT_SID;
-      if (!sid) {
-        return res.status(400).json({ error: "REPLIT_SID environment variable not set. Add your Replit session cookie (connect.sid) as REPLIT_SID in Secrets." });
-      }
-      let username = (req.body.username || process.env.REPLIT_USERNAME || "").trim();
+      let username = (req.body.username || process.env.REPLIT_USERNAME || process.env.REPL_OWNER || "").trim();
       if (!username) {
         return res.status(400).json({ error: "Provide a username in the request body or set REPLIT_USERNAME in Secrets." });
       }
@@ -7404,8 +7414,11 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
         return res.status(400).json({ error: `"${username}" looks like a URL, not a username. Enter just your Replit username (e.g. "rsmolarz").` });
       }
 
-      const headers: Record<string, string> = {
-        "Cookie": `connect.sid=${sid}`,
+      const allRepls: any[] = [];
+      let source = "none";
+
+      const sid = process.env.REPLIT_SID;
+      const gqlHeaders: Record<string, string> = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -7413,8 +7426,8 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
         "Origin": "https://replit.com",
         "Referer": `https://replit.com/@${username}`,
       };
+      if (sid) gqlHeaders["Cookie"] = `connect.sid=${sid}`;
 
-      const allRepls: any[] = [];
       let after: string | null = null;
       let pageCount = 0;
       const MAX_PAGES = 10;
@@ -7423,86 +7436,84 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
         pageCount++;
         const gqlQuery = {
           operationName: "ProfilePublicRepls",
-          variables: {
-            username,
-            after: after || "",
-            count: 20,
-            order: "Recent",
-          },
-          query: `query ProfilePublicRepls($username: String!, $after: String, $count: Int, $order: String) {
-            userByUsername(username: $username) {
+          variables: { username, after: after || "", search: "" },
+          query: `query ProfilePublicRepls($username: String!, $after: String, $search: String) {
+            user: userByUsername(username: $username) {
               id
-              publicRepls(after: $after, count: $count, order: $order) {
-                items {
-                  id
-                  slug
-                  title
-                  description
-                  url
-                  language
-                  imageUrl
-                  isPrivate
-                  deployment { id }
-                  hostedUrl
-                }
-                pageInfo {
-                  hasNextPage
-                  nextCursor
-                }
+              profileRepls: profileRepls(after: $after, search: $search) {
+                items { id title url description(plainText: true) iconUrl likeCount publishedAs publicForkCount templateInfo { label } }
+                pageInfo { hasNextPage nextCursor }
               }
             }
           }`,
         };
 
-        const gqlRes = await fetch("https://replit.com/graphql", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(gqlQuery),
-        });
+        try {
+          const gqlRes = await Promise.race([
+            fetch("https://replit.com/graphql", { method: "POST", headers: gqlHeaders, body: JSON.stringify(gqlQuery) }),
+            new Promise<Response>((_, reject) => setTimeout(() => reject(new Error("GQL timeout")), 8000)),
+          ]);
 
-        if (!gqlRes.ok) {
-          const errText = await gqlRes.text().catch(() => "");
-          console.error(`[Replit Sync] GraphQL ${gqlRes.status}: ${errText.slice(0, 200)}`);
-          break;
-        }
+          if (gqlRes.ok) {
+            const gqlData = await gqlRes.json();
 
-        const gqlData = await gqlRes.json();
-        const user = gqlData?.data?.userByUsername;
-        if (!user) {
-          if (allRepls.length === 0) {
-            return res.status(404).json({ error: `User "${username}" not found on Replit. Check the username and try again.` });
+            if (gqlData?.errors?.some((e: any) => e.extensions?.code === "PERSISTED_QUERY_NOT_FOUND" || e.message?.includes("Persisted query"))) {
+              console.log("[Replit Sync] GraphQL requires persisted query hashes, trying HTML scraping");
+              break;
+            }
+            if (gqlData?.errors?.some((e: any) => e.message?.includes("Persisted query hash required"))) {
+              console.log("[Replit Sync] GraphQL requires persisted query hashes");
+              break;
+            }
+
+            const user = gqlData?.data?.user || gqlData?.data?.userByUsername;
+            if (!user) {
+              if (allRepls.length === 0 && !gqlData?.errors) {
+                return res.status(404).json({ error: `User "${username}" not found on Replit.` });
+              }
+              break;
+            }
+
+            const items = user.profileRepls?.items || user.publicRepls?.items || [];
+            for (const r of items) {
+              const slug = r.url?.split("/").pop() || r.title?.toLowerCase().replace(/\s+/g, "-") || "";
+              allRepls.push({
+                id: r.id,
+                slug,
+                title: r.title,
+                description: r.description,
+                url: r.url || `https://replit.com/@${username}/${slug}`,
+                language: r.language || null,
+                imageUrl: r.iconUrl || r.imageUrl || null,
+                isPrivate: r.isPrivate ?? false,
+                deployment: r.deployment || (r.publishedAs ? { id: "deployed" } : null),
+                hostedUrl: r.hostedUrl || (r.publishedAs ? `https://${slug}.replit.app` : null),
+              });
+            }
+
+            source = "graphql";
+            const pageInfo = user.profileRepls?.pageInfo || user.publicRepls?.pageInfo;
+            if (!pageInfo?.hasNextPage || !pageInfo.nextCursor) break;
+            after = pageInfo.nextCursor;
+          } else {
+            const errText = await gqlRes.text().catch(() => "");
+            console.error(`[Replit Sync] GraphQL ${gqlRes.status}: ${errText.slice(0, 200)}`);
+            break;
           }
+        } catch (gqlErr: any) {
+          console.log("[Replit Sync] GraphQL unavailable:", gqlErr.message?.slice(0, 100));
           break;
         }
-
-        const items = user.publicRepls?.items || [];
-        for (const r of items) {
-          allRepls.push({
-            id: r.id,
-            slug: r.slug,
-            title: r.title,
-            description: r.description,
-            url: r.url,
-            language: r.language,
-            imageUrl: r.imageUrl,
-            isPrivate: r.isPrivate,
-            deployment: r.deployment,
-            hostedUrl: r.hostedUrl,
-          });
-        }
-
-        const pageInfo = user.publicRepls?.pageInfo;
-        if (!pageInfo?.hasNextPage || !pageInfo.nextCursor) break;
-        after = pageInfo.nextCursor;
       }
 
       if (allRepls.length === 0) {
-        const htmlHeaders = {
-          "Cookie": `connect.sid=${sid}`,
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "text/html",
-        };
         try {
+          const htmlHeaders: Record<string, string> = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html",
+          };
+          if (sid) htmlHeaders["Cookie"] = `connect.sid=${sid}`;
+
           const profileRes = await fetch(`https://replit.com/@${username}`, { headers: htmlHeaders });
           if (profileRes.ok) {
             const html = await profileRes.text();
@@ -7513,20 +7524,34 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
               for (const [key, value] of Object.entries(apollo)) {
                 if (key.startsWith("Repl:") && typeof value === "object" && value !== null) {
                   const v = value as any;
-                  allRepls.push({
-                    id: v.id || key.replace("Repl:", ""),
-                    slug: v.slug,
-                    title: v.title,
-                    description: v.description,
-                    url: v.url,
-                    language: v.language,
-                    imageUrl: v.imageUrl,
-                    isPrivate: v.isPrivate,
-                    deployment: v.deployment,
-                    hostedUrl: v.hostedUrl,
-                  });
+                  if (v.title || v.slug) {
+                    allRepls.push({
+                      id: v.id || key.replace("Repl:", ""),
+                      slug: v.slug, title: v.title, description: v.description,
+                      url: v.url, language: v.language, imageUrl: v.imageUrl || v.iconUrl,
+                      isPrivate: v.isPrivate, deployment: v.deployment, hostedUrl: v.hostedUrl,
+                    });
+                  }
                 }
               }
+              if (allRepls.length > 0) source = "html";
+            }
+
+            if (allRepls.length === 0) {
+              const linkPattern = new RegExp(`/@${username}/([a-zA-Z0-9_-]+)`, "g");
+              const slugs = new Set<string>();
+              let m;
+              while ((m = linkPattern.exec(html)) !== null) {
+                if (!["settings", "repls", "profile", "account"].includes(m[1])) slugs.add(m[1]);
+              }
+              for (const slug of slugs) {
+                allRepls.push({
+                  id: slug, slug, title: slug.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
+                  description: null, url: `https://replit.com/@${username}/${slug}`,
+                  language: null, imageUrl: null, isPrivate: false, deployment: null, hostedUrl: null,
+                });
+              }
+              if (allRepls.length > 0) source = "html-links";
             }
           }
         } catch (e: any) {
@@ -7540,46 +7565,49 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       for (const repl of allRepls) {
         if (!repl.slug && !repl.title) continue;
         const replitId = String(repl.id);
-        const existing = await storage.getReplitProjectByReplitId(replitId);
+        const slug = repl.slug || repl.title;
+
+        const existingById = await storage.getReplitProjectByReplitId(replitId);
+        const existingBySlug = !existingById ? await storage.getReplitProjectBySlug(slug) : null;
+        const existing = existingById || existingBySlug;
         const deploymentUrl = repl.hostedUrl || (repl.deployment ? `https://${repl.slug}.replit.app` : null);
 
         if (existing) {
           await storage.updateReplitProject(existing.id, {
-            title: repl.title || repl.slug,
-            slug: repl.slug,
-            description: repl.description || null,
-            url: repl.url || `https://replit.com/@${username}/${repl.slug}`,
-            language: repl.language || null,
-            imageUrl: repl.imageUrl || null,
-            isPrivate: repl.isPrivate ?? false,
-            deploymentUrl: deploymentUrl,
+            title: repl.title || repl.slug || existing.title,
+            slug: repl.slug || existing.slug,
+            description: repl.description || existing.description,
+            url: repl.url || existing.url || `https://replit.com/@${username}/${repl.slug}`,
+            language: repl.language || existing.language,
+            imageUrl: repl.imageUrl || existing.imageUrl,
+            isPrivate: repl.isPrivate ?? existing.isPrivate ?? false,
+            deploymentUrl: deploymentUrl || existing.deploymentUrl,
+            replitId: replitId !== slug ? replitId : existing.replitId,
             lastSynced: new Date(),
           });
           updated++;
         } else {
           await storage.createReplitProject({
-            slug: repl.slug || repl.title,
-            title: repl.title || repl.slug,
+            slug, title: repl.title || slug,
             description: repl.description || null,
-            url: repl.url || `https://replit.com/@${username}/${repl.slug}`,
-            language: repl.language || null,
-            imageUrl: repl.imageUrl || null,
-            isPrivate: repl.isPrivate ?? false,
-            replitId,
-            deploymentUrl: deploymentUrl,
-            status: "active",
+            url: repl.url || `https://replit.com/@${username}/${slug}`,
+            language: repl.language || null, imageUrl: repl.imageUrl || null,
+            isPrivate: repl.isPrivate ?? false, replitId: replitId !== slug ? replitId : null,
+            deploymentUrl, status: "active",
             deploymentStatus: repl.deployment ? "deployed" : null,
-            lastSynced: new Date(),
-            notes: null,
-            tags: null,
-            progress: 0,
+            lastSynced: new Date(), notes: null, tags: null, progress: 0,
           });
           created++;
         }
       }
 
       logAudit(`Synced Replit projects from profile (${created} new, ${updated} updated)`, "replit_project", undefined, req.session.userId);
-      res.json({ total: allRepls.length, created, updated, source: "graphql", note: allRepls.length === 0 ? "No public repls found on profile. Use bulk import to add projects manually." : undefined });
+      res.json({
+        total: allRepls.length, created, updated, source,
+        note: allRepls.length === 0
+          ? "Replit's API requires persisted query hashes, so auto-sync is currently limited. Use bulk import to add projects manually — paste project names or URLs, one per line."
+          : undefined,
+      });
     } catch (error: any) {
       console.error("[Replit Sync] Error:", error.message);
       res.status(500).json({ error: "Failed to sync from Replit", details: error.message });
@@ -7961,20 +7989,6 @@ Score each project 1-10 on revenue, brand, and trading. Composite = weighted ave
     } catch (error: any) {
       console.error("[Project Evaluate] Error:", error.message);
       res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/replit-projects/evaluation", requireAuth, async (_req, res) => {
-    try {
-      const evaluation = await storage.getLatestProjectEvaluation();
-      if (!evaluation) return res.json(null);
-      res.json({
-        ...evaluation,
-        projectScores: JSON.parse(evaluation.projectScores),
-        recommendations: evaluation.recommendations ? JSON.parse(evaluation.recommendations) : null,
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch evaluation" });
     }
   });
 
