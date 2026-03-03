@@ -27,11 +27,12 @@ import {
   type ReplitProject, type InsertReplitProject,
   type ProjectEvaluation, type InsertProjectEvaluation,
   type OmiTodo, type InsertOmiTodo,
+  type OmiSop, type InsertOmiSop,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
-  auditLogs, replitProjects, projectEvaluations, omiTodos,
+  auditLogs, replitProjects, projectEvaluations, omiTodos, omiSops,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -181,6 +182,12 @@ export interface IStorage {
   getOmiTodos(status?: string): Promise<OmiTodo[]>;
   createOmiTodo(data: InsertOmiTodo): Promise<OmiTodo>;
   updateOmiTodo(id: string, data: Partial<InsertOmiTodo>): Promise<OmiTodo | undefined>;
+
+  getOmiSops(): Promise<OmiSop[]>;
+  getOmiSop(id: string): Promise<OmiSop | undefined>;
+  createOmiSop(data: InsertOmiSop): Promise<OmiSop>;
+  updateOmiSop(id: string, data: Partial<InsertOmiSop>): Promise<OmiSop | undefined>;
+  deleteOmiSop(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -911,6 +918,29 @@ export class DatabaseStorage implements IStorage {
   async updateOmiTodo(id: string, data: Partial<InsertOmiTodo>): Promise<OmiTodo | undefined> {
     const [todo] = await db.update(omiTodos).set(data).where(eq(omiTodos.id, id)).returning();
     return todo;
+  }
+
+  async getOmiSops(): Promise<OmiSop[]> {
+    return db.select().from(omiSops).orderBy(desc(omiSops.updatedAt));
+  }
+
+  async getOmiSop(id: string): Promise<OmiSop | undefined> {
+    const [sop] = await db.select().from(omiSops).where(eq(omiSops.id, id));
+    return sop;
+  }
+
+  async createOmiSop(data: InsertOmiSop): Promise<OmiSop> {
+    const [sop] = await db.insert(omiSops).values(data).returning();
+    return sop;
+  }
+
+  async updateOmiSop(id: string, data: Partial<InsertOmiSop>): Promise<OmiSop | undefined> {
+    const [sop] = await db.update(omiSops).set({ ...data, updatedAt: new Date() }).where(eq(omiSops.id, id)).returning();
+    return sop;
+  }
+
+  async deleteOmiSop(id: string): Promise<void> {
+    await db.delete(omiSops).where(eq(omiSops.id, id));
   }
 }
 

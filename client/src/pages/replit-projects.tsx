@@ -19,9 +19,9 @@ import {
   Globe, Lock, Search, Activity, CheckCircle2, XCircle,
   Clock, AlertTriangle, Loader2, Upload, Brain, Zap,
   TrendingUp, Target, BarChart3, ListTodo, Mic, Sparkles,
-  Check, X, MessageSquare,
+  Check, X, MessageSquare, FileText, ClipboardList, ChevronDown, ChevronRight,
 } from "lucide-react";
-import type { ReplitProject, OmiTodo } from "@shared/schema";
+import type { ReplitProject, OmiTodo, OmiSop } from "@shared/schema";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500/10 text-green-600 dark:text-green-400",
@@ -575,6 +575,45 @@ function OmiInsightsTab() {
     },
   });
 
+  const { data: sops, isLoading: sopsLoading } = useQuery<any[]>({
+    queryKey: ["/api/omi/sops"],
+  });
+
+  const generateSopsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/omi/sops/generate");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/omi/sops"] });
+      toast({ title: "SOPs Generated", description: `${data.generated} procedures created from ${data.memoriesAnalyzed} memories` });
+    },
+    onError: (err: any) => {
+      toast({ title: "SOP generation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateSopMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; status?: string }) => {
+      await apiRequest("PATCH", `/api/omi/sops/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/omi/sops"] });
+    },
+  });
+
+  const deleteSopMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/omi/sops/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/omi/sops"] });
+      toast({ title: "SOP deleted" });
+    },
+  });
+
+  const [expandedSop, setExpandedSop] = useState<string | null>(null);
+
   const pendingTodos = (todos || []).filter(t => t.status === "pending");
   const completedTodos = (todos || []).filter(t => t.status === "done");
 
@@ -738,6 +777,171 @@ function OmiInsightsTab() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="space-y-4 border-t pt-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Standard Operating Procedures ({sops?.length || 0})
+          </h3>
+          <Button
+            size="sm"
+            onClick={() => generateSopsMutation.mutate()}
+            disabled={generateSopsMutation.isPending || !omiStatus?.connected}
+            data-testid="button-generate-sops"
+          >
+            {generateSopsMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            {generateSopsMutation.isPending ? "Generating..." : "Generate SOPs"}
+          </Button>
+        </div>
+
+        {generateSopsMutation.isPending && (
+          <Card className="border-purple-500/20 bg-purple-500/5">
+            <CardContent className="py-6 text-center">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-purple-500" />
+              <p className="text-sm font-medium">AI is analyzing your conversations for recurring processes...</p>
+              <p className="text-xs text-muted-foreground mt-1">This may take 30-60 seconds</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {sopsLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
+        ) : !sops || sops.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <ClipboardList className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No SOPs yet. Click "Generate SOPs" to create procedures from your Omi conversations.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {sops.map((sop: any) => (
+              <Card key={sop.id} data-testid={`card-sop-${sop.id}`} className="overflow-hidden">
+                <CardContent className="p-0">
+                  <button
+                    className="w-full p-4 text-left flex items-start gap-3 hover:bg-muted/50 transition-colors"
+                    onClick={() => setExpandedSop(expandedSop === sop.id ? null : sop.id)}
+                    data-testid={`button-expand-sop-${sop.id}`}
+                  >
+                    <div className="mt-0.5">
+                      {expandedSop === sop.id ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{sop.title}</p>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {sop.category}
+                        </Badge>
+                        <Badge
+                          variant={sop.status === "active" ? "default" : sop.status === "archived" ? "secondary" : "outline"}
+                          className="text-[10px] shrink-0"
+                        >
+                          {sop.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{sop.overview}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {sop.status === "draft" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-green-500"
+                          onClick={() => updateSopMutation.mutate({ id: sop.id, status: "active" })}
+                          data-testid={`button-activate-sop-${sop.id}`}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {sop.status === "active" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-yellow-500"
+                          onClick={() => updateSopMutation.mutate({ id: sop.id, status: "archived" })}
+                          data-testid={`button-archive-sop-${sop.id}`}
+                        >
+                          <Lock className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-destructive"
+                        onClick={() => deleteSopMutation.mutate(sop.id)}
+                        data-testid={`button-delete-sop-${sop.id}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </button>
+
+                  {expandedSop === sop.id && (
+                    <div className="px-4 pb-4 pt-0 border-t bg-muted/30 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-1 mt-3">Steps</p>
+                        <ol className="text-sm space-y-1 list-decimal list-inside">
+                          {(sop.steps || []).map((step: string, i: number) => (
+                            <li key={i} className="text-sm">{step.replace(/^Step \d+:\s*/i, "")}</li>
+                          ))}
+                        </ol>
+                      </div>
+
+                      {sop.triggers && sop.triggers.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-1">Triggers</p>
+                          <div className="flex flex-wrap gap-1">
+                            {sop.triggers.map((t: string, i: number) => (
+                              <Badge key={i} variant="outline" className="text-xs">{t}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        {sop.frequency && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {sop.frequency}
+                          </span>
+                        )}
+                        {sop.tools && sop.tools.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Code2 className="h-3 w-3" /> {sop.tools.join(", ")}
+                          </span>
+                        )}
+                      </div>
+
+                      {sop.tips && sop.tips.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-1">Tips</p>
+                          <ul className="text-xs text-muted-foreground space-y-0.5">
+                            {sop.tips.map((tip: string, i: number) => (
+                              <li key={i} className="flex items-start gap-1">
+                                <Sparkles className="h-3 w-3 shrink-0 mt-0.5" /> {tip}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

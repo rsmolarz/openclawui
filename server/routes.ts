@@ -8164,6 +8164,188 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
     }
   });
 
+  // ── Omi SOPs ──
+  function safeParseJsonArray(val: string | null | undefined): string[] {
+    if (!val) return [];
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+
+  function serializeSop(s: any) {
+    return {
+      ...s,
+      steps: safeParseJsonArray(s.steps),
+      triggers: safeParseJsonArray(s.triggers),
+      tools: safeParseJsonArray(s.tools),
+      tips: safeParseJsonArray(s.tips),
+      sourceMemoryIds: safeParseJsonArray(s.sourceMemoryIds),
+    };
+  }
+
+  app.get("/api/omi/sops", requireAuth, async (_req, res) => {
+    try {
+      const sops = await storage.getOmiSops();
+      res.json(sops.map(serializeSop));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch SOPs" });
+    }
+  });
+
+  app.get("/api/omi/sops/:id", requireAuth, async (req, res) => {
+    try {
+      const sop = await storage.getOmiSop(req.params.id);
+      if (!sop) return res.status(404).json({ error: "SOP not found" });
+      res.json(serializeSop(sop));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch SOP" });
+    }
+  });
+
+  app.post("/api/omi/sops/generate", requireAuth, async (_req, res) => {
+    try {
+      const { isOmiConfigured, fetchOmiMemories } = await import("./omi");
+      if (!isOmiConfigured()) {
+        return res.status(400).json({ error: "OMI_API_KEY not configured" });
+      }
+
+      const memories = await fetchOmiMemories(100);
+      if (!memories || memories.length === 0) {
+        return res.status(400).json({ error: "No Omi memories found. Use your Omi device to record conversations first." });
+      }
+
+      const memoryData = memories.map((m: any) => ({
+        id: m.id,
+        content: m.content,
+        category: m.category,
+        tags: m.tags,
+        created_at: m.created_at,
+      }));
+
+      const { chat } = await import("./bot/openrouter");
+      const prompt = `You are an SOP (Standard Operating Procedure) generator. Analyze the following conversation memories from a wearable AI device and generate structured SOPs for recurring processes, workflows, and daily activities you identify.
+
+MEMORIES:
+${JSON.stringify(memoryData, null, 2)}
+
+Generate SOPs for EACH distinct process or recurring activity you identify. For each SOP, provide:
+
+Return ONLY a valid JSON array with this structure (no markdown, no extra text):
+[
+  {
+    "title": "Name of the procedure",
+    "category": "Category (e.g. medical, business, personal, health, communication, technical)",
+    "overview": "Brief 1-2 sentence description of what this procedure covers",
+    "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
+    "triggers": ["When to start this process - e.g. 'Patient presents with X', 'Weekly on Monday'],
+    "frequency": "How often this is done (daily, weekly, as-needed, per-patient, etc.)",
+    "tools": ["Tools, equipment, or resources needed"],
+    "tips": ["Pro tips, common mistakes to avoid, or efficiency notes"],
+    "sourceMemoryIds": ["list of memory IDs that informed this SOP"]
+  }
+]
+
+Generate at least 3 SOPs if the data supports it. Focus on actionable, practical procedures based on what you observe in the conversations. Be specific with steps — each should be a clear action.`;
+
+      const response = await chat(prompt, "SOP Generator", "sop-generation", []);
+
+      let sops: any[];
+      try {
+        let text = response.text.trim();
+        if (text.startsWith("```")) {
+          text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+        }
+        sops = JSON.parse(text);
+      } catch (parseErr) {
+        const jsonMatch = response.text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          sops = JSON.parse(jsonMatch[0]);
+        } else {
+          console.error("[SOP] Failed to parse LLM response:", response.text.substring(0, 500));
+          return res.status(500).json({ error: "Failed to parse SOP output from AI. Try again." });
+        }
+      }
+
+      if (!Array.isArray(sops) || sops.length === 0) {
+        return res.status(400).json({ error: "AI could not identify any recurring processes from your conversations." });
+      }
+
+      const ensureArray = (val: any): string[] => {
+        if (Array.isArray(val)) return val.map(String);
+        if (typeof val === "string") return [val];
+        return [];
+      };
+
+      const created: any[] = [];
+      for (const sop of sops) {
+        if (!sop.title || !sop.steps) continue;
+        const steps = ensureArray(sop.steps);
+        if (steps.length === 0) continue;
+        const triggers = ensureArray(sop.triggers);
+        const tools = ensureArray(sop.tools);
+        const tips = ensureArray(sop.tips);
+        const sourceMemoryIds = ensureArray(sop.sourceMemoryIds);
+
+        const saved = await storage.createOmiSop({
+          title: String(sop.title).slice(0, 500),
+          category: String(sop.category || "general").slice(0, 100),
+          overview: String(sop.overview || "").slice(0, 2000),
+          steps: JSON.stringify(steps),
+          triggers: triggers.length > 0 ? JSON.stringify(triggers) : null,
+          frequency: sop.frequency ? String(sop.frequency).slice(0, 100) : null,
+          tools: tools.length > 0 ? JSON.stringify(tools) : null,
+          tips: tips.length > 0 ? JSON.stringify(tips) : null,
+          sourceMemoryIds: sourceMemoryIds.length > 0 ? JSON.stringify(sourceMemoryIds) : null,
+          status: "draft",
+        });
+        created.push(serializeSop(saved));
+      }
+
+      logAudit(`Generated ${created.length} SOPs from Omi memories`, "omi_sop", undefined, req.session.userId);
+      res.json({ generated: created.length, sops: created, memoriesAnalyzed: memories.length });
+    } catch (error: any) {
+      console.error("[SOP] Error:", error.message);
+      res.status(500).json({ error: "Failed to generate SOPs", details: error.message });
+    }
+  });
+
+  app.patch("/api/omi/sops/:id", requireAuth, async (req, res) => {
+    try {
+      const validStatuses = ["draft", "active", "archived"];
+      const updates: any = {};
+      if (req.body.status) {
+        if (!validStatuses.includes(req.body.status)) {
+          return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+        }
+        updates.status = req.body.status;
+      }
+      if (req.body.title) updates.title = String(req.body.title).slice(0, 500);
+      if (req.body.overview) updates.overview = String(req.body.overview).slice(0, 2000);
+      if (req.body.steps && Array.isArray(req.body.steps)) updates.steps = JSON.stringify(req.body.steps);
+      if (req.body.category) updates.category = String(req.body.category).slice(0, 100);
+      if (req.body.triggers && Array.isArray(req.body.triggers)) updates.triggers = JSON.stringify(req.body.triggers);
+      if (req.body.tools && Array.isArray(req.body.tools)) updates.tools = JSON.stringify(req.body.tools);
+      if (req.body.tips && Array.isArray(req.body.tips)) updates.tips = JSON.stringify(req.body.tips);
+      if (req.body.frequency) updates.frequency = String(req.body.frequency).slice(0, 100);
+
+      const sop = await storage.updateOmiSop(req.params.id, updates);
+      if (!sop) return res.status(404).json({ error: "SOP not found" });
+      res.json(serializeSop(sop));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update SOP" });
+    }
+  });
+
+  app.delete("/api/omi/sops/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteOmiSop(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete SOP" });
+    }
+  });
+
   // ── AI Project Evaluator ──
   app.post("/api/replit-projects/evaluate", requireAuth, async (_req, res) => {
     try {

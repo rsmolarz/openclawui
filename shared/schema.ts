@@ -453,3 +453,23 @@ export const omiTodos = pgTable("omi_todos", {
 export const insertOmiTodoSchema = createInsertSchema(omiTodos).omit({ id: true, createdAt: true });
 export type OmiTodo = typeof omiTodos.$inferSelect;
 export type InsertOmiTodo = z.infer<typeof insertOmiTodoSchema>;
+
+export const omiSops = pgTable("omi_sops", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  category: text("category").notNull(),
+  overview: text("overview").notNull(),
+  steps: text("steps").notNull(),
+  triggers: text("triggers"),
+  frequency: text("frequency"),
+  tools: text("tools"),
+  tips: text("tips"),
+  sourceMemoryIds: text("source_memory_ids"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertOmiSopSchema = createInsertSchema(omiSops).omit({ id: true, createdAt: true, updatedAt: true });
+export type OmiSop = typeof omiSops.$inferSelect;
+export type InsertOmiSop = z.infer<typeof insertOmiSopSchema>;
