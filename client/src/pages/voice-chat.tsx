@@ -198,7 +198,7 @@ export default function VoiceChat() {
   const [selectedVoice, setSelectedVoice] = useState(() => localStorage.getItem("voice-chat-voice") || "nova");
   const [autoSpeak, setAutoSpeak] = useState(() => localStorage.getItem("voice-chat-autospeak") !== "false");
   const [silenceAutoSend, setSilenceAutoSend] = useState(() => localStorage.getItem("voice-chat-silence-send") !== "false");
-  const [continuousMode, setContinuousMode] = useState(() => localStorage.getItem("voice-chat-continuous") === "true");
+  const [continuousMode, setContinuousMode] = useState(() => localStorage.getItem("voice-chat-continuous") !== "false");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [typedInput, setTypedInput] = useState("");
@@ -459,9 +459,14 @@ export default function VoiceChat() {
       }
     } else {
       stopAudio();
+      if (!continuousMode) {
+        setContinuousMode(true);
+        setAutoSpeak(true);
+        setSilenceAutoSend(true);
+      }
       startListening();
     }
-  }, [isListening, transcript, stopListening, startListening, sendMessage, stopAudio]);
+  }, [isListening, transcript, stopListening, startListening, sendMessage, stopAudio, continuousMode]);
 
   const startContinuousConversation = useCallback(() => {
     setContinuousMode(true);
@@ -547,7 +552,7 @@ export default function VoiceChat() {
           <div>
             <h1 className="text-2xl font-bold" data-testid="text-voice-chat-title">Voice Chat</h1>
             <p className="text-sm text-muted-foreground">
-              {continuousMode ? "Continuous conversation — hands-free" : "Conversation with OpenClaw — speak or type"}
+              {continuousMode ? "Conversational mode — I'll keep listening after each response" : "Conversation with OpenClaw — speak or type"}
             </p>
           </div>
         </div>
@@ -645,7 +650,7 @@ export default function VoiceChat() {
             </div>
             <h3 className="text-lg font-semibold mb-2">Ready to talk</h3>
             <p className="text-sm text-muted-foreground max-w-md mb-6">
-              Press the microphone button, hold spacebar, or start continuous mode for a hands-free conversation.
+              Press the microphone button or hold spacebar to start. The conversation flows naturally — after I respond, I'll keep listening.
             </p>
             <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground max-w-sm">
               <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
@@ -673,8 +678,8 @@ export default function VoiceChat() {
                 onClick={startContinuousConversation}
                 data-testid="button-start-continuous"
               >
-                <Radio className="h-4 w-4" />
-                Start Continuous Conversation
+                <Mic className="h-4 w-4" />
+                Start Talking
               </Button>
             )}
           </div>
@@ -888,7 +893,7 @@ export default function VoiceChat() {
                     <Radio className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{continuousMode ? "Stop continuous mode" : "Start continuous conversation"}</TooltipContent>
+                <TooltipContent>{continuousMode ? "Turn off auto-listen (manual mode)" : "Turn on auto-listen (conversational)"}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
 
