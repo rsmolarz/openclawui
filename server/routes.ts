@@ -9210,6 +9210,160 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
+  // Zoom Integration
+  app.get("/api/zoom/status", requireAuth, async (_req, res) => {
+    const accountId = process.env.ZOOM_ACCOUNT_ID;
+    const clientId = process.env.ZOOM_CLIENT_ID;
+    const clientSecret = process.env.ZOOM_CLIENT_SECRET;
+    res.json({ configured: !!(accountId && clientId && clientSecret) });
+  });
+
+  async function getZoomAccessToken(): Promise<string> {
+    const accountId = process.env.ZOOM_ACCOUNT_ID;
+    const clientId = process.env.ZOOM_CLIENT_ID;
+    const clientSecret = process.env.ZOOM_CLIENT_SECRET;
+    if (!accountId || !clientId || !clientSecret) throw new Error("Zoom credentials not configured");
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+    const resp = await fetch("https://zoom.us/oauth/token", {
+      method: "POST",
+      headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `grant_type=account_credentials&account_id=${accountId}`,
+    });
+    if (!resp.ok) throw new Error(`Zoom auth failed: ${resp.status}`);
+    const data = await resp.json() as any;
+    return data.access_token;
+  }
+
+  app.get("/api/zoom/meetings", requireAuth, async (req, res) => {
+    try {
+      const token = await getZoomAccessToken();
+      const type = (req.query.type as string) || "upcoming";
+      const resp = await fetch(`https://api.zoom.us/v2/users/me/meetings?type=${type}&page_size=30`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error(`Zoom API error: ${resp.status}`);
+      const data = await resp.json();
+      res.json(data);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/zoom/meetings", requireAuth, async (req, res) => {
+    try {
+      const token = await getZoomAccessToken();
+      const { topic, startTime, duration, agenda, type: meetingType } = req.body;
+      if (!topic) return res.status(400).json({ error: "topic required" });
+      const resp = await fetch("https://api.zoom.us/v2/users/me/meetings", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic,
+          type: meetingType || 2,
+          start_time: startTime || new Date(Date.now() + 3600000).toISOString(),
+          duration: duration || 30,
+          agenda: agenda || "",
+          settings: { join_before_host: true, waiting_room: false, auto_recording: "none" },
+        }),
+      });
+      if (!resp.ok) throw new Error(`Zoom create meeting error: ${resp.status}`);
+      const meeting = await resp.json();
+      res.json(meeting);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/zoom/meetings/:meetingId", requireAuth, async (req, res) => {
+    try {
+      const token = await getZoomAccessToken();
+      const resp = await fetch(`https://api.zoom.us/v2/meetings/${req.params.meetingId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok && resp.status !== 204) throw new Error(`Zoom delete error: ${resp.status}`);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Microsoft Teams / Outlook Integration
+  app.get("/api/teams/status", requireAuth, async (_req, res) => {
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const tenantId = process.env.MS_TENANT_ID;
+    res.json({ configured: !!(clientId && clientSecret && tenantId) });
+  });
+
+  async function getMSGraphToken(): Promise<string> {
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const tenantId = process.env.MS_TENANT_ID;
+    if (!clientId || !clientSecret || !tenantId) throw new Error("Microsoft credentials not configured");
+    const resp = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}&scope=https://graph.microsoft.com/.default`,
+    });
+    if (!resp.ok) throw new Error(`MS auth failed: ${resp.status}`);
+    const data = await resp.json() as any;
+    return data.access_token;
+  }
+
+  app.get("/api/teams/meetings", requireAuth, async (_req, res) => {
+    try {
+      const token = await getMSGraphToken();
+      const userId = process.env.MS_USER_ID || "me";
+      const now = new Date().toISOString();
+      const future = new Date(Date.now() + 7 * 86400000).toISOString();
+      const resp = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${userId}/calendarView?startDateTime=${now}&endDateTime=${future}&$top=30&$orderby=start/dateTime&$filter=isOnlineMeeting eq true`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!resp.ok) throw new Error(`MS Graph error: ${resp.status}`);
+      const data = await resp.json();
+      res.json(data);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/teams/meetings", requireAuth, async (req, res) => {
+    try {
+      const token = await getMSGraphToken();
+      const userId = process.env.MS_USER_ID || "me";
+      const { subject, startTime, endTime, body: meetingBody, attendees } = req.body;
+      if (!subject) return res.status(400).json({ error: "subject required" });
+      const start = startTime || new Date(Date.now() + 3600000).toISOString();
+      const end = endTime || new Date(new Date(start).getTime() + 1800000).toISOString();
+      const resp = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}/events`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject,
+          body: { contentType: "text", content: meetingBody || "" },
+          start: { dateTime: start, timeZone: "UTC" },
+          end: { dateTime: end, timeZone: "UTC" },
+          isOnlineMeeting: true,
+          onlineMeetingProvider: "teamsForBusiness",
+          attendees: (attendees || []).map((email: string) => ({
+            emailAddress: { address: email },
+            type: "required",
+          })),
+        }),
+      });
+      if (!resp.ok) throw new Error(`MS Graph create error: ${resp.status}`);
+      const event = await resp.json();
+      res.json(event);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/teams/meetings/:eventId", requireAuth, async (req, res) => {
+    try {
+      const token = await getMSGraphToken();
+      const userId = process.env.MS_USER_ID || "me";
+      const resp = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}/events/${req.params.eventId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok && resp.status !== 204) throw new Error(`MS Graph delete error: ${resp.status}`);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   // Daily Briefing
   app.get("/api/daily-briefing", requireAuth, async (_req, res) => {
     try {
