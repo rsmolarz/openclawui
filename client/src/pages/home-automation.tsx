@@ -16,6 +16,7 @@ const DOMAIN_LABELS: Record<string, string> = { light: "Lights", switch: "Switch
 const EXTERNAL_PANELS = [
   { id: "homeassistant", label: "Home Assistant", icon: Home, url: "", port: "8123", placeholder: true, description: "Smart home control hub" },
   { id: "homebridge", label: "Homebridge", icon: Home, url: "", port: "8581", placeholder: true, description: "HomeKit bridge for non-native devices" },
+  { id: "homeharmony", label: "Home Harmony", icon: Home, url: "https://home-harmony.replit.app", port: "", placeholder: false, description: "Unified smart home dashboard — Replit app" },
   { id: "companion", label: "Bitfocus Companion", icon: Gamepad2, url: "http://169.254.83.107:8000", port: "8000", placeholder: false, description: "Stream deck and button controller" },
   { id: "streamdeck", label: "Stream Deck", icon: Tv, url: "", port: "", placeholder: true, description: "Elgato Stream Deck management" },
   { id: "gostream", label: "GoStream", icon: Video, url: "http://192.168.0.108", port: "", placeholder: false, description: "GoStream video switcher control" },
@@ -194,7 +195,7 @@ export default function HomeAutomation() {
         <TabsContent value="bridges" className="space-y-4">
           <p className="text-sm text-muted-foreground">Home automation bridges and hubs</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {EXTERNAL_PANELS.filter(p => ["homeassistant", "homebridge"].includes(p.id)).map(panel => (
+            {EXTERNAL_PANELS.filter(p => ["homeassistant", "homebridge", "homeharmony"].includes(p.id)).map(panel => (
               <IframePanel
                 key={panel.id}
                 panel={panel}

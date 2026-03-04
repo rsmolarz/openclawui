@@ -42,6 +42,7 @@ import {
   CalendarDays,
   Smartphone,
   GitBranch,
+  Megaphone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -111,6 +112,7 @@ const automationItems = [
   { title: "Focus Timer", url: "/focus-timer", icon: Timer },
   { title: "Life Calendar", url: "/life-calendar", icon: CalendarDays },
   { title: "Connected Devices", url: "/connected-devices", icon: Smartphone },
+  { title: "Social Media", url: "/social-media", icon: Megaphone },
 ];
 
 export function AppSidebar() {

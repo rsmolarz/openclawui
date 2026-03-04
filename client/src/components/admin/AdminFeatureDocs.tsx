@@ -603,6 +603,24 @@ const FEATURE_DOCS: FeatureDoc[] = [
     dependencies: ["Gemini API", "Drizzle ORM"],
   },
   {
+    id: "oc-security-agent",
+    title: "OpenClaw -- Security Agent",
+    version: "1.0",
+    brand: "OC",
+    status: "complete",
+    published: "2026-03-04",
+    summary: "Real-time security monitoring agent with threat detection, brute force prevention, rate limiting enforcement, port scan detection, API abuse monitoring, and configurable security policies.",
+    sections: [
+      { title: "Threat Detection", content: "Real-time monitoring of SSH brute force attempts, SQL injection probes, sequential port scans, and abnormal API usage patterns. Threats are categorized by severity (critical, high, medium, low) and automatically blocked." },
+      { title: "Security Monitors", content: "Eight active monitors running continuously: SSH Brute Force Detection, API Rate Limiting, SQL Injection Scanner, Port Scan Detection, SSL Certificate Monitor, Docker Container Integrity, API Key Usage Audit, and Failed Auth Tracker." },
+      { title: "Security Policies", content: "Configurable security policies including max login attempts (5 per 15 min), API rate limits (60 req/min per IP), auto-ban duration (24h after 10 violations), port scan thresholds, session timeouts, and two-factor authentication requirements." },
+      { title: "Event Dashboard", content: "Real-time security event feed showing threat source IP, target endpoint/port, severity classification, block status, and timestamps. Stats dashboard with threats blocked, active monitors, auth failures, and critical alert counts." },
+    ],
+    files: ["client/src/pages/admin.tsx"],
+    apiRoutes: ["GET /api/admin/security/events", "GET /api/admin/security/stats", "PATCH /api/admin/security/policies"],
+    dependencies: [],
+  },
+  {
     id: "oc-integrations-setup",
     title: "OpenClaw -- Integrations & API Keys",
     version: "1.0",
@@ -636,7 +654,7 @@ const FEATURE_BUNDLES: FeatureBundle[] = [
   { id: "admin-ops", name: "Admin & Operations", description: "Settings, marketplace, and operational tools", mainFeature: "membership-subscription", supportingFeatures: ["promo-codes", "overage-billing"] },
   { id: "onboarding", name: "User Onboarding & Engagement", description: "Tours, demos, and feature discovery", mainFeature: "demo-tour", supportingFeatures: ["survey-system"] },
   { id: "warroom-command-suite", name: "War Room Command Suite", description: "Complete cross-app operations command center with real-time dashboards, AI-powered agent console, tri-pane cockpit, conversational engineering chat, cross-app communication workflows, settings backup/restore snapshots, and full external app integration guide", mainFeature: "warroom-ops-dashboard", supportingFeatures: ["warroom-agent-console", "warroom-agent-cockpit", "warroom-context-json", "warroom-engineering-chat", "warroom-cross-app", "warroom-settings-snapshots", "warroom-integration-guide"] },
-  { id: "openclaw-setup-guide", name: "OpenClaw Complete Setup Guide", description: "Everything you need to set up OpenClaw from beginning to end: initial project setup, database provisioning, API key configuration, persistent memory, voice conversations, AI task runner, WhatsApp/Telegram bots, VPS monitoring, node gateway, all 10 Automation Hub features, skills marketplace, and admin tools", mainFeature: "oc-initial-setup", supportingFeatures: ["oc-integrations-setup", "oc-persistent-memory", "oc-voice-chat", "oc-ai-task-runner", "oc-whatsapp-telegram", "oc-vps-monitoring", "oc-node-gateway", "oc-automation-hub", "oc-skills-marketplace", "oc-admin-tools"] },
+  { id: "openclaw-setup-guide", name: "OpenClaw Complete Setup Guide", description: "Everything you need to set up OpenClaw from beginning to end: initial project setup, database provisioning, API key configuration, persistent memory, voice conversations, AI task runner, WhatsApp/Telegram bots, VPS monitoring, node gateway, all 10 Automation Hub features, skills marketplace, admin tools, and security agent", mainFeature: "oc-initial-setup", supportingFeatures: ["oc-integrations-setup", "oc-persistent-memory", "oc-voice-chat", "oc-ai-task-runner", "oc-whatsapp-telegram", "oc-vps-monitoring", "oc-node-gateway", "oc-automation-hub", "oc-skills-marketplace", "oc-admin-tools", "oc-security-agent"] },
 ];
 
 function generateFeatureMarkdown(doc: FeatureDoc): string {

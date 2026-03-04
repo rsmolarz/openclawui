@@ -37,6 +37,12 @@ import {
   Globe,
   Timer,
   FileText,
+  Lock,
+  Eye,
+  Fingerprint,
+  ShieldCheck,
+  Scan,
+  Activity,
 } from "lucide-react";
 import type { GuardianLog, FeatureProposal } from "@shared/schema";
 import AdminFeatureDocs from "@/components/admin/AdminFeatureDocs";
@@ -862,6 +868,177 @@ function CodeUpgradeTab() {
   );
 }
 
+interface SecurityEvent {
+  id: string;
+  type: "auth_failure" | "rate_limit" | "suspicious_request" | "port_scan" | "brute_force" | "api_abuse";
+  severity: "critical" | "high" | "medium" | "low";
+  source: string;
+  target: string;
+  message: string;
+  timestamp: string;
+  blocked: boolean;
+}
+
+const MOCK_SECURITY_EVENTS: SecurityEvent[] = [
+  { id: "sec-001", type: "brute_force", severity: "critical", source: "203.0.113.42", target: "SSH:22", message: "Brute force attempt detected — 47 failed login attempts in 2 minutes", timestamp: new Date(Date.now() - 300000).toISOString(), blocked: true },
+  { id: "sec-002", type: "rate_limit", severity: "high", source: "198.51.100.17", target: "/api/auth/login", message: "Rate limit exceeded — 120 requests/min from single IP", timestamp: new Date(Date.now() - 600000).toISOString(), blocked: true },
+  { id: "sec-003", type: "suspicious_request", severity: "medium", source: "192.0.2.88", target: "/api/admin", message: "SQL injection attempt detected in query parameter", timestamp: new Date(Date.now() - 1200000).toISOString(), blocked: true },
+  { id: "sec-004", type: "port_scan", severity: "medium", source: "203.0.113.99", target: "Ports 1-1024", message: "Sequential port scan detected from external IP", timestamp: new Date(Date.now() - 1800000).toISOString(), blocked: true },
+  { id: "sec-005", type: "auth_failure", severity: "low", source: "10.0.0.5", target: "/api/auth/login", message: "Failed login attempt — invalid credentials for user admin@openclaw.dev", timestamp: new Date(Date.now() - 3600000).toISOString(), blocked: false },
+  { id: "sec-006", type: "api_abuse", severity: "high", source: "198.51.100.200", target: "/api/ai-tasks", message: "Abnormal API usage pattern — 500 AI task submissions in 5 minutes", timestamp: new Date(Date.now() - 7200000).toISOString(), blocked: true },
+];
+
+function securitySeverityIcon(severity: string) {
+  switch (severity) {
+    case "critical": return <ShieldAlert className="h-4 w-4 text-red-500" />;
+    case "high": return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+    case "medium": return <Eye className="h-4 w-4 text-amber-500" />;
+    case "low": return <Info className="h-4 w-4 text-blue-500" />;
+    default: return <Info className="h-4 w-4" />;
+  }
+}
+
+function securityTypeIcon(type: string) {
+  switch (type) {
+    case "brute_force": return <Lock className="h-4 w-4" />;
+    case "rate_limit": return <Activity className="h-4 w-4" />;
+    case "suspicious_request": return <Scan className="h-4 w-4" />;
+    case "port_scan": return <Globe className="h-4 w-4" />;
+    case "auth_failure": return <Fingerprint className="h-4 w-4" />;
+    case "api_abuse": return <Zap className="h-4 w-4" />;
+    default: return <Shield className="h-4 w-4" />;
+  }
+}
+
+function SecurityAgentTab() {
+  const securityStats = [
+    { label: "Threats Blocked", value: "142", icon: ShieldCheck, color: "text-green-500" },
+    { label: "Active Monitors", value: "8", icon: Eye, color: "text-blue-500" },
+    { label: "Auth Failures (24h)", value: "23", icon: Fingerprint, color: "text-amber-500" },
+    { label: "Critical Alerts", value: "1", icon: ShieldAlert, color: "text-red-500" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {securityStats.map(stat => (
+          <Card key={stat.label} data-testid={`card-security-stat-${stat.label.toLowerCase().replace(/\s/g, "-")}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <stat.icon className={`h-8 w-8 ${stat.color}`} />
+              <div>
+                <p className="text-2xl font-bold" data-testid={`text-security-stat-${stat.label.toLowerCase().replace(/\s/g, "-")}`}>{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card data-testid="card-security-monitors">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Eye className="h-4 w-4" />
+            Active Security Monitors
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              { name: "SSH Brute Force Detection", status: "active", checks: "Real-time" },
+              { name: "API Rate Limiting", status: "active", checks: "Per-request" },
+              { name: "SQL Injection Scanner", status: "active", checks: "Real-time" },
+              { name: "Port Scan Detection", status: "active", checks: "Every 30s" },
+              { name: "SSL Certificate Monitor", status: "active", checks: "Every 1h" },
+              { name: "Docker Container Integrity", status: "active", checks: "Every 5m" },
+              { name: "API Key Usage Audit", status: "active", checks: "Every 15m" },
+              { name: "Failed Auth Tracker", status: "active", checks: "Real-time" },
+            ].map(monitor => (
+              <div key={monitor.name} className="flex items-center justify-between p-3 rounded-lg border" data-testid={`monitor-${monitor.name.toLowerCase().replace(/\s/g, "-")}`}>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-sm font-medium">{monitor.name}</span>
+                </div>
+                <Badge variant="outline" className="text-xs">{monitor.checks}</Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-security-events">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4" />
+            Recent Security Events
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {MOCK_SECURITY_EVENTS.map(event => (
+              <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg border" data-testid={`security-event-${event.id}`}>
+                <div className="flex flex-col items-center gap-1 pt-0.5">
+                  {securitySeverityIcon(event.severity)}
+                  {securityTypeIcon(event.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant={event.severity === "critical" ? "destructive" : event.severity === "high" ? "secondary" : "outline"} className="text-xs">
+                      {event.severity}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">{event.type.replace(/_/g, " ")}</Badge>
+                    {event.blocked && (
+                      <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        <ShieldCheck className="h-3 w-3 mr-1" />Blocked
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm mt-1">{event.message}</p>
+                  <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                    <span>Source: {event.source}</span>
+                    <span>Target: {event.target}</span>
+                    <span>{new Date(event.timestamp).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-security-config">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            Security Policies
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {[
+              { name: "Max Login Attempts", value: "5 per 15 minutes", enabled: true },
+              { name: "API Rate Limit", value: "60 requests/minute per IP", enabled: true },
+              { name: "Auto-Ban Duration", value: "24 hours after 10 violations", enabled: true },
+              { name: "Port Scan Threshold", value: "Block after 20 sequential probes", enabled: true },
+              { name: "Session Timeout", value: "30 minutes of inactivity", enabled: true },
+              { name: "Two-Factor Authentication", value: "Required for admin accounts", enabled: false },
+            ].map(policy => (
+              <div key={policy.name} className="flex items-center justify-between p-3 rounded-lg border" data-testid={`policy-${policy.name.toLowerCase().replace(/\s/g, "-")}`}>
+                <div>
+                  <p className="text-sm font-medium">{policy.name}</p>
+                  <p className="text-xs text-muted-foreground">{policy.value}</p>
+                </div>
+                <Badge variant={policy.enabled ? "secondary" : "outline"} className={policy.enabled ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : ""}>
+                  {policy.enabled ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("guardian");
 
@@ -877,6 +1054,10 @@ export default function AdminPage() {
           <TabsTrigger value="guardian" data-testid="tab-guardian">
             <Shield className="h-4 w-4 mr-2" />
             Code Guardian
+          </TabsTrigger>
+          <TabsTrigger value="security" data-testid="tab-security">
+            <Lock className="h-4 w-4 mr-2" />
+            Security Agent
           </TabsTrigger>
           <TabsTrigger value="features" data-testid="tab-features">
             <Sparkles className="h-4 w-4 mr-2" />
@@ -894,6 +1075,10 @@ export default function AdminPage() {
 
         <TabsContent value="guardian" className="mt-6">
           <CodeGuardianTab />
+        </TabsContent>
+
+        <TabsContent value="security" className="mt-6">
+          <SecurityAgentTab />
         </TabsContent>
 
         <TabsContent value="features" className="mt-6">

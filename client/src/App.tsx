@@ -53,6 +53,7 @@ import FocusTimer from "@/pages/focus-timer";
 import LifeCalendar from "@/pages/life-calendar";
 import ConnectedDevices from "@/pages/connected-devices";
 import GitHubRepos from "@/pages/github-repos";
+import SocialMedia from "@/pages/social-media";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { Loader2 } from "lucide-react";
 
@@ -102,6 +103,7 @@ function Router() {
       <Route path="/life-calendar" component={LifeCalendar} />
       <Route path="/connected-devices" component={ConnectedDevices} />
       <Route path="/github" component={GitHubRepos} />
+      <Route path="/social-media" component={SocialMedia} />
       <Route component={NotFound} />
     </Switch>
   );
