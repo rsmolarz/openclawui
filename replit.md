@@ -36,7 +36,7 @@ The application utilizes a client-server architecture.
     - **Bulk Node Operations**: Multi-select actions for nodes (restart, status update, CSV export).
     - **Quick Stats Panel**: Real-time statistics bar for node status.
     - **WhatsApp Adaptive Polling**: Polling mechanism for WhatsApp connections with exponential backoff.
-    - **Replit Projects**: Monitoring of Replit projects with Quick Import (text-based: names, URLs, deployment URLs), bulk JSON import, deployment health checks, and status filtering. Includes AI-powered prioritization and Omi Insights integration. Note: Replit GraphQL profile sync is limited due to persisted query hash requirements.
+    - **Replit Projects**: Monitoring of Replit projects with Quick Import (text-based: names, URLs, deployment URLs), bulk JSON import, deployment health checks, and status filtering. Includes AI-powered prioritization, Omi Insights integration, App Workbench (embed deployed apps in iframes with sidebar selector, expand/external controls), and Cross-App Orchestrator (multi-project AI prompt interface that generates per-project implementation plans with steps, affected files, code snippets, effort estimates, shared patterns, and risks via `POST /api/replit-projects/orchestrate`). Note: Replit GraphQL profile sync is limited due to persisted query hash requirements.
     - **Omi Integration**: Backend module for communicating with the Omi API, fetching memories, and extracting TODOs/SOPs via LLM analysis.
     - **AI Project Evaluator**: LLM-based evaluation of Replit projects for potential and next steps.
     - **Secrets Inventory**: Dashboard for tracking API keys and credentials, showing configured/missing status without exposing full values.

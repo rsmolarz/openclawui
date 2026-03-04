@@ -9385,5 +9385,65 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
     } catch (e: any) { res.json({ actionPlan: "Error generating briefing: " + e.message, quote: "Keep going." }); }
   });
 
+  app.post("/api/replit-projects/orchestrate", requireAuth, async (req, res) => {
+    try {
+      const { prompt, projectIds, scope } = req.body;
+      if (!prompt) return res.status(400).json({ error: "prompt is required" });
+      const allProjects = await storage.getReplitProjects();
+      const selected = projectIds?.length
+        ? allProjects.filter(p => projectIds.includes(p.id))
+        : scope === "active" ? allProjects.filter(p => p.status === "active")
+        : scope === "deployed" ? allProjects.filter(p => p.deploymentUrl)
+        : allProjects;
+      if (selected.length === 0) return res.status(400).json({ error: "No projects matched the selection" });
+
+      const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.status(400).json({ error: "No AI API key configured" });
+      const isOpenRouter = !process.env.OPENAI_API_KEY;
+
+      const projectContext = selected.map(p => `- ${p.title} (${p.slug}): ${p.language || "unknown"} | status=${p.status} | ${p.description || "no description"} | url=${p.url}`).join("\n");
+
+      const response = await fetch(isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: isOpenRouter ? "openai/gpt-4o" : "gpt-4o",
+          messages: [
+            { role: "system", content: `You are an expert software architect. The user manages multiple Replit projects and wants to apply a change across them. Analyze the request and generate a detailed implementation plan for EACH project.
+
+Return valid JSON:
+{
+  "summary": "Brief summary of what will be done",
+  "plans": [
+    {
+      "projectSlug": "slug",
+      "projectTitle": "title",
+      "applicable": true/false,
+      "reason": "Why this project is/isn't applicable",
+      "steps": ["step 1", "step 2"],
+      "estimatedEffort": "low/medium/high",
+      "filesLikelyAffected": ["file1.ts", "file2.tsx"],
+      "codeSnippet": "Optional: key code change if straightforward"
+    }
+  ],
+  "sharedPattern": "Common pattern or code that applies to all applicable projects",
+  "risks": ["potential risk 1"],
+  "order": "Recommended order of implementation"
+}` },
+            { role: "user", content: `Projects:\n${projectContext}\n\nRequest: ${prompt}` }
+          ],
+          temperature: 0.3,
+        }),
+      });
+      const result = await response.json();
+      const text = result.choices?.[0]?.message?.content || "{}";
+      const match = text.match(/\{[\s\S]*\}/);
+      const parsed = match ? JSON.parse(match[0]) : { summary: "Failed to generate plan", plans: [] };
+      res.json({ orchestration: parsed, projectCount: selected.length, projectNames: selected.map(p => p.title) });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return httpServer;
 }

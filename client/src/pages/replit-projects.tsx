@@ -20,6 +20,8 @@ import {
   Clock, AlertTriangle, Loader2, Upload, Brain, Zap,
   TrendingUp, Target, BarChart3, ListTodo, Mic, Sparkles,
   Check, X, MessageSquare, FileText, ClipboardList, ChevronDown, ChevronRight,
+  AppWindow, Send, Maximize2, Minimize2, Terminal, Copy,
+  GitBranch, AlertCircle, ArrowRight, Layers,
 } from "lucide-react";
 import type { ReplitProject, OmiTodo, OmiSop } from "@shared/schema";
 
@@ -947,6 +949,423 @@ function OmiInsightsTab() {
   );
 }
 
+function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
+  const [activeApp, setActiveApp] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  const deployedProjects = projects.filter(p => p.deploymentUrl);
+  const active = deployedProjects.find(p => p.id === activeApp) || deployedProjects[0];
+
+  if (deployedProjects.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <AppWindow className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <h3 className="text-lg font-medium mb-1" data-testid="text-no-deployed">No Deployed Apps</h3>
+        <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+          Add deployment URLs to your projects to embed and interact with them directly from this dashboard.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="panel-workbench">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2" data-testid="text-workbench-title">
+            <AppWindow className="h-5 w-5 text-blue-500" />
+            App Workbench
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {deployedProjects.length} deployed app{deployedProjects.length !== 1 ? "s" : ""} available
+          </p>
+        </div>
+        {active && (
+          <div className="flex items-center gap-2">
+            <a href={active.deploymentUrl!} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" data-testid="button-open-external">
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                Open External
+              </Button>
+            </a>
+            <a href={active.url} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" data-testid="button-open-replit-editor">
+                <Code2 className="h-3.5 w-3.5 mr-1.5" />
+                Replit Editor
+              </Button>
+            </a>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded(!expanded)}
+              data-testid="button-toggle-expand"
+            >
+              {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className={`flex gap-4 ${expanded ? "flex-col" : ""}`}>
+        <div className={`${expanded ? "hidden" : "w-56 shrink-0"} space-y-1`}>
+          {deployedProjects.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setActiveApp(p.id)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                (active?.id === p.id) ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"
+              }`}
+              data-testid={`button-app-${p.id}`}
+            >
+              <div className="flex items-center gap-2">
+                <Globe className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{p.title}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate mt-0.5 pl-5.5">
+                {p.deploymentUrl?.replace(/^https?:\/\//, "")}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {active && (
+          <div className="flex-1 min-w-0">
+            <div className="bg-muted/50 rounded-lg p-2 mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <Globe className="h-4 w-4 text-blue-500 shrink-0" />
+                <span className="text-sm font-medium truncate" data-testid="text-active-app-title">{active.title}</span>
+                <Badge variant="outline" className="text-[10px] shrink-0">{active.language || "web"}</Badge>
+              </div>
+              <span className="text-[10px] text-muted-foreground shrink-0">{active.deploymentUrl?.replace(/^https?:\/\//, "")}</span>
+            </div>
+            <div className={`border rounded-lg overflow-hidden bg-white dark:bg-black ${expanded ? "h-[85vh]" : "h-[600px]"}`}>
+              <iframe
+                key={active.id}
+                src={active.deploymentUrl!}
+                className="w-full h-full border-0"
+                title={active.title}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                data-testid="iframe-app-embed"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OrchestratorTab({ projects }: { projects: ReplitProject[] }) {
+  const { toast } = useToast();
+  const [prompt, setPrompt] = useState("");
+  const [scope, setScope] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [expandedPlan, setExpandedPlan] = useState<number | null>(null);
+
+  const orchestrateMutation = useMutation({
+    mutationFn: async (data: { prompt: string; scope: string; projectIds: string[] }) => {
+      const res = await apiRequest("POST", "/api/replit-projects/orchestrate", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setHistory(prev => [{ ...data, prompt, timestamp: new Date().toISOString() }, ...prev]);
+      setExpandedPlan(0);
+      toast({ title: "Orchestration complete", description: `Plan generated for ${data.projectCount} projects` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Orchestration failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!prompt.trim()) return;
+    orchestrateMutation.mutate({
+      prompt: prompt.trim(),
+      scope,
+      projectIds: scope === "selected" ? selectedIds : [],
+    });
+  };
+
+  const toggleProject = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const copyPlan = (plan: any) => {
+    const text = plan.orchestration?.plans?.map((p: any) =>
+      `## ${p.projectTitle} (${p.projectSlug})\n${p.applicable ? "APPLICABLE" : "NOT APPLICABLE"}: ${p.reason}\n${p.steps?.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n") || ""}\nFiles: ${p.filesLikelyAffected?.join(", ") || "N/A"}\n${p.codeSnippet ? `\`\`\`\n${p.codeSnippet}\n\`\`\`` : ""}`
+    ).join("\n\n---\n\n") || "";
+    navigator.clipboard.writeText(`# Orchestration Plan\n${plan.orchestration?.summary || ""}\n\n${text}\n\n## Shared Pattern\n${plan.orchestration?.sharedPattern || "N/A"}\n\n## Risks\n${plan.orchestration?.risks?.join("\n") || "None identified"}`);
+    toast({ title: "Plan copied to clipboard" });
+  };
+
+  const effortColors: Record<string, string> = {
+    low: "bg-green-500/10 text-green-600 dark:text-green-400",
+    medium: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
+    high: "bg-red-500/10 text-red-600 dark:text-red-400",
+  };
+
+  return (
+    <div className="space-y-6" data-testid="panel-orchestrator">
+      <div>
+        <h2 className="text-lg font-semibold flex items-center gap-2" data-testid="text-orchestrator-title">
+          <Layers className="h-5 w-5 text-purple-500" />
+          Cross-App Orchestrator
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Describe a feature or change and get an AI-generated implementation plan for all your projects at once
+        </p>
+      </div>
+
+      <Card data-testid="card-orchestrate-input">
+        <CardContent className="pt-6 space-y-4">
+          <div>
+            <Label className="text-sm font-medium">Prompt</Label>
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="e.g. Add a dark mode toggle to all apps, Implement consistent error handling, Add Google Analytics tracking..."
+              className="mt-1.5 min-h-[100px]"
+              data-testid="input-orchestrate-prompt"
+            />
+          </div>
+
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <Label className="text-sm font-medium">Scope</Label>
+              <Select value={scope} onValueChange={setScope}>
+                <SelectTrigger className="mt-1.5" data-testid="select-orchestrate-scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects ({projects.length})</SelectItem>
+                  <SelectItem value="active">Active Only ({projects.filter(p => p.status === "active").length})</SelectItem>
+                  <SelectItem value="deployed">Deployed Only ({projects.filter(p => p.deploymentUrl).length})</SelectItem>
+                  <SelectItem value="selected">Select Specific...</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              onClick={handleSubmit}
+              disabled={!prompt.trim() || orchestrateMutation.isPending || (scope === "selected" && selectedIds.length === 0)}
+              className="min-w-[160px]"
+              data-testid="button-orchestrate"
+            >
+              {orchestrateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              {orchestrateMutation.isPending ? "Planning..." : "Generate Plan"}
+            </Button>
+          </div>
+
+          {scope === "selected" && (
+            <div className="border rounded-lg p-3 space-y-2" data-testid="panel-project-picker">
+              <p className="text-xs font-medium text-muted-foreground">
+                Select projects ({selectedIds.length} chosen):
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 max-h-[200px] overflow-y-auto">
+                {projects.map(p => (
+                  <label
+                    key={p.id}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded text-sm cursor-pointer transition-colors ${
+                      selectedIds.includes(p.id) ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(p.id)}
+                      onChange={() => toggleProject(p.id)}
+                      className="rounded"
+                      data-testid={`checkbox-project-${p.id}`}
+                    />
+                    <span className="truncate">{p.title}</span>
+                    {p.language && <Badge variant="outline" className="text-[10px] shrink-0 ml-auto">{p.language}</Badge>}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {orchestrateMutation.isPending && (
+        <Card className="border-purple-500/20 bg-purple-500/5">
+          <CardContent className="py-8 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-purple-500" />
+            <p className="text-sm font-medium">AI is analyzing your projects and generating implementation plans...</p>
+            <p className="text-xs text-muted-foreground mt-1">This may take 15-30 seconds</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {history.map((entry, hIdx) => {
+        const orch = entry.orchestration;
+        const isExpanded = expandedPlan === hIdx;
+        const applicablePlans = orch?.plans?.filter((p: any) => p.applicable) || [];
+        const skippedPlans = orch?.plans?.filter((p: any) => !p.applicable) || [];
+
+        return (
+          <Card key={hIdx} className={hIdx === 0 ? "border-purple-500/30" : ""} data-testid={`card-orchestration-${hIdx}`}>
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedPlan(isExpanded ? null : hIdx)}>
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                    <CardTitle className="text-sm truncate" data-testid={`text-orchestration-prompt-${hIdx}`}>
+                      {entry.prompt}
+                    </CardTitle>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 pl-6">
+                    {applicablePlans.length} applicable / {entry.projectCount} projects
+                    {entry.timestamp && ` - ${formatTimestamp(entry.timestamp)}`}
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => copyPlan(entry)} data-testid={`button-copy-plan-${hIdx}`}>
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </CardHeader>
+
+            {isExpanded && (
+              <CardContent className="space-y-4">
+                {orch?.summary && (
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-sm" data-testid="text-orchestration-summary">{orch.summary}</p>
+                  </div>
+                )}
+
+                {applicablePlans.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                      Applicable Projects ({applicablePlans.length})
+                    </p>
+                    {applicablePlans.map((plan: any, pIdx: number) => (
+                      <Card key={pIdx} className="border-green-500/20" data-testid={`card-plan-${plan.projectSlug}`}>
+                        <CardContent className="py-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Code2 className="h-4 w-4 text-primary" />
+                              <span className="text-sm font-semibold">{plan.projectTitle}</span>
+                              <Badge variant="outline" className="text-[10px]">{plan.projectSlug}</Badge>
+                            </div>
+                            {plan.estimatedEffort && (
+                              <Badge variant="secondary" className={`text-[10px] ${effortColors[plan.estimatedEffort] || ""}`}>
+                                {plan.estimatedEffort} effort
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{plan.reason}</p>
+
+                          {plan.steps && plan.steps.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium mb-1">Steps:</p>
+                              <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
+                                {plan.steps.map((step: string, sIdx: number) => (
+                                  <li key={sIdx}>{step}</li>
+                                ))}
+                              </ol>
+                            </div>
+                          )}
+
+                          {plan.filesLikelyAffected && plan.filesLikelyAffected.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <FileText className="h-3 w-3 text-muted-foreground" />
+                              {plan.filesLikelyAffected.map((f: string, fIdx: number) => (
+                                <Badge key={fIdx} variant="outline" className="text-[10px] font-mono">{f}</Badge>
+                              ))}
+                            </div>
+                          )}
+
+                          {plan.codeSnippet && (
+                            <pre className="text-[11px] bg-muted rounded-lg p-3 overflow-x-auto font-mono whitespace-pre-wrap" data-testid={`code-snippet-${plan.projectSlug}`}>
+                              {plan.codeSnippet}
+                            </pre>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {skippedPlans.length > 0 && (
+                  <details>
+                    <summary className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5">
+                      <XCircle className="h-3.5 w-3.5" />
+                      {skippedPlans.length} not applicable
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {skippedPlans.map((plan: any, pIdx: number) => (
+                        <div key={pIdx} className="flex items-center gap-2 text-xs text-muted-foreground py-1 px-2">
+                          <X className="h-3 w-3 shrink-0" />
+                          <span className="font-medium">{plan.projectTitle}:</span>
+                          <span>{plan.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                {orch?.sharedPattern && (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 mb-1.5">
+                      <GitBranch className="h-3.5 w-3.5" />
+                      Shared Pattern
+                    </p>
+                    <pre className="text-[11px] bg-muted rounded-lg p-3 overflow-x-auto font-mono whitespace-pre-wrap" data-testid="text-shared-pattern">
+                      {orch.sharedPattern}
+                    </pre>
+                  </div>
+                )}
+
+                {orch?.risks && orch.risks.length > 0 && (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 mb-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
+                      Risks
+                    </p>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                      {orch.risks.map((risk: string, rIdx: number) => (
+                        <li key={rIdx} className="flex items-start gap-1.5">
+                          <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0 mt-0.5" />
+                          {risk}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {orch?.order && (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 mb-1">
+                      <ArrowRight className="h-3.5 w-3.5" />
+                      Implementation Order
+                    </p>
+                    <p className="text-xs text-muted-foreground" data-testid="text-impl-order">{orch.order}</p>
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
+
+      {history.length === 0 && !orchestrateMutation.isPending && (
+        <div className="text-center py-12">
+          <Layers className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <h3 className="text-base font-medium mb-1" data-testid="text-no-orchestrations">No orchestrations yet</h3>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            Describe a feature or change above and the AI will generate a step-by-step implementation plan for each of your projects, including which files to modify and code snippets.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReplitProjects() {
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
@@ -1066,6 +1485,12 @@ export default function ReplitProjects() {
           <TabsTrigger value="omi" data-testid="tab-omi">
             <Mic className="h-4 w-4 mr-1.5" /> Omi Insights
           </TabsTrigger>
+          <TabsTrigger value="workbench" data-testid="tab-workbench">
+            <AppWindow className="h-4 w-4 mr-1.5" /> Workbench
+          </TabsTrigger>
+          <TabsTrigger value="orchestrator" data-testid="tab-orchestrator">
+            <Layers className="h-4 w-4 mr-1.5" /> Orchestrator
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="projects" className="mt-6 space-y-4">
@@ -1166,6 +1591,14 @@ export default function ReplitProjects() {
 
         <TabsContent value="omi" className="mt-6">
           <OmiInsightsTab />
+        </TabsContent>
+
+        <TabsContent value="workbench" className="mt-6">
+          <WorkbenchTab projects={projects || []} />
+        </TabsContent>
+
+        <TabsContent value="orchestrator" className="mt-6">
+          <OrchestratorTab projects={projects || []} />
         </TabsContent>
       </Tabs>
 
