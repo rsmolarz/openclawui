@@ -4655,7 +4655,14 @@ setInterval(sendHeartbeat, INTERVAL_MS);
     { skillId: "log-analyzer", name: "Log Analyzer", description: "Parse, search, and analyze application and system logs", category: "development", version: "1.0.0", icon: "ScrollText" },
     { skillId: "network-scanner", name: "Network Scanner", description: "Scan and discover devices on the local or Tailscale network", category: "system", version: "1.0.0", icon: "Radar" },
     { skillId: "gog", name: "Gog", description: "Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs. By @steipete.", category: "productivity", version: "1.0.0", icon: "Mail" },
-    { skillId: "self-improving-agent", name: "Self-Improving Agent", description: "Captures learnings, errors, and corrections to enable continuous improvement. By @pskoett.", category: "ai", version: "1.0.0", icon: "Brain" },
+    { skillId: "self-improving-agent", name: "Self-Improving Agent", description: "Captures learnings, errors, and corrections to enable continuous improvement. By @pskoett.", category: "ai", version: "1.0.11", icon: "Brain" },
+    { skillId: "api-gateway", name: "API Gateway", description: "Universal API gateway with 100+ service integrations, MCP protocol support, and automated request routing.", category: "development", version: "1.0.57", icon: "Globe" },
+    { skillId: "automation-workflows", name: "Automation Workflows", description: "Design and implement automation workflows to save time and scale operations as a solopreneur.", category: "automation", version: "0.1.0", icon: "Workflow" },
+    { skillId: "auto-updater", name: "Auto-Updater", description: "Automatically update Clawdbot and all installed skills once daily via cron, with user-friendly summaries.", category: "system", version: "1.0.0", icon: "RefreshCw" },
+    { skillId: "humanizer", name: "Humanizer", description: "Rewrite AI-generated text to sound natural, human, and authentic while preserving meaning.", category: "ai", version: "1.0.0", icon: "UserCheck" },
+    { skillId: "find-skills", name: "Find Skills", description: "Discover and install agent skills when users ask questions like 'how do I do X' or 'find a skill for Y'.", category: "ai", version: "0.1.0", icon: "Search" },
+    { skillId: "proactive-agent", name: "Proactive Agent", description: "Autonomous agent with heartbeat, memory, onboarding, and proactive task management capabilities.", category: "ai", version: "3.1.0", icon: "Sparkles" },
+    { skillId: "skill-creator", name: "Skill Creator", description: "Guide for creating, packaging, and publishing new skills that extend agent capabilities.", category: "development", version: "0.1.0", icon: "Wrench" },
     { skillId: "ontology", name: "Ontology", description: "Typed knowledge graph for structured agent memory and composable skills. By @oswalpalash.", category: "ai", version: "1.0.0", icon: "Network" },
     { skillId: "tavily-web-search", name: "Tavily Web Search", description: "AI-optimized web search via Tavily API. Returns concise, relevant results for AI agents. By @arun-8687.", category: "research", version: "1.0.0", icon: "Search" },
     { skillId: "trello", name: "Trello", description: "Manage Trello boards, lists, and cards via the Trello REST API. By @steipete.", category: "productivity", version: "1.0.0", icon: "LayoutGrid" },
@@ -7835,6 +7842,102 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       }
     } catch (error) {
       res.status(500).json({ error: "Failed to check deployment" });
+    }
+  });
+
+  app.post("/api/replit-projects/scan-deployments", requireAuth, async (req, res) => {
+    try {
+      const username = req.body.username || process.env.REPLIT_USERNAME || "rsmolarz";
+      const existingProjects = await storage.getReplitProjects();
+      const existingSlugs = new Set(existingProjects.map(p => p.slug.toLowerCase()));
+
+      const candidateSlugs: string[] = [];
+      const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
+      const sshConfig = getSSHConfig() || undefined;
+      if (sshConfig) {
+        try {
+          const result = await executeRawSSHCommand(
+            "ls /root/skills/ 2>/dev/null; docker ps --format '{{.Names}}' 2>/dev/null; ls /opt/ 2>/dev/null; cat /etc/openclaw-env 2>/dev/null | grep -oP 'REPL_SLUG=\\K.*' || true",
+            sshConfig, 1, 10000
+          );
+          if (result.output) {
+            const found = result.output.split("\n").map((l: string) => l.trim()).filter((l: string) => l && /^[a-zA-Z0-9_-]+$/.test(l));
+            candidateSlugs.push(...found);
+          }
+        } catch {}
+      }
+
+      const knownSlugs = [
+        "claw-settings", "openclaw-dashboard", "did-login", "medinvest", "medinvest-mobile",
+        "medinvest-watch", "home-harmony", "investmentvault", "marketagent", "source-scout",
+        "exitstrategizer", "video-optimizer-pro", "viral-medmoney", "automated-content-discovery",
+        "automated-business-bottleneck", "ent-workflow-ai", "titantools", "voice-control",
+        "website-wrapper", "thumb-meta-tool", "react-extension", "protest-project",
+        "test-dashboard-app", "test-project",
+        ...candidateSlugs,
+      ];
+
+      const uniqueSlugs = [...new Set(knownSlugs.map(s => s.toLowerCase()))].filter(s => !existingSlugs.has(s));
+      const discovered: any[] = [];
+
+      const checkSlug = async (slug: string) => {
+        const url = `https://${slug}.replit.app`;
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 6000);
+          const r = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "follow" });
+          clearTimeout(timeout);
+          if (r.ok || r.status === 301 || r.status === 302 || r.status === 308) {
+            return { slug, url, alive: true, status: r.status };
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      };
+
+      const batchSize = 10;
+      for (let i = 0; i < uniqueSlugs.length; i += batchSize) {
+        const batch = uniqueSlugs.slice(i, i + batchSize);
+        const results = await Promise.allSettled(batch.map(checkSlug));
+        for (const r of results) {
+          if (r.status === "fulfilled" && r.value) discovered.push(r.value);
+        }
+      }
+
+      const seenSlugs = new Set<string>();
+      const deduped = discovered.filter((d: any) => {
+        if (seenSlugs.has(d.slug)) return false;
+        seenSlugs.add(d.slug);
+        return true;
+      });
+
+      let created = 0;
+      const freshProjects = await storage.getReplitProjects();
+      const freshSlugs = new Set(freshProjects.map(p => p.slug.toLowerCase()));
+
+      for (const d of deduped) {
+        if (freshSlugs.has(d.slug.toLowerCase())) continue;
+        const title = d.slug.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+        try {
+          await storage.createReplitProject({
+            slug: d.slug, title, description: null,
+            url: `https://replit.com/@${username}/${d.slug}`,
+            language: null, imageUrl: null, isPrivate: false, replitId: null,
+            deploymentUrl: d.url, status: "active", deploymentStatus: "healthy",
+            lastSynced: new Date(), notes: null, tags: null, progress: 0,
+          });
+          created++;
+          freshSlugs.add(d.slug.toLowerCase());
+        } catch (e: any) {
+          if (!e.message?.includes("duplicate")) console.error("[Scan] Failed to create:", d.slug, e.message);
+        }
+      }
+
+      logAudit(`Scanned deployments: ${discovered.length} discovered, ${created} new`, "replit_project", undefined, req.session.userId);
+      res.json({ scanned: uniqueSlugs.length, discovered: discovered.length, created, projects: discovered });
+    } catch (error: any) {
+      res.status(500).json({ error: "Scan failed", details: error.message });
     }
   });
 

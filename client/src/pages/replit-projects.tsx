@@ -1430,6 +1430,20 @@ export default function ReplitProjects() {
     },
   });
 
+  const scanDeploymentsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/replit-projects/scan-deployments", {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/replit-projects"] });
+      toast({ title: "Scan complete", description: `Scanned ${data.scanned} slugs, discovered ${data.discovered} live deployments (${data.created} new)` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Scan failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const checkAllMutation = useMutation({
     mutationFn: async () => {
       const deployedProjects = (projects || []).filter((p) => p.deploymentUrl);
@@ -1518,6 +1532,10 @@ export default function ReplitProjects() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => scanDeploymentsMutation.mutate()} disabled={scanDeploymentsMutation.isPending} data-testid="button-scan-deployments">
+                {scanDeploymentsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Zap className="h-4 w-4 mr-2" />}
+                Scan Deployments
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setSyncDialogOpen(true)} data-testid="button-sync-replit">
                 <Upload className="h-4 w-4 mr-2" />
                 Import
