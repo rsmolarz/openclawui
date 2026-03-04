@@ -1,13 +1,6 @@
-// Gmail integration via Replit connector (google-mail)
 import { google } from 'googleapis';
 
-let connectionSettings: any;
-
 async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token;
-  }
-
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
@@ -19,7 +12,7 @@ async function getAccessToken() {
     throw new Error('X-Replit-Token not found for repl/depl');
   }
 
-  connectionSettings = await fetch(
+  const res = await fetch(
     'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
     {
       headers: {
@@ -27,18 +20,28 @@ async function getAccessToken() {
         'X-Replit-Token': xReplitToken
       }
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
+  );
+  const data = await res.json();
+  const item = data.items?.[0];
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+  const accessToken =
+    item?.settings?.access_token ||
+    item?.settings?.oauth?.credentials?.access_token;
 
-  if (!connectionSettings || !accessToken) {
+  if (!item || !accessToken) {
     throw new Error('Gmail not connected');
   }
-  return accessToken;
+
+  const scope =
+    item?.settings?.scope ||
+    item?.settings?.oauth?.credentials?.scope ||
+    '';
+
+  return { accessToken, scope };
 }
 
 export async function getUncachableGmailClient() {
-  const accessToken = await getAccessToken();
+  const { accessToken } = await getAccessToken();
 
   const oauth2Client = new google.auth.OAuth2();
   oauth2Client.setCredentials({
@@ -131,7 +134,20 @@ function extractTextFromParts(parts: any[]): string {
 }
 
 export async function scanEmailsForSecrets(maxResults = 50): Promise<FoundSecret[]> {
-  const gmail = await getUncachableGmailClient();
+  const { accessToken, scope } = await getAccessToken();
+
+  const hasReadScope = scope.includes('gmail.readonly') || scope.includes('gmail.modify') || scope.includes('mail.google.com');
+  if (!hasReadScope) {
+    throw new Error(
+      'INSUFFICIENT_SCOPE: The Gmail connector does not have read access. ' +
+      'Current scopes are limited to addon-level access. ' +
+      'Gmail scan requires the gmail.readonly scope which is not available through the current connector configuration.'
+    );
+  }
+
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
   const searchQueries = [
     "subject:(API key OR api_key OR API token)",
@@ -158,6 +174,12 @@ export async function scanEmailsForSecrets(maxResults = 50): Promise<FoundSecret
         }
       }
     } catch (err: any) {
+      if (err.message?.includes("Insufficient Permission") || err.code === 403) {
+        throw new Error(
+          'INSUFFICIENT_SCOPE: Gmail API returned "Insufficient Permission". ' +
+          'The connector lacks gmail.readonly scope needed to search and read emails.'
+        );
+      }
       console.error(`[Gmail] Search query failed: ${query}`, err.message);
     }
   }

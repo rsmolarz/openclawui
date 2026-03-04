@@ -290,12 +290,23 @@ function GmailScanTab() {
   const [gmailSecrets, setGmailSecrets] = useState<GmailSecret[] | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const [scopeError, setScopeError] = useState(false);
+
   const scanMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/secrets/scan-gmail");
+      if (!res.ok) {
+        const data = await res.json();
+        if (data.scopeError) {
+          setScopeError(true);
+          throw new Error(data.details || data.error);
+        }
+        throw new Error(data.error || "Scan failed");
+      }
       return res.json();
     },
     onSuccess: (data: any) => {
+      setScopeError(false);
       setGmailSecrets(data.secrets || []);
       toast({
         title: "Gmail scan complete",
@@ -371,7 +382,26 @@ function GmailScanTab() {
         </Card>
       )}
 
-      {gmailSecrets === null && !scanMutation.isPending && (
+      {scopeError && (
+        <Card className="border-amber-500/30 bg-amber-500/5" data-testid="card-gmail-scope-error">
+          <CardContent className="py-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Gmail Read Permission Not Available</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  The Gmail connector uses addon-level OAuth scopes which don't include full inbox read access.
+                  Email scanning requires the <code className="bg-muted px-1 rounded">gmail.readonly</code> scope,
+                  which is not available through the current Replit connector configuration.
+                  Gmail can still be used for sending emails (e.g., sharing Feature Docs).
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {gmailSecrets === null && !scanMutation.isPending && !scopeError && (
         <Card>
           <CardContent className="py-12 text-center">
             <Mail className="h-10 w-10 text-muted-foreground mx-auto mb-3" />

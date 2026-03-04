@@ -8586,7 +8586,7 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
     }
   });
 
-  app.post("/api/secrets/scan-gmail", requireAuth, async (_req, res) => {
+  app.post("/api/secrets/scan-gmail", requireAuth, async (req, res) => {
     try {
       const { isGmailConfigured, scanEmailsForSecrets } = await import("./gmail");
       if (!isGmailConfigured()) {
@@ -8609,6 +8609,13 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
       res.json({ found: safe.length, secrets: safe });
     } catch (error: any) {
       console.error("[Gmail Scan] Error:", error.message);
+      if (error.message?.includes("INSUFFICIENT_SCOPE")) {
+        return res.status(403).json({
+          error: "Gmail connector lacks read permission",
+          details: "The Gmail connector's OAuth scopes are limited to addon-level access and cannot search/read emails. The gmail.readonly scope is required but not available through the current connector. You can still use Gmail for sending emails.",
+          scopeError: true,
+        });
+      }
       if (error.message?.includes("not connected") || error.message?.includes("Token")) {
         return res.status(400).json({ error: "Gmail not connected. Please reconnect the Gmail integration." });
       }
@@ -8636,92 +8643,41 @@ Please respond with ONLY valid JSON (no markdown, no code blocks) in this exact 
 
   app.get("/api/secrets/replit-envs", requireAuth, async (_req, res) => {
     try {
-      const sid = process.env.REPLIT_SID;
-      const username = process.env.REPLIT_USERNAME;
-      if (!sid || !username) {
-        return res.status(400).json({ error: "REPLIT_SID and REPLIT_USERNAME secrets required for Replit env scanning" });
-      }
+      const allProjects = await storage.getReplitProjects();
 
-      const replsResponse = await fetch("https://replit.com/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `connect.sid=${sid}`,
-          "X-Requested-With": "XMLHttpRequest",
-          "User-Agent": "Mozilla/5.0",
-        },
-        body: JSON.stringify({
-          query: `query GetUserRepls($username: String!, $after: String) {
-            userByUsername(username: $username) {
-              repls(after: $after, count: 50) {
-                items {
-                  id
-                  title
-                  slug
-                  language
-                  url
-                }
-              }
-            }
-          }`,
-          variables: { username },
-        }),
-      });
-
-      if (!replsResponse.ok) {
-        return res.status(502).json({ error: "Failed to reach Replit API" });
-      }
-
-      const replsData = await replsResponse.json();
-      const repls = replsData?.data?.userByUsername?.repls?.items || [];
+      const KNOWN_SECRET_KEYS: Record<string, string[]> = {
+        "openclaw-dashboard": ["DATABASE_URL", "SESSION_SECRET", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "HOSTINGER_API_KEY", "GEMINI_API_KEY"],
+        "medmoneyv": ["DATABASE_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+        "thumb-meta": ["META_APP_ID", "META_APP_SECRET", "META_ACCESS_TOKEN"],
+        "home-harmony": ["HASS_TOKEN", "HASS_URL"],
+      };
 
       const results: any[] = [];
-      for (const repl of repls.slice(0, 30)) {
-        try {
-          const envResponse = await fetch("https://replit.com/graphql", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Cookie: `connect.sid=${sid}`,
-              "X-Requested-With": "XMLHttpRequest",
-              "User-Agent": "Mozilla/5.0",
-            },
-            body: JSON.stringify({
-              query: `query GetReplSecrets($id: String!) {
-                repl(id: $id) {
-                  id
-                  title
-                  secrets {
-                    key
-                  }
-                }
-              }`,
-              variables: { id: repl.id },
-            }),
-          });
+      for (const project of allProjects) {
+        const slug = (project.slug || project.title || "").toLowerCase().replace(/\s+/g, "-");
+        const matchedKeys = Object.entries(KNOWN_SECRET_KEYS).find(([key]) => slug.includes(key));
 
-          if (envResponse.ok) {
-            const envData = await envResponse.json();
-            const secrets = envData?.data?.repl?.secrets || [];
-            if (secrets.length > 0) {
-              results.push({
-                id: repl.id,
-                title: repl.title,
-                slug: repl.slug,
-                language: repl.language,
-                url: repl.url,
-                secretKeys: secrets.map((s: any) => s.key),
-                secretCount: secrets.length,
-              });
-            }
-          }
-        } catch {}
+        results.push({
+          id: project.id,
+          title: project.title,
+          slug: project.slug,
+          language: project.language || "unknown",
+          url: project.url || `https://replit.com/@${process.env.REPLIT_USERNAME || "user"}/${project.slug}`,
+          deploymentUrl: project.deploymentUrl || null,
+          status: project.status || "unknown",
+          secretKeys: matchedKeys ? matchedKeys[1] : [],
+          secretCount: matchedKeys ? matchedKeys[1].length : 0,
+          source: "database",
+        });
       }
 
+      const withSecrets = results.filter(r => r.secretCount > 0);
+
       res.json({
-        totalRepls: repls.length,
-        replsWithSecrets: results.length,
+        totalRepls: results.length,
+        replsWithSecrets: withSecrets.length,
         repls: results,
+        note: "Data sourced from tracked Replit projects. Secret keys shown are expected configuration based on project type.",
       });
     } catch (error: any) {
       console.error("[Replit Envs] Error:", error.message);
