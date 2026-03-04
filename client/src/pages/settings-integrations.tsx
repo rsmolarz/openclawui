@@ -348,6 +348,18 @@ function getConfigFields(type: string): { key: string; label: string; sensitive?
         { key: "environment", label: "Environment" },
         { key: "indexName", label: "Default Index Name" },
       ];
+    case "youtube":
+    case "google-sheets":
+    case "google-docs":
+    case "google-drive":
+    case "dropbox":
+    case "onedrive":
+    case "sharepoint":
+    case "spotify":
+    case "sendgrid":
+      return [
+        { key: "status", label: "Connected via Replit OAuth (auto-managed)" },
+      ];
     case "letsencrypt":
       return [
         { key: "email", label: "Contact Email" },
@@ -509,6 +521,15 @@ const availableIntegrations = [
   { name: "Linear", type: "linear", category: "development", icon: "Target", description: "Streamline engineering workflows with Linear issue tracking and project management." },
   { name: "Figma", type: "figma", category: "development", icon: "Paintbrush", description: "Extract design tokens, component specs, and assets from Figma files." },
   { name: "Vercel", type: "vercel", category: "development", icon: "Globe", description: "Deploy projects, manage domains, and trigger builds on Vercel." },
+  { name: "YouTube", type: "youtube", category: "productivity", icon: "Tv", description: "Manage YouTube channels, videos, playlists, and analytics." },
+  { name: "Google Sheets", type: "google-sheets", category: "productivity", icon: "Table", description: "Read and write Google Sheets spreadsheets for data management." },
+  { name: "Google Docs", type: "google-docs", category: "productivity", icon: "BookOpen", description: "Create and manage Google Docs documents." },
+  { name: "Google Drive", type: "google-drive", category: "storage", icon: "HardDrive", description: "Browse, upload, and manage files in Google Drive." },
+  { name: "Dropbox", type: "dropbox", category: "storage", icon: "Cloud", description: "Manage files and folders in Dropbox cloud storage." },
+  { name: "OneDrive", type: "onedrive", category: "storage", icon: "Cloud", description: "Access and manage files in Microsoft OneDrive." },
+  { name: "SharePoint", type: "sharepoint", category: "storage", icon: "Globe", description: "Manage documents and sites in SharePoint Online." },
+  { name: "Spotify", type: "spotify", category: "productivity", icon: "Activity", description: "Access playlists, recently played tracks, and playback control." },
+  { name: "SendGrid", type: "sendgrid", category: "notifications", icon: "Mail", description: "Send transactional emails via SendGrid API." },
   { name: "Google Workspace", type: "google-workspace", category: "productivity", icon: "Mail", description: "Gmail, Calendar, Drive, Sheets, and Docs integration via Google OAuth." },
   { name: "Airtable", type: "airtable", category: "productivity", icon: "Table", description: "Read, write, and automate workflows around Airtable bases and records." },
   { name: "Todoist", type: "todoist", category: "productivity", icon: "ClipboardList", description: "Manage tasks, projects, and priorities with Todoist task management." },

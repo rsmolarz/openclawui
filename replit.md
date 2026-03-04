@@ -60,6 +60,8 @@ The application utilizes a client-server architecture.
         - **Connected Devices**: Device management panel for registering and managing iPhones, iPads, Apple Watches, Macs, and other devices connected to OpenClaw. Full CRUD with status tracking (pending/connected/disconnected/inactive), device metadata (model, OS version, IP, serial number), and summary stats. Component: `client/src/pages/connected-devices.tsx`.
 - **Data Models**: Key data models include `openclaw_instances`, `settings`, `machines`, `apiKeys`, `llmApiKeys`, `vpsConnections`, `dockerServices`, `openclawConfig`, `integrations`, `users`, `whatsappSessions`, `automation_jobs`, `automation_runs`, `metrics_events`, `email_workflows`, `audit_logs`, `replit_projects`, `project_evaluations`, `omi_todos`, `omi_sops`, `health_logs`, `grocery_items`, `financial_transactions`, `habits`, `habit_completions`, `meeting_preps`, `focus_sessions`, `life_events`, and `connected_devices`.
 
+    - **Connected Services (Replit Connectors)**: All 15 services connected via Replit OAuth connectors with unified backend module (`server/connectors.ts`). Status API at `GET /api/connectors/status`. Services: YouTube (`/api/youtube/*`), Google Sheets (`/api/google-sheets/*`), Google Docs (`/api/google-docs/*`), Google Drive (`/api/google-drive/*`), Dropbox (`/api/dropbox/*`), OneDrive (`/api/onedrive/*`), SharePoint (`/api/sharepoint/*`), Discord (`/api/discord/*`), Spotify (`/api/spotify/*`), Notion (`/api/notion/*`), ElevenLabs (`/api/elevenlabs/*`), SendGrid (`/api/sendgrid/*`), Gmail, Google Calendar, GitHub. Med Money Vault card added to Finance page linking to private GitHub repo `rsmolarz/MedMoneyVault`.
+
 ## External Dependencies
 - **Database**: PostgreSQL (via Drizzle ORM)
 - **Authentication Provider**: MedInvest DID OAuth 2.0
@@ -71,3 +73,4 @@ The application utilizes a client-server architecture.
 - **Data Fetching/State Management**: TanStack Query
 - **Image Generation**: OpenAI DALL-E 3 / Google Gemini
 - **AI/LLM**: OpenAI API, Google Gemini Developer API, Google Cloud Vertex AI
+- **Replit Connectors**: YouTube, Google Sheets, Google Docs, Google Drive, Dropbox, OneDrive, SharePoint, Discord, Spotify, Notion, ElevenLabs, SendGrid (via `@replit/connectors-sdk` and `googleapis`)

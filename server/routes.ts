@@ -9835,5 +9835,410 @@ Return valid JSON:
     }
   });
 
+  // ── Connector Status API ──
+  app.get("/api/connectors/status", requireAuth, async (_req, res) => {
+    try {
+      const { ALL_CONNECTORS, checkConnectorStatus } = await import("./connectors");
+      const results = await Promise.all(
+        ALL_CONNECTORS.map(async (c) => {
+          const status = await checkConnectorStatus(c.name);
+          return { ...c, ...status };
+        })
+      );
+      res.json(results);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── YouTube API ──
+  app.get("/api/youtube/channels", requireAuth, async (_req, res) => {
+    try {
+      const { getYouTubeClient } = await import("./connectors");
+      const youtube = await getYouTubeClient();
+      const response = await youtube.channels.list({ part: ["snippet", "statistics", "contentDetails"], mine: true });
+      res.json(response.data.items || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/youtube/videos", requireAuth, async (req, res) => {
+    try {
+      const { getYouTubeClient } = await import("./connectors");
+      const youtube = await getYouTubeClient();
+      const maxResults = Math.min(parseInt(req.query.maxResults as string) || 25, 50);
+      const channelsRes = await youtube.channels.list({ part: ["contentDetails"], mine: true });
+      const uploadsPlaylistId = channelsRes.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+      if (!uploadsPlaylistId) return res.json([]);
+      const videosRes = await youtube.playlistItems.list({ part: ["snippet", "contentDetails", "status"], playlistId: uploadsPlaylistId, maxResults });
+      res.json(videosRes.data.items || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Google Sheets API ──
+  app.get("/api/google-sheets/spreadsheets", requireAuth, async (_req, res) => {
+    try {
+      const { getGoogleDriveProxy } = await import("./connectors");
+      const connectors = getGoogleDriveProxy();
+      const response = await connectors.proxy("google-drive", "/drive/v3/files?q=mimeType%3D'application/vnd.google-apps.spreadsheet'&fields=files(id,name,modifiedTime,webViewLink)&orderBy=modifiedTime desc&pageSize=50", { method: "GET" });
+      if (!response.ok) throw new Error(`Google Drive API error: ${response.status}`);
+      const data = await response.json();
+      res.json(data.files || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/google-sheets/:spreadsheetId", requireAuth, async (req, res) => {
+    try {
+      const { getGoogleSheetsClient } = await import("./connectors");
+      const sheets = await getGoogleSheetsClient();
+      const result = await sheets.spreadsheets.get({ spreadsheetId: req.params.spreadsheetId, includeGridData: false });
+      res.json(result.data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Google Docs API ──
+  app.get("/api/google-docs/documents", requireAuth, async (_req, res) => {
+    try {
+      const { getGoogleDriveProxy } = await import("./connectors");
+      const connectors = getGoogleDriveProxy();
+      const response = await connectors.proxy("google-drive", "/drive/v3/files?q=mimeType%3D'application/vnd.google-apps.document'&fields=files(id,name,modifiedTime,webViewLink)&orderBy=modifiedTime desc&pageSize=50", { method: "GET" });
+      if (!response.ok) throw new Error(`Google Drive API error: ${response.status}`);
+      const data = await response.json();
+      res.json(data.files || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/google-docs/:documentId", requireAuth, async (req, res) => {
+    try {
+      const { getGoogleDocsClient } = await import("./connectors");
+      const docs = await getGoogleDocsClient();
+      const result = await docs.documents.get({ documentId: req.params.documentId });
+      res.json({ title: result.data.title, documentId: result.data.documentId });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Google Drive API ──
+  app.get("/api/google-drive/files", requireAuth, async (req, res) => {
+    try {
+      const { getGoogleDriveProxy } = await import("./connectors");
+      const connectors = getGoogleDriveProxy();
+      const pageSize = Math.min(parseInt(req.query.pageSize as string) || 50, 100);
+      const q = req.query.q ? encodeURIComponent(String(req.query.q)) : "";
+      const endpoint = `/drive/v3/files?fields=files(id,name,mimeType,modifiedTime,size,webViewLink,iconLink)&orderBy=modifiedTime desc&pageSize=${pageSize}${q ? `&q=${q}` : ""}`;
+      const response = await connectors.proxy("google-drive", endpoint, { method: "GET" });
+      if (!response.ok) throw new Error(`Google Drive API error: ${response.status}`);
+      const data = await response.json();
+      res.json(data.files || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/google-drive/storage", requireAuth, async (_req, res) => {
+    try {
+      const { getGoogleDriveProxy } = await import("./connectors");
+      const connectors = getGoogleDriveProxy();
+      const response = await connectors.proxy("google-drive", "/drive/v3/about?fields=storageQuota,user", { method: "GET" });
+      if (!response.ok) throw new Error(`Google Drive API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Dropbox API ──
+  app.get("/api/dropbox/files", requireAuth, async (req, res) => {
+    try {
+      const { getDropboxAccessToken } = await import("./connectors");
+      const accessToken = await getDropboxAccessToken();
+      const path = String(req.query.path || "");
+      const response = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ path, limit: 100 }),
+      });
+      if (!response.ok) throw new Error(`Dropbox API error: ${response.status}`);
+      const data = await response.json();
+      res.json(data.entries || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/dropbox/account", requireAuth, async (_req, res) => {
+    try {
+      const { getDropboxAccessToken } = await import("./connectors");
+      const accessToken = await getDropboxAccessToken();
+      const response = await fetch("https://api.dropboxapi.com/2/users/get_current_account", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Dropbox API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── OneDrive API ──
+  app.get("/api/onedrive/files", requireAuth, async (_req, res) => {
+    try {
+      const { getOneDriveAccessToken } = await import("./connectors");
+      const accessToken = await getOneDriveAccessToken();
+      const response = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/children?$top=50&$orderby=lastModifiedDateTime desc", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`OneDrive API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/onedrive/storage", requireAuth, async (_req, res) => {
+    try {
+      const { getOneDriveAccessToken } = await import("./connectors");
+      const accessToken = await getOneDriveAccessToken();
+      const response = await fetch("https://graph.microsoft.com/v1.0/me/drive", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`OneDrive API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── SharePoint API ──
+  app.get("/api/sharepoint/sites", requireAuth, async (_req, res) => {
+    try {
+      const { getSharePointAccessToken } = await import("./connectors");
+      const accessToken = await getSharePointAccessToken();
+      const response = await fetch("https://graph.microsoft.com/v1.0/sites?search=*&$top=50", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Discord API ──
+  app.get("/api/discord/guilds", requireAuth, async (_req, res) => {
+    try {
+      const { getDiscordAccessToken } = await import("./connectors");
+      const accessToken = await getDiscordAccessToken();
+      const response = await fetch("https://discord.com/api/v10/users/@me/guilds", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Discord API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/discord/user", requireAuth, async (_req, res) => {
+    try {
+      const { getDiscordAccessToken } = await import("./connectors");
+      const accessToken = await getDiscordAccessToken();
+      const response = await fetch("https://discord.com/api/v10/users/@me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Discord API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Spotify API ──
+  app.get("/api/spotify/profile", requireAuth, async (_req, res) => {
+    try {
+      const { getSpotifyCredentials } = await import("./connectors");
+      const creds = await getSpotifyCredentials();
+      const response = await fetch("https://api.spotify.com/v1/me", {
+        headers: { Authorization: `Bearer ${creds.accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Spotify API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/spotify/playlists", requireAuth, async (_req, res) => {
+    try {
+      const { getSpotifyCredentials } = await import("./connectors");
+      const creds = await getSpotifyCredentials();
+      const response = await fetch("https://api.spotify.com/v1/me/playlists?limit=50", {
+        headers: { Authorization: `Bearer ${creds.accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Spotify API error: ${response.status}`);
+      const data = await response.json();
+      res.json(data.items || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/spotify/recently-played", requireAuth, async (_req, res) => {
+    try {
+      const { getSpotifyCredentials } = await import("./connectors");
+      const creds = await getSpotifyCredentials();
+      const response = await fetch("https://api.spotify.com/v1/me/player/recently-played?limit=20", {
+        headers: { Authorization: `Bearer ${creds.accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Spotify API error: ${response.status}`);
+      const data = await response.json();
+      res.json(data.items || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Notion API ──
+  app.get("/api/notion/user", requireAuth, async (_req, res) => {
+    try {
+      const { getNotionProxy } = await import("./connectors");
+      const connectors = getNotionProxy();
+      const response = await connectors.proxy("notion", "/v1/users/me", { method: "GET" });
+      if (!response.ok) throw new Error(`Notion API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/notion/search", requireAuth, async (req, res) => {
+    try {
+      const { getNotionProxy } = await import("./connectors");
+      const connectors = getNotionProxy();
+      const body: any = {};
+      if (req.body.query && typeof req.body.query === "string") body.query = req.body.query.slice(0, 200);
+      if (req.body.filter) body.filter = req.body.filter;
+      body.page_size = Math.min(parseInt(req.body.page_size) || 20, 100);
+      const response = await connectors.proxy("notion", "/v1/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`Notion API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── ElevenLabs API ──
+  app.get("/api/elevenlabs/voices", requireAuth, async (_req, res) => {
+    try {
+      const { getElevenLabsProxy } = await import("./connectors");
+      const connectors = getElevenLabsProxy();
+      const response = await connectors.proxy("elevenlabs", "/v1/voices", { method: "GET" });
+      if (!response.ok) throw new Error(`ElevenLabs API error: ${response.status}`);
+      const data = await response.json();
+      res.json(data.voices || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/elevenlabs/tts", requireAuth, async (req, res) => {
+    try {
+      const { getElevenLabsProxy } = await import("./connectors");
+      const connectors = getElevenLabsProxy();
+      const text = typeof req.body.text === "string" ? req.body.text.slice(0, 5000) : "";
+      if (!text) return res.status(400).json({ error: "text is required" });
+      const voiceId = typeof req.body.voiceId === "string" ? req.body.voiceId : "21m00Tcm4TlvDq8ikWAM";
+      const response = await connectors.proxy("elevenlabs", `/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, model_id: "eleven_monolingual_v1" }),
+      });
+      if (!response.ok) throw new Error(`ElevenLabs API error: ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      res.set("Content-Type", "audio/mpeg");
+      res.send(Buffer.from(buffer));
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── SendGrid API ──
+  app.post("/api/sendgrid/send", requireAuth, async (req, res) => {
+    try {
+      const { getSendGridCredentials } = await import("./connectors");
+      const { apiKey, fromEmail } = await getSendGridCredentials();
+      const to = typeof req.body.to === "string" ? req.body.to : "";
+      const subject = typeof req.body.subject === "string" ? req.body.subject : "";
+      if (!to || !subject) return res.status(400).json({ error: "to and subject are required" });
+      const html = typeof req.body.html === "string" ? req.body.html : "";
+      const text = typeof req.body.text === "string" ? req.body.text : "";
+      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: to }] }],
+          from: { email: fromEmail },
+          subject,
+          content: [{ type: html ? "text/html" : "text/plain", value: html || text || "" }],
+        }),
+      });
+      if (response.ok || response.status === 202) {
+        res.json({ success: true });
+      } else {
+        const err = await response.text();
+        res.status(response.status).json({ error: err });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── GitHub Repo Content API (for Med Money Vault) ──
+  app.get("/api/github/repos/:owner/:repo/contents", requireAuth, async (req, res) => {
+    try {
+      const { ReplitConnectors } = await import("@replit/connectors-sdk");
+      const connectors = new ReplitConnectors();
+      const { owner, repo } = req.params;
+      const path = String(req.query.path || "");
+      const response = await connectors.proxy("github", `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}`, { method: "GET" });
+      if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+      res.json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/github/repos/:owner/:repo/readme", requireAuth, async (req, res) => {
+    try {
+      const { ReplitConnectors } = await import("@replit/connectors-sdk");
+      const connectors = new ReplitConnectors();
+      const { owner, repo } = req.params;
+      const response = await connectors.proxy("github", `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/readme`, {
+        method: "GET",
+        headers: { Accept: "application/vnd.github.v3.raw" },
+      });
+      if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+      const text = await response.text();
+      res.json({ content: text });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return httpServer;
 }

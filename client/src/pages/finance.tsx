@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, DollarSign, Plus, Trash2, TrendingUp, TrendingDown, Building2, User, Briefcase, Landmark, PiggyBank, Settings } from "lucide-react";
+import { Loader2, DollarSign, Plus, Trash2, TrendingUp, TrendingDown, Building2, User, Briefcase, Landmark, PiggyBank, Settings, Vault, ExternalLink, GitBranch } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -153,7 +153,27 @@ export default function Finance() {
         ))}
       </Tabs>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border border-amber-500/30 bg-amber-500/5" data-testid="card-medmoneyvault">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Vault className="h-4 w-4 text-amber-600" /> Med Money Vault
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Badge variant="outline" className="text-xs">
+                <GitBranch className="h-3 w-3 mr-1" /> rsmolarz/MedMoneyVault
+              </Badge>
+              <p className="text-xs text-muted-foreground">Private GitHub repo - Medical financial tracking & investment vault (HTML)</p>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" className="text-xs" onClick={() => window.open("https://github.com/rsmolarz/MedMoneyVault", "_blank")} data-testid="button-medmoneyvault-github">
+                  <ExternalLink className="h-3 w-3 mr-1" /> GitHub
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         <Card className="border-dashed" data-testid="card-quickbooks">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
