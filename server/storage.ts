@@ -37,12 +37,13 @@ import {
   type FocusSession, type InsertFocusSession,
   type LifeEvent, type InsertLifeEvent,
   type ConnectedDevice, type InsertConnectedDevice,
+  type ProjectFile, type InsertProjectFile,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
   auditLogs, replitProjects, projectEvaluations, omiTodos, omiSops,
-  healthLogs, groceryItems, financialTransactions, habits, habitCompletions, meetingPreps, focusSessions, lifeEvents, connectedDevices,
+  healthLogs, groceryItems, financialTransactions, habits, habitCompletions, meetingPreps, focusSessions, lifeEvents, connectedDevices, projectFiles,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -241,6 +242,12 @@ export interface IStorage {
   createConnectedDevice(data: InsertConnectedDevice): Promise<ConnectedDevice>;
   updateConnectedDevice(id: string, data: Partial<InsertConnectedDevice> & { lastSeen?: Date }): Promise<ConnectedDevice | undefined>;
   deleteConnectedDevice(id: string): Promise<void>;
+
+  getProjectFiles(projectId: string): Promise<ProjectFile[]>;
+  getProjectFile(id: string): Promise<ProjectFile | undefined>;
+  createProjectFile(data: InsertProjectFile): Promise<ProjectFile>;
+  updateProjectFile(id: string, data: Partial<InsertProjectFile> & { updatedAt?: Date }): Promise<ProjectFile | undefined>;
+  deleteProjectFile(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1127,6 +1134,25 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteConnectedDevice(id: string): Promise<void> {
     await db.delete(connectedDevices).where(eq(connectedDevices.id, id));
+  }
+
+  async getProjectFiles(projectId: string): Promise<ProjectFile[]> {
+    return db.select().from(projectFiles).where(eq(projectFiles.projectId, projectId)).orderBy(projectFiles.path, projectFiles.filename);
+  }
+  async getProjectFile(id: string): Promise<ProjectFile | undefined> {
+    const [file] = await db.select().from(projectFiles).where(eq(projectFiles.id, id));
+    return file;
+  }
+  async createProjectFile(data: InsertProjectFile): Promise<ProjectFile> {
+    const [file] = await db.insert(projectFiles).values(data).returning();
+    return file;
+  }
+  async updateProjectFile(id: string, data: Partial<InsertProjectFile> & { updatedAt?: Date }): Promise<ProjectFile | undefined> {
+    const [file] = await db.update(projectFiles).set({ ...data, updatedAt: new Date() }).where(eq(projectFiles.id, id)).returning();
+    return file;
+  }
+  async deleteProjectFile(id: string): Promise<void> {
+    await db.delete(projectFiles).where(eq(projectFiles.id, id));
   }
 }
 

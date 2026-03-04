@@ -8996,6 +8996,60 @@ Score each project 1-10 on revenue, brand, and trading. Composite = weighted ave
     }
   });
 
+  app.get("/api/project-files/:projectId", requireAuth, async (req, res) => {
+    try {
+      const files = await storage.getProjectFiles(req.params.projectId);
+      res.json(files);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project files" });
+    }
+  });
+
+  app.get("/api/project-files/file/:id", requireAuth, async (req, res) => {
+    try {
+      const file = await storage.getProjectFile(req.params.id);
+      if (!file) return res.status(404).json({ error: "File not found" });
+      res.json(file);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch file" });
+    }
+  });
+
+  app.post("/api/project-files", requireAuth, async (req, res) => {
+    try {
+      const { insertProjectFileSchema } = await import("@shared/schema");
+      const parsed = insertProjectFileSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid file data", details: parsed.error.flatten() });
+      const file = await storage.createProjectFile(parsed.data);
+      res.json(file);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create file" });
+    }
+  });
+
+  app.patch("/api/project-files/:id", requireAuth, async (req, res) => {
+    try {
+      const { insertProjectFileSchema } = await import("@shared/schema");
+      const updateSchema = insertProjectFileSchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid update data", details: parsed.error.flatten() });
+      const file = await storage.updateProjectFile(req.params.id, parsed.data);
+      if (!file) return res.status(404).json({ error: "File not found" });
+      res.json(file);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update file" });
+    }
+  });
+
+  app.delete("/api/project-files/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteProjectFile(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete file" });
+    }
+  });
+
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);

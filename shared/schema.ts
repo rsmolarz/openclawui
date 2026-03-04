@@ -581,6 +581,20 @@ export const insertConnectedDeviceSchema = createInsertSchema(connectedDevices).
 export type ConnectedDevice = typeof connectedDevices.$inferSelect;
 export type InsertConnectedDevice = z.infer<typeof insertConnectedDeviceSchema>;
 
+export const projectFiles = pgTable("project_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  filename: text("filename").notNull(),
+  path: text("path").notNull().default("/"),
+  content: text("content").notNull().default(""),
+  language: text("language"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export const insertProjectFileSchema = createInsertSchema(projectFiles).omit({ id: true, createdAt: true, updatedAt: true });
+export type ProjectFile = typeof projectFiles.$inferSelect;
+export type InsertProjectFile = z.infer<typeof insertProjectFileSchema>;
+
 export const lifeEvents = pgTable("life_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),

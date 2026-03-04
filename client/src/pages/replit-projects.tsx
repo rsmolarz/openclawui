@@ -24,6 +24,7 @@ import {
   GitBranch, AlertCircle, ArrowRight, Layers,
 } from "lucide-react";
 import type { ReplitProject, OmiTodo, OmiSop } from "@shared/schema";
+import { CodeWorkspace } from "@/components/code-workspace";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500/10 text-green-600 dark:text-green-400",
@@ -952,11 +953,12 @@ function OmiInsightsTab() {
 function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [viewMode, setViewMode] = useState<"app" | "editor" | "split">("app");
+  const [viewMode, setViewMode] = useState<"app" | "editor" | "split" | "code">("app");
 
   const allProjects = projects;
   const deployedProjects = projects.filter(p => p.deploymentUrl);
   const sidebarProjects = viewMode === "app" ? deployedProjects : allProjects;
+  
   const active = sidebarProjects.find(p => p.id === activeApp) || sidebarProjects[0];
 
   const getEditorUrl = (project: ReplitProject) => {
@@ -1054,6 +1056,14 @@ function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
               <Layers className="h-3.5 w-3.5 inline mr-1" />
               Split
             </button>
+            <button
+              onClick={() => setViewMode("code")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === "code" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              data-testid="button-view-code"
+            >
+              <Terminal className="h-3.5 w-3.5 inline mr-1" />
+              Code
+            </button>
           </div>
           {active && (
             <>
@@ -1110,17 +1120,20 @@ function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
           <div className="flex-1 min-w-0">
             <div className="bg-muted/50 rounded-lg p-2 mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0">
-                {viewMode === "editor" ? <Code2 className="h-4 w-4 text-orange-500 shrink-0" /> : <Globe className="h-4 w-4 text-blue-500 shrink-0" />}
+                {viewMode === "code" ? <Terminal className="h-4 w-4 text-green-500 shrink-0" /> : viewMode === "editor" ? <Code2 className="h-4 w-4 text-orange-500 shrink-0" /> : <Globe className="h-4 w-4 text-blue-500 shrink-0" />}
                 <span className="text-sm font-medium truncate" data-testid="text-active-app-title">{active.title}</span>
                 <Badge variant="outline" className="text-[10px] shrink-0">{active.language || "web"}</Badge>
                 {viewMode === "split" && <Badge variant="outline" className="text-[10px] shrink-0">Split View</Badge>}
+                {viewMode === "code" && <Badge variant="outline" className="text-[10px] shrink-0 text-green-600 border-green-500/30">Code Workspace</Badge>}
               </div>
               <span className="text-[10px] text-muted-foreground shrink-0">
                 {viewMode === "editor" ? active.slug : active.deploymentUrl?.replace(/^https?:\/\//, "") || active.slug}
               </span>
             </div>
 
-            {viewMode === "split" ? (
+            {viewMode === "code" ? (
+              <CodeWorkspace project={active} expanded={expanded} />
+            ) : viewMode === "split" ? (
               <div className={`grid grid-cols-2 gap-2 ${expanded ? "h-[85vh]" : "h-[600px]"}`}>
                 <div className="border rounded-lg overflow-hidden bg-white dark:bg-black">
                   <div className="bg-muted/50 px-3 py-1 text-[10px] font-medium text-muted-foreground border-b flex items-center gap-1">
