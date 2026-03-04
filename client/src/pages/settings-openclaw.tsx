@@ -478,18 +478,18 @@ function SkillApiKeysCard() {
                   <div className="flex items-center gap-2 mt-2">
                     <Input
                       type="password"
-                      placeholder="Enter dashboard password"
+                      placeholder="Enter dashboard password (if set)"
                       value={revealPassword}
                       onChange={(e) => setRevealPassword(e.target.value)}
                       className="h-8 text-xs max-w-[220px]"
-                      onKeyDown={(e) => e.key === "Enter" && revealPassword && revealMutation.mutate({ key: k.key, password: revealPassword })}
+                      onKeyDown={(e) => e.key === "Enter" && revealMutation.mutate({ key: k.key, password: revealPassword })}
                       data-testid={`input-reveal-password-${k.key}`}
                     />
                     <Button
                       size="sm"
                       className="h-8"
                       onClick={() => revealMutation.mutate({ key: k.key, password: revealPassword })}
-                      disabled={!revealPassword || revealMutation.isPending}
+                      disabled={revealMutation.isPending}
                       data-testid={`button-confirm-reveal-${k.key}`}
                     >
                       {revealMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Reveal"}
@@ -513,17 +513,17 @@ function SkillApiKeysCard() {
                     <div className="flex items-center gap-2">
                       <Input
                         type="password"
-                        placeholder="Dashboard password to confirm"
+                        placeholder="Dashboard password to confirm (if set)"
                         value={editPassword}
                         onChange={(e) => setEditPassword(e.target.value)}
                         className="text-xs max-w-[220px]"
-                        onKeyDown={(e) => e.key === "Enter" && editValue && editPassword && updateMutation.mutate({ key: k.key, value: editValue, password: editPassword })}
+                        onKeyDown={(e) => e.key === "Enter" && editValue && updateMutation.mutate({ key: k.key, value: editValue, password: editPassword })}
                         data-testid={`input-edit-password-${k.key}`}
                       />
                       <Button
                         size="sm"
                         onClick={() => updateMutation.mutate({ key: k.key, value: editValue, password: editPassword })}
-                        disabled={!editValue || !editPassword || updateMutation.isPending}
+                        disabled={!editValue || updateMutation.isPending}
                         data-testid={`button-save-skill-key-${k.key}`}
                       >
                         {updateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}

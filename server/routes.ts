@@ -5395,13 +5395,13 @@ setInterval(sendHeartbeat, INTERVAL_MS);
   app.post("/api/ssh/skill-keys/reveal", requireAuth, async (req, res) => {
     try {
       const { password, key } = req.body;
-      if (!password) return res.status(400).json({ error: "Password required" });
 
       const instances = await storage.getInstances();
       const defaultInstance = instances.find(i => i.isDefault) || instances[0];
       const cfg = defaultInstance ? await storage.getOpenclawConfig(defaultInstance.id) : undefined;
-      if (!cfg || password !== cfg.gatewayPassword) {
-        return res.status(403).json({ error: "Invalid password" });
+      if (cfg?.gatewayPassword) {
+        if (!password) return res.status(400).json({ error: "Password required" });
+        if (password !== cfg.gatewayPassword) return res.status(403).json({ error: "Invalid password" });
       }
 
       if (!SKILL_API_KEYS.some(k => k.key === key)) {
@@ -5425,14 +5425,14 @@ setInterval(sendHeartbeat, INTERVAL_MS);
     try {
       const { key, value, password } = req.body;
       if (!key || value === undefined) return res.status(400).json({ error: "key and value required" });
-      if (!password) return res.status(400).json({ error: "Password required" });
       if (!SKILL_API_KEYS.some(k => k.key === key)) return res.status(400).json({ error: "Unknown key" });
 
       const instances = await storage.getInstances();
       const defaultInstance = instances.find(i => i.isDefault) || instances[0];
       const cfg = defaultInstance ? await storage.getOpenclawConfig(defaultInstance.id) : undefined;
-      if (!cfg || password !== cfg.gatewayPassword) {
-        return res.status(403).json({ error: "Invalid password" });
+      if (cfg?.gatewayPassword) {
+        if (!password) return res.status(400).json({ error: "Password required" });
+        if (password !== cfg.gatewayPassword) return res.status(403).json({ error: "Invalid password" });
       }
 
       const { executeRawSSHCommand, getSSHConfig } = await import("./ssh");
