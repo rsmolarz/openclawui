@@ -4061,13 +4061,50 @@ setInterval(sendHeartbeat, INTERVAL_MS);
       const installedIds = new Set(installed.map(s => s.skillId));
       const newSkills = SKILLS_CATALOG.filter(s => !installedIds.has(s.skillId));
 
-      previousNewCount = newSkillCount;
-      newSkillCount = newSkills.length;
-      newSkillNames = newSkills.map(s => s.name);
-
+      let autoInstalledCount = 0;
+      const autoInstalledNames: string[] = [];
       if (newSkills.length > 0) {
-        console.log(`[Skills] Found ${newSkills.length} new skills available in catalog`);
+        console.log(`[Skills] Found ${newSkills.length} new skills in catalog — auto-installing...`);
+        for (const skill of newSkills) {
+          try {
+            await storage.createSkill({
+              skillId: skill.skillId,
+              name: skill.name,
+              description: skill.description,
+              category: skill.category,
+              version: skill.version,
+              enabled: true,
+              status: "installed",
+            });
+            autoInstalledCount++;
+            autoInstalledNames.push(skill.name);
+          } catch (e: any) {
+            console.error(`[Skills] Failed to auto-install ${skill.skillId}:`, e.message);
+          }
+        }
+        console.log(`[Skills] Auto-installed ${autoInstalledCount}/${newSkills.length} new skills: ${autoInstalledNames.join(", ")}`);
       }
+
+      const installedMap = new Map(installed.map(s => [s.skillId, s]));
+      for (const skill of SKILLS_CATALOG) {
+        const existing = installedMap.get(skill.skillId);
+        if (existing && (existing.description !== skill.description || existing.name !== skill.name || existing.category !== skill.category || existing.version !== skill.version)) {
+          try {
+            await storage.updateSkill(String(existing.id), {
+              name: skill.name,
+              description: skill.description,
+              category: skill.category,
+              version: skill.version,
+            });
+          } catch (e: any) {
+            console.error(`[Skills] Failed to sync metadata for ${skill.skillId}:`, e.message);
+          }
+        }
+      }
+
+      previousNewCount = newSkillCount;
+      newSkillCount = newSkills.length - autoInstalledCount;
+      newSkillNames = newSkills.filter(s => !autoInstalledNames.includes(s.name)).map(s => s.name);
 
       let vpsSkillsChecked = false;
       try {
