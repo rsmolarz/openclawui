@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema, insertReplitProjectSchema, insertHealthLogSchema, insertGroceryItemSchema, insertFinancialTransactionSchema, insertHabitSchema, insertHabitCompletionSchema, insertMeetingPrepSchema, insertFocusSessionSchema, insertLifeEventSchema } from "@shared/schema";
+import { insertMachineSchema, insertApiKeySchema, insertLlmApiKeySchema, insertIntegrationSchema, insertInstanceSchema, insertSkillSchema, insertDocSchema, insertNodeSetupSessionSchema, insertEmailWorkflowSchema, insertReplitProjectSchema, insertHealthLogSchema, insertGroceryItemSchema, insertFinancialTransactionSchema, insertHabitSchema, insertHabitCompletionSchema, insertMeetingPrepSchema, insertFocusSessionSchema, insertLifeEventSchema, insertConnectedDeviceSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import multer from "multer";
@@ -9162,6 +9162,23 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
   });
   app.delete("/api/life-events/:id", requireAuth, async (req, res) => {
     try { await storage.deleteLifeEvent(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Connected Devices (iPhone/iPad management)
+  app.get("/api/connected-devices", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getConnectedDevices()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/connected-devices/:id", requireAuth, async (req, res) => {
+    try { const device = await storage.getConnectedDevice(req.params.id); if (!device) return res.status(404).json({ error: "Device not found" }); res.json(device); } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.post("/api/connected-devices", requireAuth, async (req, res) => {
+    try { const data = insertConnectedDeviceSchema.parse(req.body); res.status(201).json(await storage.createConnectedDevice(data)); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.patch("/api/connected-devices/:id", requireAuth, async (req, res) => {
+    try { const data = insertConnectedDeviceSchema.partial().parse(req.body); const device = await storage.updateConnectedDevice(req.params.id, data); if (!device) return res.status(404).json({ error: "Device not found" }); res.json(device); } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/connected-devices/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteConnectedDevice(req.params.id); res.json({ ok: true }); } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   // Home Automation (Home Assistant proxy)

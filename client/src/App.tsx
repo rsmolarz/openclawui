@@ -51,6 +51,7 @@ import MeetingPrep from "@/pages/meeting-prep";
 import SopLibrary from "@/pages/sop-library";
 import FocusTimer from "@/pages/focus-timer";
 import LifeCalendar from "@/pages/life-calendar";
+import ConnectedDevices from "@/pages/connected-devices";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { Loader2 } from "lucide-react";
 
@@ -98,6 +99,7 @@ function Router() {
       <Route path="/sop-library" component={SopLibrary} />
       <Route path="/focus-timer" component={FocusTimer} />
       <Route path="/life-calendar" component={LifeCalendar} />
+      <Route path="/connected-devices" component={ConnectedDevices} />
       <Route component={NotFound} />
     </Switch>
   );

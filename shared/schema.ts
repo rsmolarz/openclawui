@@ -564,6 +564,23 @@ export const insertFocusSessionSchema = createInsertSchema(focusSessions).omit({
 export type FocusSession = typeof focusSessions.$inferSelect;
 export type InsertFocusSession = z.infer<typeof insertFocusSessionSchema>;
 
+export const connectedDevices = pgTable("connected_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  deviceType: text("device_type").notNull().default("iphone"),
+  model: text("model"),
+  osVersion: text("os_version"),
+  serialNumber: text("serial_number"),
+  status: text("status").notNull().default("pending"),
+  lastSeen: timestamp("last_seen"),
+  ipAddress: text("ip_address"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertConnectedDeviceSchema = createInsertSchema(connectedDevices).omit({ id: true, lastSeen: true, createdAt: true });
+export type ConnectedDevice = typeof connectedDevices.$inferSelect;
+export type InsertConnectedDevice = z.infer<typeof insertConnectedDeviceSchema>;
+
 export const lifeEvents = pgTable("life_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),

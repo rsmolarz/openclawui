@@ -40,6 +40,7 @@ import {
   BookOpen,
   Timer,
   CalendarDays,
+  Smartphone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -107,6 +108,7 @@ const automationItems = [
   { title: "SOP Library", url: "/sop-library", icon: BookOpen },
   { title: "Focus Timer", url: "/focus-timer", icon: Timer },
   { title: "Life Calendar", url: "/life-calendar", icon: CalendarDays },
+  { title: "Connected Devices", url: "/connected-devices", icon: Smartphone },
 ];
 
 export function AppSidebar() {

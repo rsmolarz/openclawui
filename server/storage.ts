@@ -36,12 +36,13 @@ import {
   type MeetingPrep, type InsertMeetingPrep,
   type FocusSession, type InsertFocusSession,
   type LifeEvent, type InsertLifeEvent,
+  type ConnectedDevice, type InsertConnectedDevice,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
   auditLogs, replitProjects, projectEvaluations, omiTodos, omiSops,
-  healthLogs, groceryItems, financialTransactions, habits, habitCompletions, meetingPreps, focusSessions, lifeEvents,
+  healthLogs, groceryItems, financialTransactions, habits, habitCompletions, meetingPreps, focusSessions, lifeEvents, connectedDevices,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -234,6 +235,12 @@ export interface IStorage {
   createLifeEvent(data: InsertLifeEvent): Promise<LifeEvent>;
   updateLifeEvent(id: string, data: Partial<InsertLifeEvent>): Promise<LifeEvent | undefined>;
   deleteLifeEvent(id: string): Promise<void>;
+
+  getConnectedDevices(): Promise<ConnectedDevice[]>;
+  getConnectedDevice(id: string): Promise<ConnectedDevice | undefined>;
+  createConnectedDevice(data: InsertConnectedDevice): Promise<ConnectedDevice>;
+  updateConnectedDevice(id: string, data: Partial<InsertConnectedDevice> & { lastSeen?: Date }): Promise<ConnectedDevice | undefined>;
+  deleteConnectedDevice(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1101,6 +1108,25 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteLifeEvent(id: string): Promise<void> {
     await db.delete(lifeEvents).where(eq(lifeEvents.id, id));
+  }
+
+  async getConnectedDevices(): Promise<ConnectedDevice[]> {
+    return db.select().from(connectedDevices).orderBy(desc(connectedDevices.createdAt));
+  }
+  async getConnectedDevice(id: string): Promise<ConnectedDevice | undefined> {
+    const [device] = await db.select().from(connectedDevices).where(eq(connectedDevices.id, id));
+    return device;
+  }
+  async createConnectedDevice(data: InsertConnectedDevice): Promise<ConnectedDevice> {
+    const [device] = await db.insert(connectedDevices).values(data).returning();
+    return device;
+  }
+  async updateConnectedDevice(id: string, data: Partial<InsertConnectedDevice> & { lastSeen?: Date }): Promise<ConnectedDevice | undefined> {
+    const [device] = await db.update(connectedDevices).set(data).where(eq(connectedDevices.id, id)).returning();
+    return device;
+  }
+  async deleteConnectedDevice(id: string): Promise<void> {
+    await db.delete(connectedDevices).where(eq(connectedDevices.id, id));
   }
 }
 
