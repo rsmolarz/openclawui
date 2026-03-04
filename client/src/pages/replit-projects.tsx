@@ -952,18 +952,66 @@ function OmiInsightsTab() {
 function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<"app" | "editor" | "split">("app");
 
+  const allProjects = projects;
   const deployedProjects = projects.filter(p => p.deploymentUrl);
-  const active = deployedProjects.find(p => p.id === activeApp) || deployedProjects[0];
+  const sidebarProjects = viewMode === "app" ? deployedProjects : allProjects;
+  const active = sidebarProjects.find(p => p.id === activeApp) || sidebarProjects[0];
 
-  if (deployedProjects.length === 0) {
+  const getEditorUrl = (project: ReplitProject) => {
+    const url = project.url;
+    if (url && url.includes("replit.com")) {
+      return url.includes("?") ? `${url}&embed=true` : `${url}?embed=true`;
+    }
+    return `https://replit.com/@rsmolarz/${project.slug}?embed=true`;
+  };
+
+  if (allProjects.length === 0) {
     return (
       <div className="text-center py-16">
         <AppWindow className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-lg font-medium mb-1" data-testid="text-no-deployed">No Deployed Apps</h3>
+        <h3 className="text-lg font-medium mb-1" data-testid="text-no-deployed">No Projects</h3>
         <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-          Add deployment URLs to your projects to embed and interact with them directly from this dashboard.
+          Add projects to embed and interact with them directly from this dashboard.
         </p>
+      </div>
+    );
+  }
+
+  if (viewMode === "app" && deployedProjects.length === 0) {
+    return (
+      <div className="space-y-4" data-testid="panel-workbench">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2" data-testid="text-workbench-title">
+              <AppWindow className="h-5 w-5 text-blue-500" />
+              App Workbench
+            </h2>
+          </div>
+          <div className="flex items-center border rounded-lg overflow-hidden" data-testid="toggle-view-mode">
+            <button onClick={() => setViewMode("app")} className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground" data-testid="button-view-app">
+              <Globe className="h-3.5 w-3.5 inline mr-1" />App
+            </button>
+            <button onClick={() => setViewMode("editor")} className="px-3 py-1.5 text-xs font-medium hover:bg-muted" data-testid="button-view-editor">
+              <Code2 className="h-3.5 w-3.5 inline mr-1" />Editor
+            </button>
+            <button onClick={() => setViewMode("split")} className="px-3 py-1.5 text-xs font-medium hover:bg-muted" data-testid="button-view-split">
+              <Layers className="h-3.5 w-3.5 inline mr-1" />Split
+            </button>
+          </div>
+        </div>
+        <div className="text-center py-16">
+          <Globe className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-1">No Deployed Apps Found</h3>
+          <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+            Run "Sync All" on the Projects tab to discover deployment URLs, or switch to Editor view to edit code for any project.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setViewMode("editor")} data-testid="button-switch-to-editor">
+            <Code2 className="h-4 w-4 mr-2" />
+            Switch to Editor View
+          </Button>
+        </div>
       </div>
     );
   }
@@ -977,38 +1025,68 @@ function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
             App Workbench
           </h2>
           <p className="text-sm text-muted-foreground">
-            {deployedProjects.length} deployed app{deployedProjects.length !== 1 ? "s" : ""} available
+            {deployedProjects.length} deployed, {allProjects.length} total
           </p>
         </div>
-        {active && (
-          <div className="flex items-center gap-2">
-            <a href={active.deploymentUrl!} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm" data-testid="button-open-external">
-                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                Open External
-              </Button>
-            </a>
-            <a href={active.url} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm" data-testid="button-open-replit-editor">
-                <Code2 className="h-3.5 w-3.5 mr-1.5" />
-                Replit Editor
-              </Button>
-            </a>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExpanded(!expanded)}
-              data-testid="button-toggle-expand"
+        <div className="flex items-center gap-2">
+          <div className="flex items-center border rounded-lg overflow-hidden" data-testid="toggle-view-mode">
+            <button
+              onClick={() => setViewMode("app")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === "app" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              data-testid="button-view-app"
             >
-              {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            </Button>
+              <Globe className="h-3.5 w-3.5 inline mr-1" />
+              App
+            </button>
+            <button
+              onClick={() => setViewMode("editor")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === "editor" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              data-testid="button-view-editor"
+            >
+              <Code2 className="h-3.5 w-3.5 inline mr-1" />
+              Editor
+            </button>
+            <button
+              onClick={() => setViewMode("split")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === "split" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              data-testid="button-view-split"
+            >
+              <Layers className="h-3.5 w-3.5 inline mr-1" />
+              Split
+            </button>
           </div>
-        )}
+          {active && (
+            <>
+              {active.deploymentUrl && (
+                <a href={active.deploymentUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm" data-testid="button-open-external">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                    Open App
+                  </Button>
+                </a>
+              )}
+              <a href={active.url} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm" data-testid="button-open-replit-editor">
+                  <Code2 className="h-3.5 w-3.5 mr-1.5" />
+                  Open in Replit
+                </Button>
+              </a>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExpanded(!expanded)}
+                data-testid="button-toggle-expand"
+              >
+                {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className={`flex gap-4 ${expanded ? "flex-col" : ""}`}>
-        <div className={`${expanded ? "hidden" : "w-56 shrink-0"} space-y-1`}>
-          {deployedProjects.map(p => (
+        <div className={`${expanded ? "hidden" : "w-56 shrink-0"} space-y-1 max-h-[700px] overflow-y-auto`}>
+          {sidebarProjects.map(p => (
             <button
               key={p.id}
               onClick={() => setActiveApp(p.id)}
@@ -1018,11 +1096,11 @@ function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
               data-testid={`button-app-${p.id}`}
             >
               <div className="flex items-center gap-2">
-                <Globe className="h-3.5 w-3.5 shrink-0" />
+                {p.deploymentUrl ? <Globe className="h-3.5 w-3.5 shrink-0 text-green-500" /> : <Code2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                 <span className="truncate">{p.title}</span>
               </div>
               <p className="text-[10px] text-muted-foreground truncate mt-0.5 pl-5.5">
-                {p.deploymentUrl?.replace(/^https?:\/\//, "")}
+                {p.deploymentUrl ? p.deploymentUrl.replace(/^https?:\/\//, "") : p.slug}
               </p>
             </button>
           ))}
@@ -1032,22 +1110,82 @@ function WorkbenchTab({ projects }: { projects: ReplitProject[] }) {
           <div className="flex-1 min-w-0">
             <div className="bg-muted/50 rounded-lg p-2 mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0">
-                <Globe className="h-4 w-4 text-blue-500 shrink-0" />
+                {viewMode === "editor" ? <Code2 className="h-4 w-4 text-orange-500 shrink-0" /> : <Globe className="h-4 w-4 text-blue-500 shrink-0" />}
                 <span className="text-sm font-medium truncate" data-testid="text-active-app-title">{active.title}</span>
                 <Badge variant="outline" className="text-[10px] shrink-0">{active.language || "web"}</Badge>
+                {viewMode === "split" && <Badge variant="outline" className="text-[10px] shrink-0">Split View</Badge>}
               </div>
-              <span className="text-[10px] text-muted-foreground shrink-0">{active.deploymentUrl?.replace(/^https?:\/\//, "")}</span>
+              <span className="text-[10px] text-muted-foreground shrink-0">
+                {viewMode === "editor" ? active.slug : active.deploymentUrl?.replace(/^https?:\/\//, "") || active.slug}
+              </span>
             </div>
-            <div className={`border rounded-lg overflow-hidden bg-white dark:bg-black ${expanded ? "h-[85vh]" : "h-[600px]"}`}>
-              <iframe
-                key={active.id}
-                src={active.deploymentUrl!}
-                className="w-full h-full border-0"
-                title={active.title}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                data-testid="iframe-app-embed"
-              />
-            </div>
+
+            {viewMode === "split" ? (
+              <div className={`grid grid-cols-2 gap-2 ${expanded ? "h-[85vh]" : "h-[600px]"}`}>
+                <div className="border rounded-lg overflow-hidden bg-white dark:bg-black">
+                  <div className="bg-muted/50 px-3 py-1 text-[10px] font-medium text-muted-foreground border-b flex items-center gap-1">
+                    <Code2 className="h-3 w-3" /> Editor
+                  </div>
+                  <iframe
+                    key={`editor-${active.id}`}
+                    src={getEditorUrl(active)}
+                    className="w-full h-[calc(100%-24px)] border-0"
+                    title={`${active.title} - Editor`}
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                    data-testid="iframe-editor-embed"
+                  />
+                </div>
+                <div className="border rounded-lg overflow-hidden bg-white dark:bg-black">
+                  <div className="bg-muted/50 px-3 py-1 text-[10px] font-medium text-muted-foreground border-b flex items-center gap-1">
+                    <Globe className="h-3 w-3" /> App
+                  </div>
+                  {active.deploymentUrl ? (
+                    <iframe
+                      key={`app-${active.id}`}
+                      src={active.deploymentUrl}
+                      className="w-full h-[calc(100%-24px)] border-0"
+                      title={`${active.title} - App`}
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                      data-testid="iframe-app-embed"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-[calc(100%-24px)] text-sm text-muted-foreground">
+                      No deployment URL — run Sync All to discover
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : viewMode === "editor" ? (
+              <div className={`border rounded-lg overflow-hidden bg-white dark:bg-black ${expanded ? "h-[85vh]" : "h-[600px]"}`}>
+                <iframe
+                  key={`editor-${active.id}`}
+                  src={getEditorUrl(active)}
+                  className="w-full h-full border-0"
+                  title={`${active.title} - Editor`}
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  data-testid="iframe-editor-embed"
+                />
+              </div>
+            ) : active.deploymentUrl ? (
+              <div className={`border rounded-lg overflow-hidden bg-white dark:bg-black ${expanded ? "h-[85vh]" : "h-[600px]"}`}>
+                <iframe
+                  key={`app-${active.id}`}
+                  src={active.deploymentUrl}
+                  className="w-full h-full border-0"
+                  title={active.title}
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  data-testid="iframe-app-embed"
+                />
+              </div>
+            ) : (
+              <div className={`border rounded-lg flex items-center justify-center ${expanded ? "h-[85vh]" : "h-[600px]"}`}>
+                <div className="text-center">
+                  <Globe className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No deployment URL for this project</p>
+                  <p className="text-xs text-muted-foreground mt-1">Switch to Editor view or run Sync All to discover deployments</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1437,10 +1575,25 @@ export default function ReplitProjects() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/replit-projects"] });
-      toast({ title: "Scan complete", description: `Scanned ${data.scanned} slugs, discovered ${data.discovered} live deployments (${data.created} new)` });
+      toast({ title: "Scan complete", description: `Scanned ${data.scanned} slugs, discovered ${data.discovered} live (${data.created} new, ${data.updatedExisting || 0} existing updated)` });
     },
     onError: (err: any) => {
       toast({ title: "Scan failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const refreshDeploymentsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/replit-projects/refresh-deployments", {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/replit-projects"] });
+      const healthy = data.results?.filter((r: any) => r.status === "healthy").length || 0;
+      toast({ title: "Deployments refreshed", description: `${data.total} projects checked — ${healthy} healthy, ${data.discovered} newly discovered, ${data.updated} updated` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -1532,9 +1685,13 @@ export default function ReplitProjects() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => refreshDeploymentsMutation.mutate()} disabled={refreshDeploymentsMutation.isPending} data-testid="button-refresh-deployments">
+                {refreshDeploymentsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Sync All
+              </Button>
               <Button variant="outline" size="sm" onClick={() => scanDeploymentsMutation.mutate()} disabled={scanDeploymentsMutation.isPending} data-testid="button-scan-deployments">
                 {scanDeploymentsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Zap className="h-4 w-4 mr-2" />}
-                Scan Deployments
+                Discover
               </Button>
               <Button variant="outline" size="sm" onClick={() => setSyncDialogOpen(true)} data-testid="button-sync-replit">
                 <Upload className="h-4 w-4 mr-2" />
@@ -1542,7 +1699,7 @@ export default function ReplitProjects() {
               </Button>
               <Button variant="outline" size="sm" onClick={() => checkAllMutation.mutate()} disabled={checkAllMutation.isPending || !projects?.some((p) => p.deploymentUrl)} data-testid="button-check-all-deployments">
                 {checkAllMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
-                Check All
+                Health Check
               </Button>
               <Button size="sm" onClick={() => setAddOpen(true)} data-testid="button-add-project">
                 <Plus className="h-4 w-4 mr-2" />

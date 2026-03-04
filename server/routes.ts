@@ -7882,6 +7882,76 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
     }
   });
 
+  const checkSlugAlive = async (slug: string): Promise<{ slug: string; url: string; alive: boolean; status: number } | null> => {
+    const url = `https://${slug}.replit.app`;
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 6000);
+      const r = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "follow" });
+      clearTimeout(t);
+      if (r.ok || r.status === 301 || r.status === 302 || r.status === 308) {
+        return { slug, url, alive: true, status: r.status };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  app.post("/api/replit-projects/refresh-deployments", requireAuth, async (_req, res) => {
+    try {
+      const allProjects = await storage.getReplitProjects();
+      let updated = 0;
+      let discovered = 0;
+      const results: { slug: string; deploymentUrl: string | null; status: string }[] = [];
+
+      const batchSize = 8;
+      for (let i = 0; i < allProjects.length; i += batchSize) {
+        const batch = allProjects.slice(i, i + batchSize);
+        const checks = await Promise.allSettled(
+          batch.map(async (p) => {
+            const result = await checkSlugAlive(p.slug);
+            return { project: p, result };
+          })
+        );
+
+        for (const check of checks) {
+          if (check.status !== "fulfilled") continue;
+          const { project, result } = check.value;
+
+          if (result?.alive) {
+            const deployUrl = result.url;
+            const needsUpdate = !project.deploymentUrl || project.deploymentStatus !== "healthy";
+            if (needsUpdate) {
+              await storage.updateReplitProject(project.id, {
+                deploymentUrl: deployUrl,
+                deploymentStatus: "healthy",
+                lastSynced: new Date(),
+              });
+              if (!project.deploymentUrl) discovered++;
+              updated++;
+            }
+            results.push({ slug: project.slug, deploymentUrl: deployUrl, status: "healthy" });
+          } else {
+            if (project.deploymentUrl) {
+              await storage.updateReplitProject(project.id, {
+                deploymentStatus: "unreachable",
+                lastSynced: new Date(),
+              });
+              updated++;
+            }
+            results.push({ slug: project.slug, deploymentUrl: project.deploymentUrl, status: project.deploymentUrl ? "unreachable" : "no_deployment" });
+          }
+        }
+      }
+
+      logAudit(`Refreshed deployments: ${discovered} newly discovered, ${updated} updated`, "replit_project", undefined, _req.session.userId);
+      res.json({ total: allProjects.length, updated, discovered, results });
+    } catch (error: any) {
+      res.status(500).json({ error: "Refresh failed", details: error.message });
+    }
+  });
+
   app.post("/api/replit-projects/scan-deployments", requireAuth, async (req, res) => {
     try {
       const username = req.body.username || process.env.REPLIT_USERNAME || "rsmolarz";
@@ -7917,28 +7987,29 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
       const uniqueSlugs = [...new Set(knownSlugs.map(s => s.toLowerCase()))].filter(s => !existingSlugs.has(s));
       const discovered: any[] = [];
 
-      const checkSlug = async (slug: string) => {
-        const url = `https://${slug}.replit.app`;
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 6000);
-          const r = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "follow" });
-          clearTimeout(timeout);
-          if (r.ok || r.status === 301 || r.status === 302 || r.status === 308) {
-            return { slug, url, alive: true, status: r.status };
-          }
-          return null;
-        } catch {
-          return null;
-        }
-      };
-
       const batchSize = 10;
       for (let i = 0; i < uniqueSlugs.length; i += batchSize) {
         const batch = uniqueSlugs.slice(i, i + batchSize);
-        const results = await Promise.allSettled(batch.map(checkSlug));
+        const results = await Promise.allSettled(batch.map(checkSlugAlive));
         for (const r of results) {
           if (r.status === "fulfilled" && r.value) discovered.push(r.value);
+        }
+      }
+
+      let updatedExisting = 0;
+      const missingDeployment = existingProjects.filter(p => !p.deploymentUrl);
+      for (let i = 0; i < missingDeployment.length; i += batchSize) {
+        const batch = missingDeployment.slice(i, i + batchSize);
+        const results = await Promise.allSettled(batch.map(p => checkSlugAlive(p.slug).then(r => ({ project: p, result: r }))));
+        for (const r of results) {
+          if (r.status === "fulfilled" && r.value.result) {
+            await storage.updateReplitProject(r.value.project.id, {
+              deploymentUrl: r.value.result.url,
+              deploymentStatus: "healthy",
+              lastSynced: new Date(),
+            });
+            updatedExisting++;
+          }
         }
       }
 
@@ -7971,8 +8042,8 @@ Suggest 3 practical code improvements. Return JSON array with objects having: ti
         }
       }
 
-      logAudit(`Scanned deployments: ${discovered.length} discovered, ${created} new`, "replit_project", undefined, req.session.userId);
-      res.json({ scanned: uniqueSlugs.length, discovered: discovered.length, created, projects: discovered });
+      logAudit(`Scanned deployments: ${discovered.length} discovered, ${created} new, ${updatedExisting} existing updated`, "replit_project", undefined, req.session.userId);
+      res.json({ scanned: uniqueSlugs.length, discovered: discovered.length, created, updatedExisting, projects: discovered });
     } catch (error: any) {
       res.status(500).json({ error: "Scan failed", details: error.message });
     }
