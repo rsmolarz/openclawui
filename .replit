@@ -59,4 +59,4 @@ REPLIT_USERNAME = "rsmolarz"
 APP_BASE_URL = "https://claw-settings.replit.app"
 
 [agent]
-integrations = ["google-mail:1.0.0", "google-calendar:1.0.0"]
+integrations = ["google-mail:1.0.0", "google-calendar:1.0.0", "github:1.0.0"]

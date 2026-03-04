@@ -38,12 +38,13 @@ import {
   type LifeEvent, type InsertLifeEvent,
   type ConnectedDevice, type InsertConnectedDevice,
   type ProjectFile, type InsertProjectFile,
+  type GithubRepo, type InsertGithubRepo,
   settings, machines, apiKeys, vpsConnections, dockerServices, openclawConfig, llmApiKeys, integrations, users, whatsappSessions, openclawInstances, skills,
   docs, vpsConnectionLogs, nodeSetupSessions, onboardingChecklist,
   aiConversations, aiMessages, guardianLogs, featureProposals,
   automationJobs, automationRuns, metricsEvents, emailWorkflows,
   auditLogs, replitProjects, projectEvaluations, omiTodos, omiSops,
-  healthLogs, groceryItems, financialTransactions, habits, habitCompletions, meetingPreps, focusSessions, lifeEvents, connectedDevices, projectFiles,
+  healthLogs, groceryItems, financialTransactions, habits, habitCompletions, meetingPreps, focusSessions, lifeEvents, connectedDevices, projectFiles, githubRepos,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -248,6 +249,12 @@ export interface IStorage {
   createProjectFile(data: InsertProjectFile): Promise<ProjectFile>;
   updateProjectFile(id: string, data: Partial<InsertProjectFile> & { updatedAt?: Date }): Promise<ProjectFile | undefined>;
   deleteProjectFile(id: string): Promise<void>;
+
+  getGithubRepos(): Promise<GithubRepo[]>;
+  getGithubRepo(id: string): Promise<GithubRepo | undefined>;
+  getGithubRepoByGithubId(githubId: number): Promise<GithubRepo | undefined>;
+  upsertGithubRepo(data: InsertGithubRepo): Promise<GithubRepo>;
+  deleteGithubRepo(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1153,6 +1160,48 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteProjectFile(id: string): Promise<void> {
     await db.delete(projectFiles).where(eq(projectFiles.id, id));
+  }
+
+  async getGithubRepos(): Promise<GithubRepo[]> {
+    return db.select().from(githubRepos).orderBy(desc(githubRepos.lastPushedAt));
+  }
+  async getGithubRepo(id: string): Promise<GithubRepo | undefined> {
+    const [repo] = await db.select().from(githubRepos).where(eq(githubRepos.id, id));
+    return repo;
+  }
+  async getGithubRepoByGithubId(githubId: number): Promise<GithubRepo | undefined> {
+    const [repo] = await db.select().from(githubRepos).where(eq(githubRepos.githubId, githubId));
+    return repo;
+  }
+  async upsertGithubRepo(data: InsertGithubRepo): Promise<GithubRepo> {
+    const [repo] = await db.insert(githubRepos).values(data)
+      .onConflictDoUpdate({
+        target: githubRepos.githubId,
+        set: {
+          name: data.name,
+          fullName: data.fullName,
+          description: data.description,
+          language: data.language,
+          isPrivate: data.isPrivate,
+          isFork: data.isFork,
+          htmlUrl: data.htmlUrl,
+          cloneUrl: data.cloneUrl,
+          sshUrl: data.sshUrl,
+          defaultBranch: data.defaultBranch,
+          stargazersCount: data.stargazersCount,
+          forksCount: data.forksCount,
+          openIssuesCount: data.openIssuesCount,
+          size: data.size,
+          topics: data.topics,
+          lastPushedAt: data.lastPushedAt,
+          lastSyncedAt: data.lastSyncedAt,
+        },
+      })
+      .returning();
+    return repo;
+  }
+  async deleteGithubRepo(id: string): Promise<void> {
+    await db.delete(githubRepos).where(eq(githubRepos.id, id));
   }
 }
 

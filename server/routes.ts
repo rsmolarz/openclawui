@@ -9050,6 +9050,114 @@ Score each project 1-10 on revenue, brand, and trading. Composite = weighted ave
     }
   });
 
+  // ===== GITHUB REPOS ROUTES =====
+  app.get("/api/github/repos", requireAuth, async (_req, res) => {
+    try {
+      const repos = await storage.getGithubRepos();
+      res.json(repos);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch GitHub repos" });
+    }
+  });
+
+  app.post("/api/github/sync", requireAuth, async (_req, res) => {
+    try {
+      const { fetchAllUserRepos } = await import("./github");
+      const remoteRepos = await fetchAllUserRepos();
+      let synced = 0;
+      for (const r of remoteRepos) {
+        await storage.upsertGithubRepo({
+          githubId: r.id,
+          name: r.name,
+          fullName: r.full_name,
+          owner: r.owner?.login || "",
+          description: r.description || null,
+          language: r.language || null,
+          isPrivate: r.private || false,
+          isFork: r.fork || false,
+          htmlUrl: r.html_url,
+          cloneUrl: r.clone_url || null,
+          sshUrl: r.ssh_url || null,
+          defaultBranch: r.default_branch || "main",
+          stargazersCount: r.stargazers_count || 0,
+          forksCount: r.forks_count || 0,
+          openIssuesCount: r.open_issues_count || 0,
+          size: r.size || 0,
+          topics: r.topics || [],
+          lastPushedAt: r.pushed_at ? new Date(r.pushed_at) : null,
+          lastSyncedAt: new Date(),
+        });
+        synced++;
+      }
+      logAudit(`Synced ${synced} GitHub repositories`, "github", undefined, _req.session.userId);
+      res.json({ synced, total: remoteRepos.length });
+    } catch (error: any) {
+      console.error("[GitHub Sync] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/github/repos/:id/visibility", requireAuth, async (req, res) => {
+    try {
+      const { z } = await import("zod");
+      const schema = z.object({ isPrivate: z.boolean() });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "isPrivate (boolean) is required" });
+      const { updateRepoVisibility } = await import("./github");
+      const repo = await storage.getGithubRepo(req.params.id);
+      if (!repo) return res.status(404).json({ error: "Repo not found" });
+      const newPrivate = parsed.data.isPrivate;
+      await updateRepoVisibility(repo.owner, repo.name, newPrivate);
+      const updated = await storage.upsertGithubRepo({
+        ...repo,
+        isPrivate: newPrivate,
+        lastSyncedAt: new Date(),
+      });
+      logAudit(`Set ${repo.fullName} to ${newPrivate ? "private" : "public"}`, "github", repo.id, req.session.userId);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[GitHub Visibility] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/github/repos/bulk-visibility", requireAuth, async (req, res) => {
+    try {
+      const { z } = await import("zod");
+      const schema = z.object({ repoIds: z.array(z.string()), isPrivate: z.boolean() });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "repoIds (string[]) and isPrivate (boolean) required" });
+      const { updateRepoVisibility } = await import("./github");
+      const { repoIds, isPrivate } = parsed.data;
+      const results: { id: string; success: boolean; error?: string }[] = [];
+      for (const id of repoIds) {
+        try {
+          const repo = await storage.getGithubRepo(id);
+          if (!repo) { results.push({ id, success: false, error: "Not found" }); continue; }
+          await updateRepoVisibility(repo.owner, repo.name, isPrivate);
+          await storage.upsertGithubRepo({ ...repo, isPrivate, lastSyncedAt: new Date() });
+          results.push({ id, success: true });
+        } catch (err: any) {
+          results.push({ id, success: false, error: err.message });
+        }
+      }
+      const successCount = results.filter(r => r.success).length;
+      logAudit(`Bulk set ${successCount}/${repoIds.length} repos to ${isPrivate ? "private" : "public"}`, "github", undefined, req.session.userId);
+      res.json({ results, successCount, totalCount: repoIds.length });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/github/repos/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteGithubRepo(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete repo record" });
+    }
+  });
+
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);

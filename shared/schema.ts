@@ -595,6 +595,33 @@ export const insertProjectFileSchema = createInsertSchema(projectFiles).omit({ i
 export type ProjectFile = typeof projectFiles.$inferSelect;
 export type InsertProjectFile = z.infer<typeof insertProjectFileSchema>;
 
+export const githubRepos = pgTable("github_repos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  githubId: integer("github_id").notNull().unique(),
+  name: text("name").notNull(),
+  fullName: text("full_name").notNull(),
+  owner: text("owner").notNull(),
+  description: text("description"),
+  language: text("language"),
+  isPrivate: boolean("is_private").notNull().default(false),
+  isFork: boolean("is_fork").notNull().default(false),
+  htmlUrl: text("html_url").notNull(),
+  cloneUrl: text("clone_url"),
+  sshUrl: text("ssh_url"),
+  defaultBranch: text("default_branch").default("main"),
+  stargazersCount: integer("stargazers_count").default(0),
+  forksCount: integer("forks_count").default(0),
+  openIssuesCount: integer("open_issues_count").default(0),
+  size: integer("size").default(0),
+  topics: text("topics").array(),
+  lastPushedAt: timestamp("last_pushed_at"),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertGithubRepoSchema = createInsertSchema(githubRepos).omit({ id: true, createdAt: true });
+export type GithubRepo = typeof githubRepos.$inferSelect;
+export type InsertGithubRepo = z.infer<typeof insertGithubRepoSchema>;
+
 export const lifeEvents = pgTable("life_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
